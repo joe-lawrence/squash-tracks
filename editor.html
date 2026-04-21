@@ -17,6 +17,8 @@
       --lane-tts: #a78bfa;
       --lane-sfx: #2dd4bf;
       --btn: #1a1d24;
+      /** Brighter than `--line` for emphasis (borders, playhead) — not quite white. */
+      --line-bright: color-mix(in srgb, var(--line) 22%, #e8eaef 78%);
       --lane-label-w: 140px;
       /** Ruler time-scale: padding above ticks + track height (sum = `.ruler-selected-rep-border-line` bottom inset). */
       --ruler-scale-pad-top: 6px;
@@ -35,25 +37,41 @@
       padding: 1.25rem 1.5rem 2.5rem;
     }
     header {
-      display: flex;
-      flex-wrap: wrap;
-      align-items: flex-start;
-      justify-content: space-between;
-      gap: 1rem;
-      margin-bottom: 1rem;
+      display: block;
+      margin-bottom: 0.85rem;
     }
-    h1 {
-      font-size: 1.15rem;
+    .workout-name-trigger {
+      display: block;
+      width: 100%;
+      max-width: min(28rem, 100%);
+      font: inherit;
+      text-align: left;
+      font-size: 1.05rem;
       font-weight: 600;
-      margin: 0;
       letter-spacing: -0.02em;
+      margin: 0;
+      padding: 0.5rem 0.7rem;
+      border: 1px solid var(--line);
+      background: var(--rail);
+      border-radius: 8px;
+      color: var(--text);
+      cursor: pointer;
+      line-height: 1.3;
     }
-    a.back {
-      color: #94a3b8;
-      text-decoration: none;
-      font-size: 0.85rem;
+    .workout-name-trigger:hover {
+      border-color: #5b6474;
+      background: #1a1d25;
     }
-    a.back:hover { color: var(--lane-sfx); }
+    .workout-name-trigger:focus-visible {
+      outline: 2px solid var(--lane-sfx);
+      outline-offset: 2px;
+    }
+    .workout-name-text {
+      display: block;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
 
     .toolbar {
       display: flex;
@@ -113,6 +131,314 @@
       border-color: #b91c1c;
       color: #fecaca;
     }
+
+    /* —— Workout presentation (in-editor) —— */
+    .presentation-panel {
+      background: linear-gradient(180deg, #12141a 0%, #0e1015 100%);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 0.55rem 0.7rem 0.65rem;
+      margin-bottom: 0.85rem;
+    }
+    .presentation-panel-chrome {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: flex-start;
+      gap: 0.5rem 0.9rem;
+      margin-bottom: 0.45rem;
+      padding-bottom: 0.45rem;
+      border-bottom: 1px solid rgba(42, 47, 58, 0.85);
+    }
+    .pres-preview-collapse-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+      font-family: "JetBrains Mono", monospace;
+      font-size: 0.7rem;
+      font-weight: 500;
+      padding: 0.3rem 0.45rem;
+      border-radius: 6px;
+      border: 1px solid var(--line);
+      background: #141820;
+      color: #cbd5e1;
+      cursor: pointer;
+    }
+    .pres-preview-collapse-btn:hover {
+      border-color: #5b6474;
+      background: #1c2430;
+    }
+    .pres-preview-collapse-btn:focus-visible {
+      outline: 2px solid var(--lane-sfx);
+      outline-offset: 2px;
+    }
+    .pres-preview-collapse-btn .pres-chevron {
+      display: block;
+      transition: transform 0.2s ease;
+    }
+    .pres-preview-collapse-btn[aria-expanded="false"] .pres-chevron {
+      transform: rotate(-90deg);
+    }
+    .pres-collapsible[hidden] {
+      display: none !important;
+    }
+    .presentation-aspect-field {
+      display: flex;
+      align-items: center;
+      gap: 0.45rem;
+      font-size: 0.72rem;
+      color: var(--dim);
+    }
+    .presentation-aspect-field label {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.45rem;
+      cursor: pointer;
+    }
+    .presentation-aspect-field select {
+      font-family: "JetBrains Mono", monospace;
+      font-size: 0.7rem;
+      padding: 0.28rem 0.4rem;
+      border-radius: 6px;
+      border: 1px solid var(--line);
+      background: #0d0f12;
+      color: var(--text);
+      max-width: min(20rem, 100%);
+    }
+    .presentation-chrome-hint {
+      font-size: 0.62rem;
+      color: var(--dim);
+      opacity: 0.9;
+    }
+    /** Letterboxed “device” stage — simulates full-screen margins. */
+    .presentation-device-shell {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 88px;
+      padding: 0.4rem 0.35rem;
+      background: radial-gradient(ellipse 80% 70% at 50% 40%, #151820 0%, #07080c 72%);
+      border-radius: 8px;
+      border: 1px solid #1e232e;
+    }
+    .presentation-device-frame {
+      box-sizing: border-box;
+      margin: 0 auto;
+      border-radius: 14px;
+      border: 2px solid #2a3140;
+      box-shadow:
+        0 0 0 1px rgba(0, 0, 0, 0.45),
+        0 10px 24px rgba(0, 0, 0, 0.45),
+        inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+      background: #050608;
+      overflow: hidden;
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+    .presentation-device-frame[data-aspect="9-16"] {
+      aspect-ratio: 9 / 16;
+      width: min(260px, 100%);
+      max-height: min(52vh, 460px);
+    }
+    .presentation-device-frame[data-aspect="9-19_5"] {
+      aspect-ratio: 9 / 19.5;
+      width: min(248px, 100%);
+      max-height: min(54vh, 500px);
+    }
+    .presentation-device-frame[data-aspect="16-9"] {
+      aspect-ratio: 16 / 9;
+      width: min(440px, 100%);
+      max-height: min(34vh, 260px);
+    }
+    /** Inner “fullscreen” viewport (what the PWA would show). */
+    .presentation-device-screen {
+      container-type: size;
+      container-name: presdev;
+      flex: 1 1 auto;
+      min-height: 0;
+      box-sizing: border-box;
+      padding: 0.65rem 0.75rem 0.75rem;
+      padding: clamp(0.55rem, 4cqmin, 0.95rem) clamp(0.6rem, 4.5cqmin, 1rem) clamp(0.65rem, 4cqmin, 1rem);
+      display: flex;
+      flex-direction: column;
+      background: linear-gradient(165deg, #0c0e12 0%, #060708 100%);
+    }
+    /** Top bar: workout name | timing (transport lives in `.presentation-panel-footer`). */
+    .presentation-panel-header {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 0.25rem 0.4rem;
+      margin-bottom: 0.35rem;
+      flex-shrink: 0;
+    }
+    .presentation-panel-footer {
+      flex-shrink: 0;
+      margin-top: auto;
+      padding-top: 0.4rem;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+    .pres-head-name {
+      font-size: 0.8rem;
+      font-size: clamp(0.68rem, 4.2cqmin, 0.82rem);
+      font-weight: 600;
+      letter-spacing: -0.02em;
+      margin: 0;
+      color: var(--text);
+      line-height: 1.2;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      text-align: left;
+    }
+    .pres-head-time {
+      font-family: "JetBrains Mono", monospace;
+      font-size: 0.65rem;
+      font-size: clamp(0.58rem, 3.5cqmin, 0.72rem);
+      color: #94a3b8;
+      white-space: nowrap;
+      text-align: right;
+      justify-self: end;
+    }
+    .presentation-panel-controls {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.22rem;
+      justify-content: center;
+      justify-self: center;
+      max-width: 100%;
+    }
+    .presentation-panel-footer .presentation-panel-controls .pres-icon-btn {
+      width: clamp(1.75rem, 7.8cqmin, 2.05rem);
+      height: clamp(1.75rem, 7.8cqmin, 2.05rem);
+    }
+    #presBtnRewind,
+    #presBtnFastForward {
+      touch-action: none;
+    }
+    .presentation-panel-controls button.pres-icon-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 2.1rem;
+      height: 2.1rem;
+      width: clamp(2rem, 10cqmin, 2.35rem);
+      height: clamp(2rem, 10cqmin, 2.35rem);
+      padding: 0;
+      border-radius: 8px;
+      border: 1px solid #3d4656;
+      background: #141820;
+      color: #e2e8f0;
+      cursor: pointer;
+    }
+    .presentation-panel-controls button.pres-icon-btn svg {
+      display: block;
+      flex-shrink: 0;
+    }
+    .presentation-panel-controls button.pres-icon-btn:hover {
+      border-color: #5b6474;
+      background: #1c2430;
+    }
+    .presentation-panel-controls button.pres-icon-btn:focus-visible {
+      outline: 2px solid var(--lane-sfx);
+      outline-offset: 2px;
+    }
+    .presentation-meta-row {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      font-size: 0.68rem;
+      font-size: clamp(0.6rem, 3.6cqmin, 0.72rem);
+      margin-bottom: 0.35rem;
+      flex-shrink: 0;
+    }
+    .presentation-meta-row.presentation-meta-row--rep-only {
+      justify-content: flex-end;
+    }
+    .presentation-meta-row.presentation-meta-row--part-only {
+      justify-content: flex-start;
+    }
+    .presentation-part-info,
+    .presentation-rep-info {
+      display: flex;
+      align-items: baseline;
+      gap: 0.25rem;
+    }
+    .presentation-part-info {
+      font-weight: 600;
+      color: #a5b4fc;
+    }
+    .presentation-rep-info {
+      font-weight: 500;
+      color: #cbd5e1;
+    }
+    .presentation-cue-wrap {
+      flex: 1 1 auto;
+      min-height: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0.12rem 0 0.3rem;
+      padding: 0.1rem 0;
+    }
+    .presentation-cue-stack {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 0.28rem;
+      max-width: 100%;
+      text-align: center;
+    }
+    .presentation-cue-heading {
+      font-size: 1.28rem;
+      font-size: clamp(1.05rem, 10cqmin, 1.75rem);
+      font-weight: 700;
+      line-height: 1.22;
+      letter-spacing: -0.02em;
+      margin: 0;
+      color: #f8fafc;
+      max-width: 100%;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+    }
+    .presentation-cue-body {
+      font-size: 0.88rem;
+      font-size: clamp(0.78rem, 5.5cqmin, 1.05rem);
+      font-weight: 500;
+      line-height: 1.35;
+      margin: 0;
+      color: #cbd5e1;
+      max-width: 100%;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+    }
+    .presentation-cue-body.presentation-cue-placeholder {
+      color: #64748b;
+      font-weight: 600;
+    }
+    .presentation-progress {
+      height: 6px;
+      height: clamp(4px, 1.2cqmin, 7px);
+      border-radius: 3px;
+      background: #1e222b;
+      overflow: hidden;
+      border: 1px solid #2a303c;
+      flex-shrink: 0;
+    }
+    .presentation-progress-fill {
+      height: 100%;
+      width: 0%;
+      border-radius: 2px;
+      background: linear-gradient(90deg, #34d399, var(--lane-sfx));
+    }
+
     .toolbar .sep {
       width: 1px;
       height: 1.25rem;
@@ -487,6 +813,61 @@
       position: relative;
       min-width: 100%;
       background: var(--rail);
+    }
+    /**
+     * Playhead X is set in JS from #ruler-inner’s box (same as hit-testing).
+     * Do not use % of .timeline-wide here: `min-width: 100%` can make the wide wider than
+     * label + track px, which mis-scales `calc(…%… * fr)` vs the fixed-width ruler.
+     */
+    .timeline-playback-playhead {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: 0;
+      width: 10px;
+      margin-left: 0;
+      transform: translateX(-50%);
+      background: none;
+      box-shadow: none;
+      border-radius: 0;
+      pointer-events: auto;
+      cursor: ew-resize;
+      touch-action: none;
+      z-index: 19;
+    }
+    .timeline-playback-playhead::after {
+      content: "";
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: 50%;
+      width: 2px;
+      margin-left: -1px;
+      border-radius: 1px;
+      background: linear-gradient(
+        180deg,
+        color-mix(in srgb, var(--line-bright) 45%, #ffffff 55%),
+        var(--line-bright)
+      );
+      box-shadow:
+        0 0 4px color-mix(in srgb, var(--line) 12%, #ffffff 88%),
+        0 0 12px color-mix(in srgb, var(--line) 35%, #ffffff 65%),
+        0 0 20px rgba(42, 47, 58, 0.42);
+      pointer-events: none;
+    }
+    .timeline-playback-playhead[hidden] {
+      display: none;
+    }
+    .timeline-playback-playhead.selected::after {
+      background: linear-gradient(
+        180deg,
+        rgba(255, 210, 80, 1),
+        rgba(251, 191, 36, 0.92)
+      );
+      box-shadow:
+        0 0 6px rgba(251, 191, 36, 0.7),
+        0 0 14px rgba(251, 191, 36, 0.45),
+        0 0 24px rgba(251, 191, 36, 0.25);
     }
     .timeline-grid-overlay {
       position: absolute;
@@ -1173,10 +1554,9 @@
 </head>
 <body>
   <header>
-    <div>
-      <h1>Rep timeline editor</h1>
-    </div>
-    <a class="back" href="index.html">← Hub</a>
+    <button type="button" class="workout-name-trigger" id="workoutNameTrigger" title="Edit workout name" aria-label="Workout name, click to edit">
+      <span class="workout-name-text" id="workoutNameDisplay">New Workout</span>
+    </button>
   </header>
 
   <div class="toolbar">
@@ -1318,6 +1698,86 @@
     </span>
   </div>
 
+  <section class="presentation-panel" id="presentation-panel" aria-label="Workout presentation">
+    <div class="presentation-panel-chrome">
+      <button type="button" class="pres-preview-collapse-btn" id="presPreviewToggle" aria-expanded="true" aria-controls="presCollapsible" title="Show or hide the device preview">
+        <span>Preview</span>
+        <svg class="pres-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="m6 9 6 6 6-6" />
+        </svg>
+      </button>
+      <div class="presentation-aspect-field">
+        <label for="presAspectSelect">
+          Ratio
+          <select id="presAspectSelect" aria-label="Presentation preview aspect ratio">
+            <option value="9-16">Phone portrait (9∶16)</option>
+            <option value="9-19_5">Tall phone (9∶19.5)</option>
+            <option value="16-9">Phone landscape (16∶9)</option>
+          </select>
+        </label>
+      </div>
+      <p class="presentation-chrome-hint">Device-style frame; transport sits at the bottom of the preview.</p>
+    </div>
+    <div class="pres-collapsible" id="presCollapsible">
+    <div class="presentation-device-shell">
+      <div class="presentation-device-frame" id="presDeviceFrame" data-aspect="9-16">
+        <div class="presentation-device-screen">
+          <div class="presentation-panel-header">
+            <p class="pres-head-name" id="presWorkoutTitle">New Workout</p>
+            <span class="pres-head-time" id="presTime" aria-live="polite">0.0s / 0.0s</span>
+          </div>
+          <div class="presentation-cue-wrap">
+            <div class="presentation-cue-stack" aria-live="polite">
+              <p class="presentation-cue-heading" id="presCueHeading" hidden></p>
+              <p class="presentation-cue-body presentation-cue-placeholder" id="presCueBody">—</p>
+            </div>
+          </div>
+          <div class="presentation-meta-row">
+            <span class="presentation-part-info"><span id="presPartName">Part 1</span> (<span id="presPartCounter">1 / 1</span>)</span>
+            <span class="presentation-rep-info"><span id="presRepName">Rep 1</span> (<span id="presRepCounter">1 / 1</span>)</span>
+          </div>
+          <div class="presentation-progress" aria-hidden="true">
+            <div class="presentation-progress-fill" id="presProgressFill"></div>
+          </div>
+          <div class="presentation-panel-footer">
+            <div class="presentation-panel-controls" role="group" aria-label="Presentation transport">
+              <button type="button" class="pres-icon-btn" id="presBtnSkipStart" title="Start of this rep — or previous rep if within 1 s of rep start" aria-label="Start of this rep, or previous rep if within one second of rep start">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <polygon points="19 20 9 12 19 4 19 20" />
+                  <line x1="5" x2="5" y1="19" y2="5" />
+                </svg>
+              </button>
+              <button type="button" class="pres-icon-btn" id="presBtnRewind" title="Rewind (hold)" aria-label="Rewind timeline while held">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <polygon points="11 19 2 12 11 5 11 19" />
+                  <polygon points="22 19 13 12 22 5 22 19" />
+                </svg>
+              </button>
+              <button type="button" class="pres-icon-btn" id="presBtnPlayPause" aria-label="Play workout" title="Play">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <polygon points="6 3 20 12 6 21 6 3" />
+                </svg>
+              </button>
+              <button type="button" class="pres-icon-btn" id="presBtnFastForward" title="Fast forward (hold)" aria-label="Fast forward timeline while held">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <polygon points="13 19 22 12 13 5 13 19" />
+                  <polygon points="2 19 11 12 2 5 2 19" />
+                </svg>
+              </button>
+              <button type="button" class="pres-icon-btn" id="presBtnSkipEnd" title="Start of next rep — or end of this rep on the last rep" aria-label="Start of next rep, or end of this rep when on the last rep of the workout">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <polygon points="5 4 15 12 5 20 5 4" />
+                  <line x1="19" x2="19" y1="5" y2="19" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    </div>
+  </section>
+
   <p class="toast" id="toast" aria-live="polite"></p>
 
   <div class="timeline-section-heading">
@@ -1376,6 +1836,13 @@
         <div class="rep-displace-hint-overlay" id="rep-displace-hint-overlay" aria-hidden="true"></div>
         <div class="rep-selection-overlay" id="rep-selection-overlay" aria-hidden="true"></div>
         <div class="rep-drag-preview-host" id="rep-drag-preview-host" aria-hidden="true"></div>
+        <div
+          class="timeline-playback-playhead"
+          id="timelinePlaybackPlayhead"
+          hidden
+          aria-hidden="true"
+          title="Time playhead — drag horizontally to scrub (set preview and workout time)"
+        ></div>
       </div>
     </div>
     </div>
@@ -1387,6 +1854,16 @@
       <div class="field">
         <label for="editCueName">Name</label>
         <input type="text" id="editCueName" maxlength="48" autocomplete="off" spellcheck="false" />
+      </div>
+      <div id="clipTextHeadingBodyWrap" hidden>
+        <div class="field">
+          <label for="editCueHeading">Heading</label>
+          <textarea id="editCueHeading" rows="3" maxlength="8000" autocomplete="off" spellcheck="true"></textarea>
+        </div>
+        <div class="field">
+          <label for="editCueBody">Body</label>
+          <textarea id="editCueBody" rows="4" maxlength="8000" autocomplete="off" spellcheck="true"></textarea>
+        </div>
       </div>
       <div class="field">
         <label for="editStart">Start — global time (s)</label>
@@ -1448,6 +1925,21 @@
         <button type="button" class="danger" id="partEditRemove" style="margin-right:auto;border-color:#7f1d1d;color:#fecaca">Remove</button>
         <button type="button" id="partEditCancel">Cancel</button>
         <button type="button" class="primary" id="partEditSave">Apply</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="workoutNameModal" aria-hidden="true">
+    <div class="modal" role="dialog" aria-labelledby="workoutNameModalTitle" aria-modal="true">
+      <h3 id="workoutNameModalTitle">Workout name</h3>
+      <p class="modal-desc" style="margin: 0 0 0.6rem; font-size: 0.78rem; color: var(--dim); line-height: 1.45">Shown in the header and in the run preview. Name cannot be empty.</p>
+      <div class="field">
+        <label for="workoutNameInput">Name</label>
+        <input type="text" id="workoutNameInput" maxlength="64" autocomplete="off" spellcheck="false" />
+      </div>
+      <div class="actions">
+        <button type="button" id="workoutNameModalCancel">Cancel</button>
+        <button type="button" class="primary" id="workoutNameModalSave">Apply</button>
       </div>
     </div>
   </div>
@@ -1656,12 +2148,17 @@
     </div>
   </div>
 
+  <script src="js/workoutPresentation.js"></script>
   <script>
     (function () {
       const FILE_VERSION_SINGLE = 1;
       const FILE_VERSION_MULTI = 2;
       const DEFAULT_ORDER = ["text", "tts", "sfx"];
       const DEFAULT_INTERVAL_FALLBACK = 4.5;
+      const DEFAULT_WORKOUT_NAME = "New Workout";
+      const WORKOUT_NAME_MAX_LEN = 64;
+      const PRES_PREVIEW_COLLAPSE_KEY = "repEditorPresPreviewCollapsed";
+      let workoutName = DEFAULT_WORKOUT_NAME;
 
       const LANES = [
         { id: "text", label: "Text", clipLabel: "TXT" },
@@ -1927,11 +2424,15 @@
       const clipModal = document.getElementById("clipModal");
       const partEditModal = document.getElementById("partEditModal");
       const partEditNameInput = document.getElementById("partEditNameInput");
+      const workoutNameModal = document.getElementById("workoutNameModal");
       const repNameModal = document.getElementById("repNameModal");
       const unsavedWorkoutModal = document.getElementById("unsavedWorkoutModal");
       const repNameInput = document.getElementById("repNameInput");
       const repIntervalInput = document.getElementById("repIntervalInput");
       const editCueName = document.getElementById("editCueName");
+      const clipTextHeadingBodyWrap = document.getElementById("clipTextHeadingBodyWrap");
+      const editCueHeading = document.getElementById("editCueHeading");
+      const editCueBody = document.getElementById("editCueBody");
       const editStart = document.getElementById("editStart");
       const editDuration = document.getElementById("editDuration");
       const editSfxKind = document.getElementById("editSfxKind");
@@ -2005,6 +2506,7 @@
           selectedClipKeys: [...selectedClipKeys],
           clipGroupMode,
           partSidebarActiveRingVisible,
+          workoutName: workoutName,
         };
       }
 
@@ -2039,6 +2541,10 @@
         for (const x of s.selectedClipKeys) selectedClipKeys.add(x);
         clipGroupMode = !!s.clipGroupMode;
         partSidebarActiveRingVisible = s.partSidebarActiveRingVisible === true;
+        if (Object.prototype.hasOwnProperty.call(s, "workoutName")) {
+          const w = s.workoutName != null ? String(s.workoutName).trim() : "";
+          workoutName = w ? w.slice(0, WORKOUT_NAME_MAX_LEN) : DEFAULT_WORKOUT_NAME;
+        }
         const gBtn = document.getElementById("btnCueGroup");
         if (gBtn) {
           gBtn.classList.toggle("pressed", clipGroupMode);
@@ -2168,6 +2674,20 @@
         return r;
       }
 
+      const TEXT_CUE_HEADING_BODY_MAX = 8000;
+
+      function normalizeTextCuePresentationFields(heading, body) {
+        function norm(s) {
+          if (s == null) return "";
+          return String(s)
+            .replace(/\r\n/g, "\n")
+            .replace(/\r/g, "\n")
+            .trim()
+            .slice(0, TEXT_CUE_HEADING_BODY_MAX);
+        }
+        return { heading: norm(heading), body: norm(body) };
+      }
+
       function normalizeEvent(e) {
         if (!e || typeof e !== "object") return null;
         const lane = e.lane;
@@ -2186,6 +2706,11 @@
           out.name = String(e.name).trim().slice(0, 48);
         } else {
           out.name = defaultNewCueName(lane, sfxK);
+        }
+        if (lane === "text") {
+          const { heading, body } = normalizeTextCuePresentationFields(e.heading, e.body);
+          if (heading) out.heading = heading;
+          if (body) out.body = body;
         }
         return out;
       }
@@ -2277,12 +2802,24 @@
         return { name: nm, elementId: eid, defaultIntervalSec: di, reps: r };
       }
 
+      function parseWorkoutNameFromData(data) {
+        if (!data || typeof data !== "object") return DEFAULT_WORKOUT_NAME;
+        let w = data.workoutName != null ? String(data.workoutName).trim() : "";
+        if (!w && !Array.isArray(data.segments) && Array.isArray(data.reps)) {
+          const n = data.name != null ? String(data.name).trim() : "";
+          if (n) w = n;
+        }
+        if (!w) w = DEFAULT_WORKOUT_NAME;
+        return w.slice(0, WORKOUT_NAME_MAX_LEN);
+      }
+
       function parseWorkoutJson(text) {
         const data = JSON.parse(text);
         if (!data || typeof data !== "object") throw new Error("Root must be an object");
         if (data.version !== undefined && Number(data.version) > FILE_VERSION_MULTI) {
           showToast("Warning: file version newer than editor");
         }
+        const wn = parseWorkoutNameFromData(data);
         if (Array.isArray(data.segments)) {
           if (data.segments.length === 0) throw new Error('Empty "segments" array');
           const segmentsOut = [];
@@ -2299,7 +2836,7 @@
                 : genElementId();
             segmentsOut.push({ name: nm, elementId: eid, defaultIntervalSec: di, reps: r });
           }
-          return { segments: segmentsOut };
+          return { segments: segmentsOut, workoutName: wn };
         }
         if (!Array.isArray(data.reps)) throw new Error('Missing "reps" array (or "segments")');
         const { reps: r, defaultIntervalSec: di } = normalizeImportedRepsArray(data.reps, data.defaultIntervalSec);
@@ -2309,11 +2846,17 @@
           data.elementId != null && String(data.elementId).trim()
             ? String(data.elementId).trim().slice(0, 80)
             : genElementId();
-        return { segments: [{ name: nm, elementId: eid, defaultIntervalSec: di, reps: r }] };
+        return { segments: [{ name: nm, elementId: eid, defaultIntervalSec: di, reps: r }], workoutName: wn };
+      }
+
+      function normalizeWorkoutNameForFile() {
+        const s = (workoutName && String(workoutName).trim()) || DEFAULT_WORKOUT_NAME;
+        return s.slice(0, WORKOUT_NAME_MAX_LEN);
       }
 
       function serializeWorkout() {
         flushActiveSegmentMeta();
+        const wn = normalizeWorkoutNameForFile();
         if (segments.length === 1) {
           const s0 = segments[0];
           let partName = String(s0.name || "").trim().slice(0, 48);
@@ -2321,6 +2864,7 @@
           return JSON.stringify(
             {
               version: FILE_VERSION_SINGLE,
+              workoutName: wn,
               name: partName,
               elementId: s0.elementId || genElementId(),
               defaultIntervalSec: snapTime(s0.defaultIntervalSec),
@@ -2333,6 +2877,7 @@
         return JSON.stringify(
           {
             version: FILE_VERSION_MULTI,
+            workoutName: wn,
             segments: segments.map((s) => ({
               name: String(s.name || "").trim().slice(0, 48),
               elementId: s.elementId || genElementId(),
@@ -2449,6 +2994,7 @@
       function resetToNewWorkout() {
         historyApplying = true;
         try {
+          workoutName = DEFAULT_WORKOUT_NAME;
           segments = [
             {
               name: "Part 1",
@@ -2521,6 +3067,7 @@
 
       function activateSegment(newIdx, emphasizePartsSidebar = false) {
         if (newIdx < 0 || newIdx >= segments.length) return;
+        deselectPlayhead();
         flushActiveSegmentMeta();
         activeSegmentIndex = newIdx;
         bindActiveSegmentPointers();
@@ -3038,6 +3585,7 @@
           selectedClipKeys.size === 0 &&
           selectedRepIndices.size === 0;
         if (solo) {
+          seekPreviewToPartStart(from);
           selectedSegmentIndices.clear();
           if (from !== activeSegmentIndex) {
             activateSegment(from, true);
@@ -3080,6 +3628,7 @@
           }
           if (!selectedSegmentIndices.has(activeSegmentIndex)) {
             const sorted2 = [...selectedSegmentIndices].sort((a, b) => a - b);
+            seekPreviewToPartStart(sorted2[0]);
             activateSegment(sorted2[0], true);
             return;
           }
@@ -3088,6 +3637,7 @@
           return;
         }
         selectedSegmentIndices.clear();
+        seekPreviewToPartStart(from);
         activateSegment(from, true);
       }
 
@@ -3783,6 +4333,7 @@
           return;
         }
         if (r >= repCount()) return;
+        deselectPlayhead();
         partSidebarActiveRingVisible = false;
         selectedSegmentIndices.clear();
         selectedClipKeys.clear();
@@ -3795,6 +4346,7 @@
         updateSelectedRepLabel();
         updateCueToolbarState();
         refreshRulerSelectionDecor();
+        seekPreviewToActiveRepStart(r);
       }
 
       function clearRepSelection() {
@@ -4069,14 +4621,17 @@
       }
 
       function replaceClipSelection(r, eventIndex) {
+        deselectPlayhead();
         selectedClipKeys.clear();
         selectedClipKeys.add(clipKey(r, eventIndex));
         syncRepIndicesFromClipSelection();
         maybeClearClipKeyboardResize();
+        seekPreviewToActiveRepStart(r);
       }
 
       /** Replace selection with a contiguous index range on one rep (e.g. after paste). */
       function selectClipRangeOnRep(r, startIdx, count) {
+        deselectPlayhead();
         selectedClipKeys.clear();
         for (let j = 0; j < count; j++) {
           selectedClipKeys.add(clipKey(r, startIdx + j));
@@ -4087,6 +4642,7 @@
 
       /** Replace selection with all cues in a rigid group (e.g. after group move). */
       function selectClipKeysFromGroupMembers(members) {
+        deselectPlayhead();
         selectedClipKeys.clear();
         for (const m of members) {
           selectedClipKeys.add(clipKey(m.r, m.eventIdx));
@@ -4096,6 +4652,7 @@
       }
 
       function toggleClipInSelection(r, eventIndex) {
+        deselectPlayhead();
         const k = clipKey(r, eventIndex);
         if (selectedClipKeys.has(k)) selectedClipKeys.delete(k);
         else selectedClipKeys.add(k);
@@ -4406,6 +4963,11 @@
             if (ev.lane === "sfx") o.sfxKind = ev.sfxKind === "shot" ? "shot" : "split";
             const nm = String(ev.name || "").trim();
             if (nm) o.name = nm.slice(0, 48);
+            if (ev.lane === "text") {
+              const hb = normalizeTextCuePresentationFields(ev.heading, ev.body);
+              if (hb.heading) o.heading = hb.heading;
+              if (hb.body) o.body = hb.body;
+            }
             return o;
           });
           return {
@@ -4442,6 +5004,11 @@
               };
               if (cat === "sfx") o.sfxKind = e.sfxKind === "shot" ? "shot" : "split";
               if (e.name != null && String(e.name).trim()) o.name = String(e.name).trim().slice(0, 48);
+              if (cat === "text") {
+                const hb = normalizeTextCuePresentationFields(e.heading, e.body);
+                if (hb.heading) o.heading = hb.heading;
+                if (hb.body) o.body = hb.body;
+              }
               return o;
             }),
           };
@@ -4793,6 +5360,14 @@
         editDuration.dispatchEvent(new Event("input", { bubbles: true }));
         sfxKindWrap.hidden = cat !== "sfx";
         if (cat === "sfx") editSfxKind.value = ev.sfxKind === "shot" ? "shot" : "split";
+        if (clipTextHeadingBodyWrap) clipTextHeadingBodyWrap.hidden = cat !== "text";
+        if (cat === "text" && editCueHeading && editCueBody) {
+          editCueHeading.value = ev.heading != null ? String(ev.heading) : "";
+          editCueBody.value = ev.body != null ? String(ev.body) : "";
+        } else if (editCueHeading && editCueBody) {
+          editCueHeading.value = "";
+          editCueBody.value = "";
+        }
         const startLbl = document.querySelector('label[for="editStart"]');
         if (startLbl) startLbl.textContent = "Start — rep-relative time (s)";
         const cr = document.getElementById("clipModalRemove");
@@ -5019,6 +5594,11 @@
                 };
                 const nm = e.name != null ? String(e.name).trim() : "";
                 if (nm) o.name = nm.slice(0, 48);
+                if (cat === "text") {
+                  const hb = normalizeTextCuePresentationFields(e.heading, e.body);
+                  if (hb.heading) o.heading = hb.heading;
+                  if (hb.body) o.body = hb.body;
+                }
                 return o;
               }),
             };
@@ -5165,6 +5745,11 @@
           if (ev.lane === "sfx") o.sfxKind = ev.sfxKind === "shot" ? "shot" : "split";
           const nm = String(ev.name || "").trim();
           if (nm) o.name = nm.slice(0, 48);
+          if (ev.lane === "text") {
+            const hb = normalizeTextCuePresentationFields(ev.heading, ev.body);
+            if (hb.heading) o.heading = hb.heading;
+            if (hb.body) o.body = hb.body;
+          }
           return o;
         });
         repClipboard = null;
@@ -5364,6 +5949,11 @@
             };
             const nm = item.name != null ? String(item.name).trim() : "";
             if (nm) o.name = nm.slice(0, 48);
+            if (item.lane === "text") {
+              const hb = normalizeTextCuePresentationFields(item.heading, item.body);
+              if (hb.heading) o.heading = hb.heading;
+              if (hb.body) o.body = hb.body;
+            }
             return o;
           });
           if (!plannedNewCuesPlacementValid(planned)) continue;
@@ -5481,6 +6071,11 @@
           ev.elementId = genElementId();
           const nm = p.name != null && String(p.name).trim() ? String(p.name).trim().slice(0, 48) : "";
           ev.name = nm || defaultNewCueName(ev.lane, ev.sfxKind);
+          if (p.lane === "text") {
+            const hb = normalizeTextCuePresentationFields(p.heading, p.body);
+            if (hb.heading) ev.heading = hb.heading;
+            if (hb.body) ev.body = hb.body;
+          }
           reps[rTarget].events.push(ev);
         }
         selectClipRangeOnRep(rTarget, pasteStartIdx, planned.length);
@@ -5665,14 +6260,14 @@
       function trackPointerFromClientX(clientX) {
         if (!rulerEl) return null;
         const rr = rulerEl.getBoundingClientRect();
-        const trackPx = Math.max(1, timelineTrackWidthPx);
+        const w = Math.max(1e-6, rr.width);
         const raw = clientX - rr.left;
-        if (raw < -4 || raw > trackPx + 4) return null;
-        const mx = Math.min(Math.max(0, raw), trackPx);
+        if (raw < -4 || raw > w + 4) return null;
+        const mx = Math.min(Math.max(0, raw), w);
         const totalT = totalTimelineSec();
         if (totalT < 1e-9) return null;
-        const posSec = (mx / trackPx) * totalT;
-        return { mx, w: trackPx, posSec };
+        const posSec = (mx / w) * totalT;
+        return { mx, w, posSec };
       }
 
       /** Clear parts-column ring + group highlight and refresh sidebar DOM (call after changing flags alone). */
@@ -5687,6 +6282,8 @@
        * Toolbar, parts column, and clip modal leave selection unchanged. Bubble phase so control handlers run first.
        */
       function onDocumentClearClipSelection(e) {
+        if (e.target.closest("header")) return;
+        if (e.target.closest("#presentation-panel")) return;
         if (e.target.closest(".clip")) return;
         if (e.target.closest(".toolbar")) return;
         if (e.target.closest("#library-toolbar")) return;
@@ -5697,6 +6294,12 @@
         if (partEditModal && partEditModal.classList.contains("open") && e.target.closest("#partEditModal .modal"))
           return;
         if (
+          workoutNameModal &&
+          workoutNameModal.classList.contains("open") &&
+          e.target.closest("#workoutNameModal .modal")
+        )
+          return;
+        if (
           unsavedWorkoutModal &&
           unsavedWorkoutModal.classList.contains("open") &&
           e.target.closest("#unsavedWorkoutModal .modal")
@@ -5705,6 +6308,7 @@
         if (settingsModal && settingsModal.classList.contains("open") && e.target.closest("#settingsModal .modal")) return;
         if (libItemDeleteModal && libItemDeleteModal.classList.contains("open") && e.target.closest("#libItemDeleteModal .modal"))
           return;
+        deselectPlayhead();
         clearPartSidebarVisualFocus();
         clearClipSelection();
         selectRep(-1);
@@ -5717,6 +6321,9 @@
        */
       function onTimelineWideClick(e) {
         if (e.target.closest(".clip")) return;
+        /** Playhead: synthetic click would map `clientX` through the full ruler and seek a rep (big jump). */
+        if (e.target.closest(".timeline-playback-playhead")) return;
+        deselectPlayhead();
         clearPartSidebarVisualFocus();
         clearClipSelection();
         if (e.target.closest(".ruler-row .timeline-gutter")) {
@@ -5737,8 +6344,10 @@
           return;
         }
         if (totalTimelineSec() < 1e-9) return;
-        selectRep(repIndexAtGlobalSec(hit.posSec));
+        const rHit = repIndexAtGlobalSec(hit.posSec);
+        selectRep(rHit);
         refreshAll();
+        scrollPlaybackPlayheadIntoView();
       }
 
       /**
@@ -6287,6 +6896,30 @@
         const f = Math.round((sec % 1) * 10);
         if (sec < 60) return (Math.round(sec * 10) / 10).toFixed(1) + "s";
         return m + ":" + String(s).padStart(2, "0") + (f ? "." + f : "");
+      }
+
+      /** Format a time value: < 60s as "45.3s", >= 60s as "1:23" */
+      function formatPresentationTime(sec) {
+        const s = Math.max(0, Number(sec) || 0);
+        if (s < 60) {
+          return (Math.round(s * 10) / 10).toFixed(1) + "s";
+        }
+        const mins = Math.floor(s / 60);
+        const secs = Math.floor(s % 60);
+        return mins + ":" + String(secs).padStart(2, "0");
+      }
+
+      /** Presentation clock: `0.7s / 9.0s` or `1:23 / 5:00` */
+      function formatPresentationElapsedTotal(globalSec, totalSec) {
+        return formatPresentationTime(globalSec) + " / " + formatPresentationTime(totalSec);
+      }
+
+      function syncWorkoutNameUI() {
+        const w = (workoutName && String(workoutName).trim()) || DEFAULT_WORKOUT_NAME;
+        const d = document.getElementById("workoutNameDisplay");
+        if (d) d.textContent = w;
+        const t = document.getElementById("workoutNameTrigger");
+        if (t) t.setAttribute("title", "Workout: " + w + " — click to edit");
       }
 
       /**
@@ -6910,6 +7543,14 @@
         editDuration.dispatchEvent(new Event("input", { bubbles: true }));
         sfxKindWrap.hidden = ev.lane !== "sfx";
         if (ev.lane === "sfx") editSfxKind.value = ev.sfxKind === "shot" ? "shot" : "split";
+        if (clipTextHeadingBodyWrap) clipTextHeadingBodyWrap.hidden = ev.lane !== "text";
+        if (ev.lane === "text" && editCueHeading && editCueBody) {
+          editCueHeading.value = ev.heading != null ? String(ev.heading) : "";
+          editCueBody.value = ev.body != null ? String(ev.body) : "";
+        } else if (editCueHeading && editCueBody) {
+          editCueHeading.value = "";
+          editCueBody.value = "";
+        }
         replaceClipSelection(r, eventIndex);
         clipModal.classList.add("open");
         clipModal.setAttribute("aria-hidden", "false");
@@ -6924,6 +7565,9 @@
         if (cr) cr.style.display = "";
         clipModal.classList.remove("open");
         clipModal.setAttribute("aria-hidden", "true");
+        if (clipTextHeadingBodyWrap) clipTextHeadingBodyWrap.hidden = true;
+        if (editCueHeading) editCueHeading.value = "";
+        if (editCueBody) editCueBody.value = "";
         clipEditContext = null;
       }
 
@@ -7084,6 +7728,12 @@
         if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
           if (!targetIsTextEntryField(e.target)) {
             if (!isAnyAppModalOpen()) {
+              if (playheadSelected) {
+                e.preventDefault();
+                const step = e.key === "ArrowRight" ? TIME_SNAP_SEC : -TIME_SNAP_SEC;
+                nudgePlayhead(step);
+                return;
+              }
               const step = e.key === "ArrowRight" ? TIME_SNAP_SEC : -TIME_SNAP_SEC;
               if (clipKeyboardResizeMode && !clipGroupMode) {
                 e.preventDefault();
@@ -7200,6 +7850,10 @@
         }
         if (partEditModal && partEditModal.classList.contains("open")) {
           closePartEditor();
+          return;
+        }
+        if (playheadSelected) {
+          deselectPlayhead();
           return;
         }
         if (clipModal.classList.contains("open")) closeClipEditor();
@@ -7334,6 +7988,16 @@
           const nm = editCueName ? String(editCueName.value || "").trim().slice(0, 48) : "";
           if (nm) ev.name = nm;
           else delete ev.name;
+          if (cat === "text") {
+            const hb = normalizeTextCuePresentationFields(
+              editCueHeading && editCueHeading.value,
+              editCueBody && editCueBody.value
+            );
+            if (hb.heading) ev.heading = hb.heading;
+            else delete ev.heading;
+            if (hb.body) ev.body = hb.body;
+            else delete ev.body;
+          }
           ev.relStart = st;
           ev.duration = dur;
           let validated;
@@ -7388,6 +8052,16 @@
 
         const nm = editCueName ? String(editCueName.value || "").trim().slice(0, 48) : "";
         ev.name = nm || defaultNewCueName(ev.lane, ev.sfxKind);
+        if (ev.lane === "text") {
+          const hb = normalizeTextCuePresentationFields(
+            editCueHeading && editCueHeading.value,
+            editCueBody && editCueBody.value
+          );
+          if (hb.heading) ev.heading = hb.heading;
+          else delete ev.heading;
+          if (hb.body) ev.body = hb.body;
+          else delete ev.body;
+        }
         ev.start = st;
         ev.duration = dur;
         closeClipEditor();
@@ -7662,9 +8336,11 @@
             if (!d.moved) {
               endGroupDragVisual(d.groupDrag);
               if (clipGroupMode) {
+                seekPreviewToActiveRepStart(d.r);
                 toggleClipInSelection(d.r, d.eventIdx);
                 syncClipSelectionClass();
                 updateCueToolbarState();
+                refreshAll();
                 return;
               }
               if (clipSelected(d.r, d.eventIdx) && selectedClipKeys.size === 1) {
@@ -7674,6 +8350,7 @@
                 replaceClipSelection(d.r, d.eventIdx);
                 syncClipSelectionClass();
                 updateCueToolbarState();
+                refreshAll();
               }
               return;
             }
@@ -7844,6 +8521,773 @@
         syncSegmentSelectUI();
         syncSaveButtonEnabled();
         refreshLibrarySelect();
+        syncWorkoutNameUI();
+        presentationRender();
+        syncPlaybackWithTimeline();
+      }
+
+      // —— Presentation mode (full workout: all parts, wall-clock transport) ——
+      let presPlaying = false;
+      let presTimeSec = 0;
+      let presRafId = 0;
+      let presWallLast = 0;
+      let presSyncingTimeline = false;
+      let playheadSelected = false;
+      /** Hold-to-scrub: −1 rewind, +1 fast-forward (workout seconds per wall second = PRES_SCRUB_RATE). */
+      let presScrubDir = 0;
+      let presScrubAnimId = 0;
+      let presScrubLastFrameTs = 0;
+      let presScrubPointerAc = null;
+      let presScrubCaptureEl = null;
+      let presScrubCapturePid = -1;
+      const PRES_SCRUB_RATE = 4;
+
+      function selectPlayhead() {
+        playheadSelected = true;
+        clearClipSelection();
+        clearRepSelection();
+        clearPartSidebarVisualFocus();
+        const line = document.getElementById("timelinePlaybackPlayhead");
+        if (line) line.classList.add("selected");
+      }
+
+      function deselectPlayhead() {
+        playheadSelected = false;
+        const line = document.getElementById("timelinePlaybackPlayhead");
+        if (line) line.classList.remove("selected");
+      }
+
+      function nudgePlayhead(deltaSec) {
+        if (typeof WorkoutPresentation === "undefined") return;
+        pausePreviewForSeek();
+        const WP = WorkoutPresentation;
+        const maxG = WP.totalWorkoutDuration(segments);
+        presTimeSec = snapTime(Math.max(0, Math.min(presTimeSec + deltaSec, maxG)));
+        const loc = WP.locateGlobalTime(segments, presTimeSec);
+        if (loc.segmentIndex !== activeSegmentIndex) {
+          presSyncingTimeline = true;
+          try {
+            activateSegment(loc.segmentIndex, false);
+          } finally {
+            presSyncingTimeline = false;
+          }
+        } else {
+          layoutPlaybackPlayhead();
+        }
+        presentationRender();
+        scrollPlaybackPlayheadIntoView();
+      }
+
+      function pausePreviewForSeek() {
+        presPlaying = false;
+        presStopRaf();
+        presSyncPlayButton();
+      }
+
+      function seekPreviewToEventStart(r, eventIndex) {
+        if (typeof WorkoutPresentation === "undefined") return;
+        ensureEvents(r);
+        const ev = reps[r] && reps[r].events ? reps[r].events[eventIndex] : null;
+        if (!ev) return;
+        pausePreviewForSeek();
+        const g0 = WorkoutPresentation.cumulativeSegmentStart(segments, activeSegmentIndex);
+        presTimeSec = WorkoutPresentation.snapTime(g0 + snapTime(ev.start));
+        presClampTimeToWorkout();
+      }
+
+      function seekPreviewToPartStart(segmentIndex) {
+        if (typeof WorkoutPresentation === "undefined") return;
+        pausePreviewForSeek();
+        presTimeSec = WorkoutPresentation.globalSecAtRepStart(segments, segmentIndex, 0);
+        presClampTimeToWorkout();
+      }
+
+      function seekPreviewToActiveRepStart(repIndex) {
+        if (typeof WorkoutPresentation === "undefined" || repIndex < 0) return;
+        pausePreviewForSeek();
+        presTimeSec = WorkoutPresentation.globalSecAtRepStart(segments, activeSegmentIndex, repIndex);
+        presClampTimeToWorkout();
+      }
+
+      /**
+       * Position playhead using layout coordinates (CSS pixels, unaffected by CSS zoom).
+       * The ruler is inside .ruler-row (position: relative), so we compute the ruler's
+       * left edge relative to #timeline-wide by walking up the offset chain.
+       * CSS applies `transform: translateX(-50%)` so the line centers on x.
+       */
+      function layoutPlaybackPlayhead() {
+        const line = document.getElementById("timelinePlaybackPlayhead");
+        const wide = document.getElementById("timeline-wide");
+        if (!line || !wide || !rulerEl || typeof WorkoutPresentation === "undefined") return;
+        const total = totalTimelineSec();
+        if (total < 1e-9) {
+          line.hidden = true;
+          return;
+        }
+        const WP = WorkoutPresentation;
+        const g0 = WP.cumulativeSegmentStart(segments, activeSegmentIndex);
+        const local = Math.max(0, Math.min(presTimeSec - g0, total));
+        const fr = local / total;
+        let rulerLeftInWide = 0;
+        let el = rulerEl;
+        while (el && el !== wide) {
+          rulerLeftInWide += el.offsetLeft;
+          el = el.offsetParent;
+        }
+        const x = rulerLeftInWide + fr * rulerEl.offsetWidth;
+        line.style.left = x + "px";
+        line.hidden = false;
+        line.setAttribute("aria-hidden", "false");
+      }
+
+      /** Keep the session playhead in the horizontal scroll viewport (DAW / NLE style). */
+      function scrollPlaybackPlayheadIntoView() {
+        const scrollEl = document.getElementById("timeline-scroll");
+        const line = document.getElementById("timelinePlaybackPlayhead");
+        if (!scrollEl || !line || line.hidden) return;
+        const pr = line.getBoundingClientRect();
+        const sr = scrollEl.getBoundingClientRect();
+        const margin = 64;
+        if (pr.left < sr.left + margin) {
+          scrollEl.scrollLeft -= sr.left + margin - pr.left;
+        } else if (pr.right > sr.right - margin) {
+          scrollEl.scrollLeft += pr.right - (sr.right - margin);
+        }
+      }
+
+      function autoScrollPlaybackTimeline() {
+        if (!presPlaying) return;
+        scrollPlaybackPlayheadIntoView();
+      }
+
+      /**
+       * Playhead drag: offset-based for true 1:1 tracking.
+       * Records offset from mouse to playhead center on pointerdown.
+       * On pointermove, positions playhead at (mouseX - offset), derives time from that X.
+       */
+      function onPlayheadPointerDown(e) {
+        if (e.button !== 0 || !e.isPrimary) return;
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+        if (typeof WorkoutPresentation === "undefined" || !rulerEl) return;
+
+        const line = e.currentTarget;
+        const pointerId = e.pointerId;
+        const lineRect = line.getBoundingClientRect();
+        const lineCenterX = lineRect.left + lineRect.width / 2;
+        const dragOffset = e.clientX - lineCenterX;
+        let moved = false;
+
+        pausePreviewForSeek();
+
+        const ac = new AbortController();
+
+        const onMove = (ev) => {
+          if (ev.pointerId !== pointerId) return;
+          ev.preventDefault();
+          if (!moved) {
+            moved = true;
+            selectPlayhead();
+          }
+
+          const targetScreenX = ev.clientX - dragOffset;
+          const rulerRect = rulerEl.getBoundingClientRect();
+          const rulerW = Math.max(1, rulerRect.width);
+          const fr = Math.max(0, Math.min(1, (targetScreenX - rulerRect.left) / rulerW));
+
+          const total = totalTimelineSec();
+          const rawLocal = fr * total;
+          const WP = WorkoutPresentation;
+          const g0 = WP.cumulativeSegmentStart(segments, activeSegmentIndex);
+          const maxG = WP.totalWorkoutDuration(segments);
+          presTimeSec = Math.max(0, Math.min(g0 + rawLocal, maxG));
+
+          const loc = WP.locateGlobalTime(segments, presTimeSec);
+          if (loc.segmentIndex !== activeSegmentIndex) {
+            presSyncingTimeline = true;
+            try {
+              activateSegment(loc.segmentIndex, false);
+            } finally {
+              presSyncingTimeline = false;
+            }
+          } else {
+            layoutPlaybackPlayhead();
+          }
+          presentationRender();
+          scrollPlaybackPlayheadIntoView();
+        };
+
+        const onEnd = (ev) => {
+          if (ev.pointerId !== pointerId) return;
+          ac.abort();
+          ev.preventDefault();
+          try {
+            if (line.hasPointerCapture && line.hasPointerCapture(pointerId)) {
+              line.releasePointerCapture(pointerId);
+            }
+          } catch (_) {}
+          if (moved) {
+            presTimeSec = snapTime(presTimeSec);
+            presClampTimeToWorkout();
+          } else {
+            selectPlayhead();
+          }
+          syncPlaybackWithTimeline();
+          presentationRender();
+          scrollPlaybackPlayheadIntoView();
+        };
+
+        window.addEventListener("pointermove", onMove, { signal: ac.signal, passive: false, capture: true });
+        window.addEventListener("pointerup", onEnd, { signal: ac.signal, capture: true });
+        window.addEventListener("pointercancel", onEnd, { signal: ac.signal, capture: true });
+
+        try {
+          line.setPointerCapture(pointerId);
+        } catch (_) {}
+      }
+
+      function syncPlaybackWithTimeline() {
+        if (typeof WorkoutPresentation === "undefined") return;
+        if (presSyncingTimeline) return;
+        flushActiveSegmentMeta();
+        const WP = WorkoutPresentation;
+        const maxG = WP.totalWorkoutDuration(segments);
+        presTimeSec = Math.max(0, Math.min(presTimeSec, maxG));
+        const loc = WP.locateGlobalTime(segments, presTimeSec);
+        if (loc.segmentIndex !== activeSegmentIndex) {
+          presSyncingTimeline = true;
+          try {
+            activateSegment(loc.segmentIndex, false);
+          } finally {
+            presSyncingTimeline = false;
+          }
+          return;
+        }
+        layoutPlaybackPlayhead();
+        if (presPlaying) autoScrollPlaybackTimeline();
+      }
+
+      function presClampTimeToWorkout() {
+        flushActiveSegmentMeta();
+        if (typeof WorkoutPresentation === "undefined") return;
+        const maxT = WorkoutPresentation.totalWorkoutDuration(segments);
+        presTimeSec = Math.max(0, Math.min(presTimeSec, maxT));
+      }
+
+      function presStopRaf() {
+        if (presRafId) {
+          cancelAnimationFrame(presRafId);
+          presRafId = 0;
+        }
+      }
+
+      const PRES_SVG_PLAY =
+        '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="6 3 20 12 6 21 6 3" /></svg>';
+      const PRES_SVG_PAUSE =
+        '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="14" y="4" width="4" height="16" rx="1" /><rect x="6" y="4" width="4" height="16" rx="1" /></svg>';
+
+      function presSyncPlayButton() {
+        const btn = document.getElementById("presBtnPlayPause");
+        if (!btn) return;
+        if (presPlaying) {
+          btn.innerHTML = PRES_SVG_PAUSE;
+          btn.setAttribute("aria-label", "Pause workout");
+          btn.setAttribute("title", "Pause");
+        } else {
+          btn.innerHTML = PRES_SVG_PLAY;
+          btn.setAttribute("aria-label", "Play workout");
+          btn.setAttribute("title", "Play");
+        }
+      }
+
+      function presentationRender() {
+        if (typeof WorkoutPresentation === "undefined") return;
+        const WP = WorkoutPresentation;
+        flushActiveSegmentMeta();
+        presClampTimeToWorkout();
+        const frame = WP.presentationFrame(segments, presTimeSec);
+        const titleEl = document.getElementById("presWorkoutTitle");
+        const timeEl = document.getElementById("presTime");
+        const partEl = document.getElementById("presPartName");
+        const partCtrEl = document.getElementById("presPartCounter");
+        const repCtrEl = document.getElementById("presRepCounter");
+        const repNameEl = document.getElementById("presRepName");
+        const barEl = document.getElementById("presProgressFill");
+        if (titleEl) {
+          const wn = (workoutName && String(workoutName).trim()) || DEFAULT_WORKOUT_NAME;
+          titleEl.textContent = wn;
+        }
+        if (timeEl) {
+          timeEl.textContent = formatPresentationElapsedTotal(frame.globalSec, frame.workoutTotal);
+        }
+        const cueHeadEl = document.getElementById("presCueHeading");
+        const cueBodyEl = document.getElementById("presCueBody");
+        const cueActive = !!frame.cuePresentationActive;
+        const ch = frame.cueHeading != null ? String(frame.cueHeading) : "";
+        const cb = frame.cueBody != null ? String(frame.cueBody) : "";
+        if (cueHeadEl) {
+          cueHeadEl.textContent = ch;
+          cueHeadEl.hidden = !cueActive || !ch;
+        }
+        if (cueBodyEl) {
+          cueBodyEl.classList.remove("presentation-cue-placeholder");
+          if (!cueActive) {
+            cueBodyEl.textContent = "—";
+            cueBodyEl.hidden = false;
+            cueBodyEl.classList.add("presentation-cue-placeholder");
+          } else if (!ch && !cb) {
+            cueBodyEl.textContent = "—";
+            cueBodyEl.hidden = false;
+            cueBodyEl.classList.add("presentation-cue-placeholder");
+          } else if (ch && !cb) {
+            cueBodyEl.textContent = "";
+            cueBodyEl.hidden = true;
+          } else {
+            cueBodyEl.textContent = cb;
+            cueBodyEl.hidden = false;
+          }
+        }
+        const partInfoWrap = partEl ? partEl.closest(".presentation-part-info") : null;
+        const repInfoWrap = repNameEl ? repNameEl.closest(".presentation-rep-info") : null;
+        const metaRow = partInfoWrap ? partInfoWrap.closest(".presentation-meta-row") : null;
+        const hidePart = !!frame.presentationHidePartInfo;
+        const hideRep = !!frame.presentationHideRepInfo;
+        if (partInfoWrap) partInfoWrap.style.display = hidePart ? "none" : "";
+        if (repInfoWrap) repInfoWrap.style.display = hideRep ? "none" : "";
+        if (!hidePart && partEl) partEl.textContent = frame.partName || "—";
+        if (!hidePart && partCtrEl) partCtrEl.textContent = (frame.partIndex + 1) + " / " + frame.partCount;
+        if (!hideRep && repNameEl) repNameEl.textContent = frame.repName || "Rep 1";
+        if (!hideRep && repCtrEl) repCtrEl.textContent = (frame.repIndex + 1) + " / " + frame.repCount;
+        if (metaRow) {
+          metaRow.style.display = hidePart && hideRep ? "none" : "";
+          metaRow.classList.toggle("presentation-meta-row--rep-only", hidePart && !hideRep);
+          metaRow.classList.toggle("presentation-meta-row--part-only", !hidePart && hideRep);
+        }
+        if (barEl) barEl.style.width = (frame.repProgress01 * 100).toFixed(2) + "%";
+      }
+
+      function presTick(now) {
+        presRafId = 0;
+        if (!presPlaying) return;
+        if (typeof WorkoutPresentation === "undefined") {
+          presPlaying = false;
+          presSyncPlayButton();
+          return;
+        }
+        const WP = WorkoutPresentation;
+        const dt = (now - presWallLast) / 1000;
+        presWallLast = now;
+        const maxT = WP.totalWorkoutDuration(segments);
+        presTimeSec = Math.min(presTimeSec + dt, maxT);
+        const loc = WP.locateGlobalTime(segments, presTimeSec);
+        if (loc.segmentIndex !== activeSegmentIndex) {
+          presSyncingTimeline = true;
+          try {
+            activateSegment(loc.segmentIndex, false);
+          } finally {
+            presSyncingTimeline = false;
+          }
+        } else {
+          layoutPlaybackPlayhead();
+          autoScrollPlaybackTimeline();
+          presentationRender();
+        }
+        if (presTimeSec >= maxT - 1e-6) {
+          presPlaying = false;
+          presSyncPlayButton();
+          presentationRender();
+          syncPlaybackWithTimeline();
+          return;
+        }
+        presRafId = requestAnimationFrame(presTick);
+      }
+
+      function presPlay() {
+        if (typeof WorkoutPresentation === "undefined") return;
+        presScrubInternalStop();
+        flushActiveSegmentMeta();
+        presClampTimeToWorkout();
+        const maxT = WorkoutPresentation.totalWorkoutDuration(segments);
+        if (presTimeSec >= maxT - 1e-6) presTimeSec = 0;
+        presPlaying = true;
+        presWallLast = performance.now();
+        presSyncPlayButton();
+        presStopRaf();
+        presRafId = requestAnimationFrame(presTick);
+        queueMicrotask(() => {
+          if (typeof syncPlaybackWithTimeline === "function") {
+            syncPlaybackWithTimeline();
+            scrollPlaybackPlayheadIntoView();
+          }
+        });
+      }
+
+      function presPause() {
+        presPlaying = false;
+        presStopRaf();
+        presSyncPlayButton();
+        presentationRender();
+        syncPlaybackWithTimeline();
+        scrollPlaybackPlayheadIntoView();
+      }
+
+      function presScrubInternalStop() {
+        presScrubDir = 0;
+        if (presScrubAnimId) {
+          cancelAnimationFrame(presScrubAnimId);
+          presScrubAnimId = 0;
+        }
+        presScrubLastFrameTs = 0;
+        if (presScrubPointerAc) {
+          presScrubPointerAc.abort();
+          presScrubPointerAc = null;
+        }
+        if (presScrubCaptureEl && presScrubCapturePid >= 0) {
+          try {
+            if (presScrubCaptureEl.hasPointerCapture(presScrubCapturePid)) {
+              presScrubCaptureEl.releasePointerCapture(presScrubCapturePid);
+            }
+          } catch (_) {}
+        }
+        presScrubCaptureEl = null;
+        presScrubCapturePid = -1;
+      }
+
+      function presStopScrubAndSync() {
+        presScrubInternalStop();
+        if (typeof WorkoutPresentation === "undefined") return;
+        presTimeSec = snapTime(presTimeSec);
+        presClampTimeToWorkout();
+        presentationRender();
+        syncPlaybackWithTimeline();
+        scrollPlaybackPlayheadIntoView();
+      }
+
+      function presScrubFrame(ts) {
+        if (!presScrubDir) return;
+        if (typeof WorkoutPresentation === "undefined") {
+          presStopScrubAndSync();
+          return;
+        }
+        const WP = WorkoutPresentation;
+        if (presScrubLastFrameTs === 0) presScrubLastFrameTs = ts;
+        const dtWall = (ts - presScrubLastFrameTs) / 1000;
+        presScrubLastFrameTs = ts;
+        const maxT = WP.totalWorkoutDuration(segments);
+        const delta = presScrubDir * PRES_SCRUB_RATE * dtWall;
+        presTimeSec = snapTime(Math.max(0, Math.min(presTimeSec + delta, maxT)));
+        const loc = WP.locateGlobalTime(segments, presTimeSec);
+        if (loc.segmentIndex !== activeSegmentIndex) {
+          presSyncingTimeline = true;
+          try {
+            activateSegment(loc.segmentIndex, false);
+          } finally {
+            presSyncingTimeline = false;
+          }
+        } else {
+          layoutPlaybackPlayhead();
+        }
+        presentationRender();
+        scrollPlaybackPlayheadIntoView();
+        if (presTimeSec <= 1e-9 && presScrubDir < 0) {
+          presStopScrubAndSync();
+          return;
+        }
+        if (presTimeSec >= maxT - 1e-9 && presScrubDir > 0) {
+          presStopScrubAndSync();
+          return;
+        }
+        presScrubAnimId = requestAnimationFrame(presScrubFrame);
+      }
+
+      function presStartScrub(dir, captureEl, pointerId) {
+        if (typeof WorkoutPresentation === "undefined") return;
+        presScrubInternalStop();
+        pausePreviewForSeek();
+        presScrubDir = dir;
+        presScrubLastFrameTs = 0;
+        if (captureEl != null && pointerId != null) {
+          presScrubCaptureEl = captureEl;
+          presScrubCapturePid = pointerId;
+          try {
+            captureEl.setPointerCapture(pointerId);
+          } catch (_) {}
+        }
+        presScrubPointerAc = new AbortController();
+        const sig = presScrubPointerAc.signal;
+        const end = () => {
+          presStopScrubAndSync();
+        };
+        window.addEventListener("pointerup", end, { signal: sig, capture: true });
+        window.addEventListener("pointercancel", end, { signal: sig, capture: true });
+        presScrubAnimId = requestAnimationFrame(presScrubFrame);
+      }
+
+      function presBindScrubButton(btn, dir) {
+        if (!btn) return;
+        btn.addEventListener("pointerdown", (e) => {
+          if (e.button !== 0) return;
+          e.preventDefault();
+          presStartScrub(dir, btn, e.pointerId);
+        });
+      }
+
+      function presTogglePlayPause() {
+        if (presPlaying) presPause();
+        else presPlay();
+      }
+
+      const PRES_REP_BOUNDARY_SEC = 1;
+
+      function presNextRepStartGlobal(WP, segmentIndex, repIndex) {
+        const seg = segments[segmentIndex];
+        const reps = seg && Array.isArray(seg.reps) ? seg.reps : [];
+        const n = reps.length;
+        if (repIndex + 1 < n) return WP.globalSecAtRepStart(segments, segmentIndex, repIndex + 1);
+        if (segmentIndex + 1 < segments.length) return WP.globalSecAtRepStart(segments, segmentIndex + 1, 0);
+        return WP.totalWorkoutDuration(segments);
+      }
+
+      /** Last snapped global second still inside this rep (just before next rep / part / workout end). */
+      function presLastSnapInRepGlobal(WP, segmentIndex, repIndex) {
+        const nextS = presNextRepStartGlobal(WP, segmentIndex, repIndex);
+        const repStart = WP.globalSecAtRepStart(segments, segmentIndex, repIndex);
+        const t = WP.snapTime(nextS - WP.TIME_SNAP_SEC);
+        return Math.max(repStart, Math.min(t, nextS - 1e-9));
+      }
+
+      function presIsLastRepOfWorkout(segmentIndex, repIndex) {
+        if (segmentIndex < 0 || segmentIndex >= segments.length) return true;
+        const seg = segments[segmentIndex];
+        const n = seg && Array.isArray(seg.reps) ? seg.reps.length : 0;
+        if (n === 0) return true;
+        return segmentIndex === segments.length - 1 && repIndex === n - 1;
+      }
+
+      /** |< — start of current rep; if within 1 s of rep start, go to previous rep (may cross parts). */
+      function presWorkoutStart() {
+        if (typeof WorkoutPresentation === "undefined") return;
+        presScrubInternalStop();
+        pausePreviewForSeek();
+        const WP = WorkoutPresentation;
+        flushActiveSegmentMeta();
+        presClampTimeToWorkout();
+        const loc = WP.locateGlobalTime(segments, presTimeSec);
+        const { segmentIndex, localSec, segment } = loc;
+        if (!segment || !Array.isArray(segment.reps) || segment.reps.length === 0) {
+          presTimeSec = 0;
+          presClampTimeToWorkout();
+        } else {
+          const rIdx = WP.repIndexAtLocalSec(segment, localSec);
+          const repStart = WP.globalSecAtRepStart(segments, segmentIndex, rIdx);
+          const fromStart = presTimeSec - repStart;
+          let target;
+          if (fromStart <= PRES_REP_BOUNDARY_SEC + 1e-9) {
+            if (rIdx > 0) {
+              target = WP.globalSecAtRepStart(segments, segmentIndex, rIdx - 1);
+            } else if (segmentIndex > 0) {
+              const prevSeg = segments[segmentIndex - 1];
+              const pn = prevSeg && Array.isArray(prevSeg.reps) ? prevSeg.reps.length : 0;
+              target = pn > 0 ? WP.globalSecAtRepStart(segments, segmentIndex - 1, pn - 1) : WP.cumulativeSegmentStart(segments, segmentIndex - 1);
+            } else {
+              target = repStart;
+            }
+          } else {
+            target = repStart;
+          }
+          presTimeSec = snapTime(target);
+          presClampTimeToWorkout();
+        }
+        const loc2 = WP.locateGlobalTime(segments, presTimeSec);
+        presSyncingTimeline = true;
+        try {
+          activateSegment(loc2.segmentIndex, false);
+        } finally {
+          presSyncingTimeline = false;
+        }
+        presentationRender();
+        syncPlaybackWithTimeline();
+        scrollPlaybackPlayheadIntoView();
+      }
+
+      /** >| — next rep start; on the workout’s last rep, last snap in this rep (workout end). */
+      function presWorkoutEnd() {
+        if (typeof WorkoutPresentation === "undefined") return;
+        presScrubInternalStop();
+        pausePreviewForSeek();
+        const WP = WorkoutPresentation;
+        flushActiveSegmentMeta();
+        presClampTimeToWorkout();
+        const loc = WP.locateGlobalTime(segments, presTimeSec);
+        const { segmentIndex, localSec, segment } = loc;
+        if (!segment || !Array.isArray(segment.reps) || segment.reps.length === 0) {
+          presTimeSec = WP.totalWorkoutDuration(segments);
+          presClampTimeToWorkout();
+        } else {
+          const rIdx = WP.repIndexAtLocalSec(segment, localSec);
+          const target = presIsLastRepOfWorkout(segmentIndex, rIdx)
+            ? presLastSnapInRepGlobal(WP, segmentIndex, rIdx)
+            : presNextRepStartGlobal(WP, segmentIndex, rIdx);
+          presTimeSec = snapTime(Math.max(0, Math.min(target, WP.totalWorkoutDuration(segments))));
+          presClampTimeToWorkout();
+        }
+        const loc2 = WP.locateGlobalTime(segments, presTimeSec);
+        presSyncingTimeline = true;
+        try {
+          activateSegment(loc2.segmentIndex, false);
+        } finally {
+          presSyncingTimeline = false;
+        }
+        presentationRender();
+        syncPlaybackWithTimeline();
+        scrollPlaybackPlayheadIntoView();
+      }
+
+      const PRES_ASPECT_STORAGE_KEY = "repEditorPresAspect";
+      const PRES_ASPECT_IDS = new Set(["9-16", "9-19_5", "16-9"]);
+
+      function applyPresentationAspect(aspectId) {
+        const frame = document.getElementById("presDeviceFrame");
+        const sel = document.getElementById("presAspectSelect");
+        const id = PRES_ASPECT_IDS.has(aspectId) ? aspectId : "9-16";
+        if (frame) frame.setAttribute("data-aspect", id);
+        if (sel && sel.value !== id) sel.value = id;
+        try {
+          localStorage.setItem(PRES_ASPECT_STORAGE_KEY, id);
+        } catch (_) {}
+      }
+
+      function initPresentationAspectSelect() {
+        const sel = document.getElementById("presAspectSelect");
+        const frame = document.getElementById("presDeviceFrame");
+        if (!sel || !frame) return;
+        let stored = "9-16";
+        try {
+          const r = localStorage.getItem(PRES_ASPECT_STORAGE_KEY);
+          if (r && PRES_ASPECT_IDS.has(r)) stored = r;
+        } catch (_) {}
+        sel.value = stored;
+        frame.setAttribute("data-aspect", stored);
+        sel.addEventListener("change", () => applyPresentationAspect(sel.value));
+      }
+
+      function isPresPreviewCollapsed() {
+        const el = document.getElementById("presCollapsible");
+        return !!(el && el.hidden);
+      }
+
+      function setPresPreviewCollapsed(collapsed) {
+        const el = document.getElementById("presCollapsible");
+        const btn = document.getElementById("presPreviewToggle");
+        if (!el || !btn) return;
+        if (collapsed) {
+          el.hidden = true;
+          btn.setAttribute("aria-expanded", "false");
+        } else {
+          el.hidden = false;
+          btn.setAttribute("aria-expanded", "true");
+        }
+        try {
+          localStorage.setItem(PRES_PREVIEW_COLLAPSE_KEY, collapsed ? "1" : "0");
+        } catch (_) {}
+      }
+
+      function initPresPreviewCollapse() {
+        const btn = document.getElementById("presPreviewToggle");
+        const el = document.getElementById("presCollapsible");
+        if (!btn || !el) return;
+        let collapsed = false;
+        try {
+          collapsed = localStorage.getItem(PRES_PREVIEW_COLLAPSE_KEY) === "1";
+        } catch (_) {}
+        setPresPreviewCollapsed(collapsed);
+        btn.addEventListener("click", () => {
+          setPresPreviewCollapsed(!isPresPreviewCollapsed());
+        });
+      }
+
+      function openWorkoutNameModal() {
+        if (!workoutNameModal) return;
+        const input = document.getElementById("workoutNameInput");
+        if (input) {
+          input.value = (workoutName && String(workoutName).trim()) || DEFAULT_WORKOUT_NAME;
+        }
+        workoutNameModal.classList.add("open");
+        workoutNameModal.setAttribute("aria-hidden", "false");
+        if (input) {
+          input.focus();
+          input.select();
+        }
+      }
+
+      function closeWorkoutNameModal() {
+        if (!workoutNameModal) return;
+        workoutNameModal.classList.remove("open");
+        workoutNameModal.setAttribute("aria-hidden", "true");
+      }
+
+      function applyWorkoutNameFromModal() {
+        const input = document.getElementById("workoutNameInput");
+        if (!input) return;
+        const v = String(input.value || "").trim();
+        if (!v) {
+          showToast("Workout name cannot be empty.");
+          return;
+        }
+        pushUndoSnapshot();
+        workoutName = v.slice(0, WORKOUT_NAME_MAX_LEN);
+        closeWorkoutNameModal();
+        syncWorkoutNameUI();
+        presentationRender();
+        syncSaveButtonEnabled();
+      }
+
+      function bindWorkoutNameUI() {
+        const tr = document.getElementById("workoutNameTrigger");
+        if (tr) tr.addEventListener("click", openWorkoutNameModal);
+        const can = document.getElementById("workoutNameModalCancel");
+        const sav = document.getElementById("workoutNameModalSave");
+        if (can) can.addEventListener("click", closeWorkoutNameModal);
+        if (sav) sav.addEventListener("click", applyWorkoutNameFromModal);
+        if (workoutNameModal) {
+          workoutNameModal.addEventListener("click", (e) => {
+            if (e.target === workoutNameModal) closeWorkoutNameModal();
+          });
+        }
+        const wInput = document.getElementById("workoutNameInput");
+        if (wInput) {
+          wInput.addEventListener("keydown", (e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              applyWorkoutNameFromModal();
+            } else if (e.key === "Escape") {
+              e.preventDefault();
+              closeWorkoutNameModal();
+            }
+          });
+        }
+      }
+
+      function bindPresentationControls() {
+        initPresPreviewCollapse();
+        initPresentationAspectSelect();
+        if (typeof WorkoutPresentation === "undefined") {
+          console.warn("workoutPresentation.js missing — presentation controls disabled.");
+          return;
+        }
+        const bSkip0 = document.getElementById("presBtnSkipStart");
+        const bRew = document.getElementById("presBtnRewind");
+        const bPlay = document.getElementById("presBtnPlayPause");
+        const bFF = document.getElementById("presBtnFastForward");
+        const bSkip1 = document.getElementById("presBtnSkipEnd");
+        if (bSkip0) bSkip0.addEventListener("click", () => presWorkoutStart());
+        presBindScrubButton(bRew, -1);
+        if (bPlay) bPlay.addEventListener("click", () => presTogglePlayPause());
+        presBindScrubButton(bFF, 1);
+        if (bSkip1) bSkip1.addEventListener("click", () => presWorkoutEnd());
+        presSyncPlayButton();
+        presentationRender();
       }
 
       const btnDupRep = document.getElementById("btnDupRep");
@@ -7928,6 +9372,8 @@
             pushUndoSnapshot();
             undoPushed = true;
             segments = parsed.segments;
+            workoutName = parsed.workoutName != null ? String(parsed.workoutName).trim().slice(0, WORKOUT_NAME_MAX_LEN) : DEFAULT_WORKOUT_NAME;
+            if (!workoutName) workoutName = DEFAULT_WORKOUT_NAME;
             activeSegmentIndex = 0;
             bindActiveSegmentPointers();
             partSidebarActiveRingVisible = false;
@@ -8044,6 +9490,18 @@
 
       const timelineWideEl = document.getElementById("timeline-wide");
       if (timelineWideEl) timelineWideEl.addEventListener("click", onTimelineWideClick);
+      const playheadScrubEl = document.getElementById("timelinePlaybackPlayhead");
+      if (playheadScrubEl) {
+        playheadScrubEl.addEventListener("pointerdown", onPlayheadPointerDown);
+        playheadScrubEl.addEventListener(
+          "click",
+          (e) => {
+            e.stopImmediatePropagation();
+            e.stopPropagation();
+          },
+          true
+        );
+      }
       document.addEventListener("click", onDocumentClearClipSelection);
 
       initPartsSidebarPointer();
@@ -8051,6 +9509,8 @@
       loadLibraryFromStorage();
       bindLibraryToolbar();
       refreshLibrarySelect();
+      bindWorkoutNameUI();
+      bindPresentationControls();
       refreshAll();
       markWorkoutSavedCheckpoint();
     })();
