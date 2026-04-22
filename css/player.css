@@ -95,7 +95,7 @@ body.player-page {
   min-width: 44px;
   min-height: 44px;
   padding: 0;
-  border-radius: 10px;
+  border-radius: 50%;
   border: 1px solid #3d4656;
   background: #141820;
   color: #94a3b8;
@@ -146,24 +146,77 @@ body.player-menu-open .player-header-menu-btn {
   display: none;
 }
 
-.player-menu-dropdown-row {
-  display: flex;
-  flex-direction: row;
-  align-items: flex-start;
-  gap: 0.45rem;
-}
-
-.player-menu-dropdown-main {
-  flex: 0 0 auto;
+.player-menu-panel {
   min-width: min(10.75rem, calc(100vw - 3rem));
-  padding: 0.45rem 0.4rem 0.5rem;
+  max-width: min(18rem, calc(100vw - 2rem));
   border-radius: 10px;
   border: 1px solid #3d4656;
   background: rgba(18, 21, 28, 0.98);
   box-shadow: 0 12px 36px rgba(0, 0, 0, 0.5);
+  overflow: hidden;
+}
+
+.player-menu-view {
   display: flex;
   flex-direction: column;
   gap: 0.2rem;
+  padding: 0.45rem 0.4rem 0.5rem;
+}
+
+.player-menu-view[hidden] {
+  display: none !important;
+}
+
+/* Sub-menus: back chevron in a fixed left column, items stacked in the right column */
+.player-menu-view--with-back {
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 0.15rem;
+}
+
+.player-menu-back-col {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-right: 0.1rem;
+}
+
+.player-menu-view-stack {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.08rem;
+}
+
+.player-menu-back-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.35rem;
+  height: 2.35rem;
+  min-width: 44px;
+  min-height: 44px;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: #94a3b8;
+  cursor: pointer;
+  align-self: flex-start;
+}
+
+.player-menu-back-btn:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--lane-sfx);
+}
+
+.player-menu-back-btn:focus-visible {
+  outline: 2px solid var(--lane-sfx);
+  outline-offset: 0;
 }
 
 .player-menu-dd-btn {
@@ -209,39 +262,6 @@ body.player-menu-open .player-header-menu-btn {
 
 .player-menu-dd-btn[aria-expanded="true"] {
   color: #f8fafc;
-}
-
-.player-load-submenu,
-.player-theme-submenu,
-.player-theme-schemes-submenu {
-  flex: 0 0 auto;
-  align-self: flex-start;
-  min-width: min(11.25rem, calc(100vw - 5rem));
-  margin: 0;
-  padding: 0.35rem 0.4rem;
-  border: 1px solid #5b6474;
-  border-radius: 10px;
-  background: rgba(12, 14, 20, 0.98);
-  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.45);
-}
-
-.player-theme-flyout {
-  display: flex;
-  flex-direction: row;
-  flex-wrap: nowrap;
-  align-items: flex-start;
-  gap: 0.45rem;
-  flex: 0 1 auto;
-  min-width: 0;
-}
-
-.player-theme-flyout[hidden] {
-  display: none !important;
-}
-
-.player-load-submenu[hidden],
-.player-theme-schemes-submenu[hidden] {
-  display: none !important;
 }
 
 .player-load-submenu-item {
@@ -475,32 +495,10 @@ body.player-menu-open .player-header-menu-btn {
 }
 
 @media (max-width: 480px) {
-  .player-menu-dropdown-row {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .player-load-submenu {
+  .player-menu-panel {
     min-width: 0;
-    width: 100%;
-  }
-
-  .player-theme-flyout {
-    flex-direction: row;
-    flex-wrap: nowrap;
-    align-items: flex-start;
-    width: 100%;
-    max-width: 100%;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    padding-bottom: 0.15rem;
-  }
-
-  .player-theme-submenu,
-  .player-theme-schemes-submenu {
-    min-width: min(10.5rem, 46vw);
-    width: auto;
-    flex: 0 0 auto;
+    width: min(100%, calc(100vw - 2rem));
+    max-width: none;
   }
 }
 
@@ -715,7 +713,7 @@ body.player-menu-open .player-header-menu-btn {
 }
 
 .presentation-cue-heading {
-  font-size: clamp(1.05rem, 10cqmin, 1.85rem);
+  font-size: clamp(2.1rem, 20cqmin, 3.7rem);
   font-weight: 700;
   line-height: 1.22;
   letter-spacing: -0.02em;
@@ -727,7 +725,7 @@ body.player-menu-open .player-header-menu-btn {
 }
 
 .presentation-cue-body {
-  font-size: clamp(0.78rem, 5.5cqmin, 1.08rem);
+  font-size: clamp(1.56rem, 11cqmin, 2.16rem);
   font-weight: 500;
   line-height: 1.35;
   margin: 0;
@@ -760,14 +758,15 @@ body.player-menu-open .player-header-menu-btn {
 
 /* —— Hero cue typography: container + viewport so fullscreen phone and wide desktop both scale —— */
 .player-page .presentation-cue-heading {
-  font-size: clamp(1rem, min(9.5cqmin, 6.5vmin), 2.2rem);
+  font-size: clamp(2rem, min(19cqmin, 13vmin), 4.4rem);
+  font-weight: 700;
   line-height: 1.18;
   letter-spacing: -0.03em;
   text-shadow: var(--player-pres-cue-shadow);
 }
 
 .player-page .presentation-cue-body {
-  font-size: clamp(0.72rem, min(5.2cqmin, 3.9vmin), 1.14rem);
+  font-size: clamp(1.44rem, min(10.4cqmin, 7.8vmin), 2.28rem);
   line-height: 1.38;
   max-width: min(36rem, 92%);
 }
@@ -812,11 +811,12 @@ body.player-menu-open .player-header-menu-btn {
   }
 
   .player-page .presentation-cue-heading {
-    font-size: clamp(0.92rem, min(8cqmin, 5.5vmin), 1.65rem);
+    font-size: clamp(1.84rem, min(16cqmin, 11vmin), 3.3rem);
+    font-weight: 700;
   }
 
   .player-page .presentation-cue-body {
-    font-size: clamp(0.68rem, min(4.6cqmin, 3.4vmin), 1rem);
+    font-size: clamp(1.36rem, min(9.2cqmin, 6.8vmin), 2rem);
   }
 
   .player-page .presentation-cue-stack {

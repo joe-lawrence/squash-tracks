@@ -99,12 +99,10 @@
   }
 
   function populatePlayerThemeTier3() {
-    const tier3 = document.getElementById("playerThemeSchemesSubmenu");
     const container = document.getElementById("playerThemeSchemeOptions");
-    if (!tier3 || !container) return;
+    if (!container) return;
     if (playerThemeMenuState.current === "main") {
       container.replaceChildren();
-      tier3.hidden = true;
       return;
     }
 
@@ -136,7 +134,7 @@
       });
       container.appendChild(option);
     });
-    tier3.hidden = false;
+    showPlayerMenuView("theme-schemes");
   }
 
   function populatePlayerThemePanels() {
@@ -237,26 +235,34 @@
     if (el) el.textContent = msg || "";
   }
 
-  function hidePlayerLoadSubmenu() {
-    const sub = document.getElementById("playerLoadSubmenu");
+  function showPlayerMenuView(view) {
+    const map = {
+      main: "playerMenuMainView",
+      load: "playerMenuLoadView",
+      theme: "playerMenuThemeView",
+      "theme-schemes": "playerMenuThemeSchemesView",
+    };
+    Object.keys(map).forEach(function (k) {
+      const el = document.getElementById(map[k]);
+      if (el) el.hidden = k !== view;
+    });
     const openBtn = document.getElementById("playerMenuOpenBtn");
-    if (sub) sub.hidden = true;
-    if (openBtn) openBtn.setAttribute("aria-expanded", "false");
-  }
-
-  function hidePlayerThemeSubmenu() {
-    playerThemeMenuState.current = "main";
-    const flyout = document.getElementById("playerThemeFlyout");
-    const schemes = document.getElementById("playerThemeSchemesSubmenu");
     const themeBtn = document.getElementById("playerMenuThemeBtn");
-    if (schemes) schemes.hidden = true;
-    if (flyout) flyout.hidden = true;
-    if (themeBtn) themeBtn.setAttribute("aria-expanded", "false");
+    if (openBtn) openBtn.setAttribute("aria-expanded", view === "load" ? "true" : "false");
+    if (themeBtn) {
+      themeBtn.setAttribute(
+        "aria-expanded",
+        view === "theme" || view === "theme-schemes" ? "true" : "false"
+      );
+    }
   }
 
   function closePlayerMenu() {
-    hidePlayerLoadSubmenu();
-    hidePlayerThemeSubmenu();
+    playerThemeMenuState.current = "main";
+    const schemeOpts = document.getElementById("playerThemeSchemeOptions");
+    if (schemeOpts) schemeOpts.replaceChildren();
+    populatePlayerThemeTier2();
+    showPlayerMenuView("main");
     const btn = document.getElementById("playerMenuBtn");
     const dd = document.getElementById("playerMenuDropdown");
     document.body.classList.remove("player-menu-open");
@@ -266,8 +272,11 @@
   }
 
   function openPlayerMenu() {
-    hidePlayerLoadSubmenu();
-    hidePlayerThemeSubmenu();
+    playerThemeMenuState.current = "main";
+    const schemeOpts = document.getElementById("playerThemeSchemeOptions");
+    if (schemeOpts) schemeOpts.replaceChildren();
+    populatePlayerThemePanels();
+    showPlayerMenuView("main");
     const btn = document.getElementById("playerMenuBtn");
     const dd = document.getElementById("playerMenuDropdown");
     if (!btn || !dd) return;
@@ -282,40 +291,15 @@
     const dd = document.getElementById("playerMenuDropdown");
     if (!dd || dd.hidden) return;
     const btn = document.getElementById("playerMenuBtn");
+    const panel = document.getElementById("playerMenuPanel");
     const t = ev.target;
     if (btn && btn.contains(t)) return;
     if (!dd.contains(t)) {
       closePlayerMenu();
       return;
     }
-    const sub = document.getElementById("playerLoadSubmenu");
-    const openBtn = document.getElementById("playerMenuOpenBtn");
-    if (sub && !sub.hidden) {
-      if (sub.contains(t)) return;
-      if (openBtn && openBtn.contains(t)) return;
-      hidePlayerLoadSubmenu();
-    }
-    const themeFlyout = document.getElementById("playerThemeFlyout");
-    const themeTier2 = document.getElementById("playerThemeSubmenu");
-    const themeTier3 = document.getElementById("playerThemeSchemesSubmenu");
-    const themeBtn = document.getElementById("playerMenuThemeBtn");
-    if (themeFlyout && !themeFlyout.hidden) {
-      if (themeBtn && themeBtn.contains(t)) return;
-      if (themeFlyout.contains(t)) {
-        if (
-          themeTier3 &&
-          !themeTier3.hidden &&
-          themeTier2 &&
-          themeTier2.contains(t) &&
-          !themeTier3.contains(t)
-        ) {
-          playerThemeMenuState.current = "main";
-          populatePlayerThemeTier3();
-          return;
-        }
-        return;
-      }
-      hidePlayerThemeSubmenu();
+    if (panel && !panel.contains(t)) {
+      closePlayerMenu();
     }
   }
 
@@ -342,32 +326,74 @@
     if (openBtn) {
       openBtn.addEventListener("click", function (e) {
         e.stopPropagation();
-        hidePlayerThemeSubmenu();
-        const sub = document.getElementById("playerLoadSubmenu");
-        if (!sub) return;
-        if (sub.hidden) {
-          sub.hidden = false;
-          openBtn.setAttribute("aria-expanded", "true");
-        } else {
-          hidePlayerLoadSubmenu();
+        const loadV = document.getElementById("playerMenuLoadView");
+        if (loadV && !loadV.hidden) {
+          showPlayerMenuView("main");
+          return;
         }
+        playerThemeMenuState.current = "main";
+        const schemeOpts = document.getElementById("playerThemeSchemeOptions");
+        if (schemeOpts) schemeOpts.replaceChildren();
+        populatePlayerThemeTier2();
+        showPlayerMenuView("load");
       });
     }
 
     if (themeBtn) {
       themeBtn.addEventListener("click", function (e) {
         e.stopPropagation();
-        hidePlayerLoadSubmenu();
-        const flyout = document.getElementById("playerThemeFlyout");
-        if (!flyout) return;
-        if (flyout.hidden) {
+        const themeV = document.getElementById("playerMenuThemeView");
+        const schV = document.getElementById("playerMenuThemeSchemesView");
+        if ((themeV && !themeV.hidden) || (schV && !schV.hidden)) {
           playerThemeMenuState.current = "main";
-          populatePlayerThemePanels();
-          flyout.hidden = false;
-          themeBtn.setAttribute("aria-expanded", "true");
-        } else {
-          hidePlayerThemeSubmenu();
+          const schemeOpts = document.getElementById("playerThemeSchemeOptions");
+          if (schemeOpts) schemeOpts.replaceChildren();
+          populatePlayerThemeTier2();
+          showPlayerMenuView("main");
+          return;
         }
+        playerThemeMenuState.current = "main";
+        const schemeOpts = document.getElementById("playerThemeSchemeOptions");
+        if (schemeOpts) schemeOpts.replaceChildren();
+        populatePlayerThemePanels();
+        showPlayerMenuView("theme");
+      });
+    }
+
+    const loadBack = document.getElementById("playerMenuLoadBackBtn");
+    if (loadBack) {
+      loadBack.addEventListener("click", function (e) {
+        e.stopPropagation();
+        showPlayerMenuView("main");
+        const ob = document.getElementById("playerMenuOpenBtn");
+        if (ob) ob.focus();
+      });
+    }
+
+    const themeBack = document.getElementById("playerMenuThemeBackBtn");
+    if (themeBack) {
+      themeBack.addEventListener("click", function (e) {
+        e.stopPropagation();
+        playerThemeMenuState.current = "main";
+        const schemeOpts = document.getElementById("playerThemeSchemeOptions");
+        if (schemeOpts) schemeOpts.replaceChildren();
+        showPlayerMenuView("main");
+        const tb = document.getElementById("playerMenuThemeBtn");
+        if (tb) tb.focus();
+      });
+    }
+
+    const schemesBack = document.getElementById("playerMenuThemeSchemesBackBtn");
+    if (schemesBack) {
+      schemesBack.addEventListener("click", function (e) {
+        e.stopPropagation();
+        playerThemeMenuState.current = "main";
+        const schemeOpts = document.getElementById("playerThemeSchemeOptions");
+        if (schemeOpts) schemeOpts.replaceChildren();
+        populatePlayerThemeTier2();
+        showPlayerMenuView("theme");
+        const tbb = document.getElementById("playerMenuThemeBackBtn");
+        if (tbb) tbb.focus();
       });
     }
 
@@ -820,28 +846,35 @@
       if (menuDd && !menuDd.hidden) {
         if (e.key === "Escape") {
           e.preventDefault();
-          const themeFlyout = document.getElementById("playerThemeFlyout");
-          if (themeFlyout && !themeFlyout.hidden) {
-            if (playerThemeMenuState.current !== "main") {
-              playerThemeMenuState.current = "main";
-              populatePlayerThemeTier3();
-              const first = document.querySelector("#playerThemeOptions .player-theme-menu-btn");
-              if (first) first.focus();
-            } else {
-              hidePlayerThemeSubmenu();
-              const tb = document.getElementById("playerMenuThemeBtn");
-              if (tb) tb.focus();
-            }
-          } else {
-            const sub = document.getElementById("playerLoadSubmenu");
-            if (sub && !sub.hidden) {
-              hidePlayerLoadSubmenu();
-              const ob = document.getElementById("playerMenuOpenBtn");
-              if (ob) ob.focus();
-            } else {
-              closePlayerMenu();
-            }
+          const schV = document.getElementById("playerMenuThemeSchemesView");
+          if (schV && !schV.hidden) {
+            playerThemeMenuState.current = "main";
+            const schemeOpts = document.getElementById("playerThemeSchemeOptions");
+            if (schemeOpts) schemeOpts.replaceChildren();
+            populatePlayerThemeTier2();
+            showPlayerMenuView("theme");
+            const bk = document.getElementById("playerMenuThemeBackBtn");
+            if (bk) bk.focus();
+            return;
           }
+          const themeV = document.getElementById("playerMenuThemeView");
+          if (themeV && !themeV.hidden) {
+            playerThemeMenuState.current = "main";
+            const schemeOpts = document.getElementById("playerThemeSchemeOptions");
+            if (schemeOpts) schemeOpts.replaceChildren();
+            showPlayerMenuView("main");
+            const tb = document.getElementById("playerMenuThemeBtn");
+            if (tb) tb.focus();
+            return;
+          }
+          const loadV = document.getElementById("playerMenuLoadView");
+          if (loadV && !loadV.hidden) {
+            showPlayerMenuView("main");
+            const ob = document.getElementById("playerMenuOpenBtn");
+            if (ob) ob.focus();
+            return;
+          }
+          closePlayerMenu();
           return;
         }
         if (e.key === " " || e.code === "Space") {
