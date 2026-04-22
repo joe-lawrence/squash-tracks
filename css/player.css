@@ -1,7 +1,7 @@
 /**
  * Standalone workout player — full viewport; presentation rules mirror editor preview.
  * UI font matches squash-ghoster-full (`Inter`); `editor.html` preview uses the same stack. Elapsed/total time (`.pres-head-time`) stays `JetBrains Mono`.
- * When changing cue typography / transport behavior, update editor preview styles in editor.html in the same pass (player-only rules stay under `.player-page`). Menu / submenu SVGs use stroke-width 1.25; transport footer icons use 2.
+ * When changing cue typography / transport behavior, update editor preview styles in editor.html in the same pass (player-only rules stay under `.player-page`). Menu / submenu SVGs use stroke-width 1.25; transport footer icons use 2.5.
  */
 :root {
   --bg: #070f1a;
@@ -339,6 +339,20 @@ body.player-menu-open .player-menu-anchor {
   gap: 0.35rem;
 }
 
+.player-theme-menu-btn-icon {
+  display: flex;
+  flex-shrink: 0;
+  width: 1.75rem;
+  height: 1.75rem;
+  align-items: center;
+  justify-content: center;
+  color: #94a3b8;
+}
+
+.player-theme-menu-btn:hover .player-theme-menu-btn-icon {
+  color: var(--lane-sfx);
+}
+
 .player-theme-menu-chevron {
   margin-left: auto;
   display: flex;
@@ -643,9 +657,9 @@ body.player-menu-open .player-menu-anchor {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: clamp(0.68rem, 3.2cqmin, 0.85rem);
-  width: 2.65em;
-  height: 2.65em;
+  font-size: clamp(0.74rem, 3.45cqmin, 0.93rem);
+  width: 2.82em;
+  height: 2.82em;
   min-width: 44px;
   min-height: 44px;
   padding: 0;
@@ -774,7 +788,7 @@ body.player-menu-open .player-menu-anchor {
 
 /* —— Hero cue typography: container + viewport so fullscreen phone and wide desktop both scale —— */
 .player-page .presentation-cue-heading {
-  font-size: clamp(2rem, min(19cqmin, 13vmin), 4.4rem);
+  font-size: clamp(2.06rem, min(19.5cqmin, 13.5vmin), 4.5rem);
   font-weight: 700;
   line-height: 1.18;
   letter-spacing: -0.03em;
@@ -827,7 +841,7 @@ body.player-menu-open .player-menu-anchor {
   }
 
   .player-page .presentation-cue-heading {
-    font-size: clamp(1.84rem, min(16cqmin, 11vmin), 3.3rem);
+    font-size: clamp(1.92rem, min(16.5cqmin, 11.5vmin), 3.45rem);
     font-weight: 700;
   }
 
@@ -856,7 +870,7 @@ body.player-menu-open .player-menu-anchor {
    * Editor preview uses a slightly larger narrow-stage title in editor.html (calibration).
    */
   .player-page .presentation-cue-heading {
-    font-size: clamp(1.58rem, calc(1.05rem + 4.15cqi), 2.28rem);
+    font-size: clamp(1.66rem, calc(1.08rem + 4.35cqi), 2.38rem);
     font-weight: 700;
     line-height: 1.2;
     letter-spacing: -0.03em;
@@ -878,8 +892,8 @@ body.player-menu-open .player-menu-anchor {
    * read larger on phones (preview frame already looked fine at 1em).
    */
   .player-page .presentation-panel-controls button.pres-icon-btn svg {
-    width: 1.34em;
-    height: 1.34em;
+    width: 1.62em;
+    height: 1.62em;
   }
 }
 

@@ -413,9 +413,9 @@
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      font-size: clamp(0.62rem, 2.85cqmin, 0.78rem);
-      width: 2.55em;
-      height: 2.55em;
+      font-size: clamp(0.68rem, 3.1cqmin, 0.86rem);
+      width: 2.72em;
+      height: 2.72em;
       padding: 0;
       border-radius: 8px;
       border: 1px solid #3d4656;
@@ -522,7 +522,7 @@
        * a hair ahead of full-screen `player.html` (zoom / chrome).
        */
       .presentation-cue-heading {
-        font-size: clamp(1.72rem, calc(1.07rem + 4.35cqi), 2.4rem);
+        font-size: clamp(1.82rem, calc(1.1rem + 4.5cqi), 2.52rem);
         font-weight: 700;
         line-height: 1.2;
         letter-spacing: -0.03em;
@@ -539,6 +539,11 @@
 
       .presentation-cue-stack {
         gap: 0.24rem;
+      }
+
+      .presentation-panel-controls button.pres-icon-btn svg {
+        width: 1.62em;
+        height: 1.62em;
       }
     }
     .presentation-progress {
@@ -1861,30 +1866,30 @@
           <div class="presentation-panel-footer">
             <div class="presentation-panel-controls" role="group" aria-label="Presentation transport">
               <button type="button" class="pres-icon-btn" id="presBtnSkipStart" title="Start of this rep — or previous rep if within 1 s of rep start" aria-label="Start of this rep, or previous rep if within one second of rep start">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                   <polygon points="19 20 9 12 19 4 19 20" />
                   <line x1="5" x2="5" y1="19" y2="5" />
                 </svg>
               </button>
               <button type="button" class="pres-icon-btn" id="presBtnRewind" title="Rewind (hold)" aria-label="Rewind while held">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                   <polygon points="11 19 2 12 11 5 11 19" />
                   <polygon points="22 19 13 12 22 5 22 19" />
                 </svg>
               </button>
               <button type="button" class="pres-icon-btn" id="presBtnPlayPause" aria-label="Play workout" title="Play">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                   <polygon points="6 3 20 12 6 21 6 3" />
                 </svg>
               </button>
               <button type="button" class="pres-icon-btn" id="presBtnFastForward" title="Fast forward (hold)" aria-label="Fast forward while held">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                   <polygon points="13 19 22 12 13 5 13 19" />
                   <polygon points="2 19 11 12 2 5 2 19" />
                 </svg>
               </button>
               <button type="button" class="pres-icon-btn" id="presBtnSkipEnd" title="Start of next rep — or end of this rep on the last rep" aria-label="Start of next rep, or end of this rep when on the last rep of the workout">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                   <polygon points="5 4 15 12 5 20 5 4" />
                   <line x1="19" x2="19" y1="5" y2="19" />
                 </svg>
@@ -8928,11 +8933,11 @@
         const playSvg =
           S && S.PRES_SVG_PLAY
             ? S.PRES_SVG_PLAY
-            : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="6 3 20 12 6 21 6 3" /></svg>';
+            : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="6 3 20 12 6 21 6 3" /></svg>';
         const pauseSvg =
           S && S.PRES_SVG_PAUSE
             ? S.PRES_SVG_PAUSE
-            : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="14" y="4" width="4" height="16" rx="1" /><rect x="6" y="4" width="4" height="16" rx="1" /></svg>';
+            : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="14" y="4" width="4" height="16" rx="1" /><rect x="6" y="4" width="4" height="16" rx="1" /></svg>';
         if (!btn) return;
         if (presPlaying) {
           btn.innerHTML = pauseSvg;

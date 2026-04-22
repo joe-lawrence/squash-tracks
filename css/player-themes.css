@@ -432,6 +432,10 @@ html[data-theme="light"] .player-theme-menu-btn {
   color: #1e293b;
 }
 
+html[data-theme="light"] .player-theme-menu-btn-icon {
+  color: #64748b;
+}
+
 html[data-theme="light"] .player-theme-menu-chevron {
   color: #64748b;
 }
@@ -442,6 +446,10 @@ html[data-theme="light"] .player-theme-menu-btn:hover {
 }
 
 html[data-theme="light"] .player-theme-menu-btn:hover .player-theme-menu-chevron {
+  color: var(--lane-sfx);
+}
+
+html[data-theme="light"] .player-theme-menu-btn:hover .player-theme-menu-btn-icon {
   color: var(--lane-sfx);
 }
 
