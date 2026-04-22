@@ -887,13 +887,29 @@ body.player-menu-open .player-menu-anchor {
     gap: 0.24rem;
   }
 
-  /*
-   * Transport buttons stay the same em / min-pixel size; only scale the SVG inside so glyphs
-   * read larger on phones (preview frame already looked fine at 1em).
-   */
   .player-page .presentation-panel-controls button.pres-icon-btn svg {
     width: 1.62em;
     height: 1.62em;
+  }
+}
+
+/*
+ * Short presentation stage (typical phone landscape): inline width is >430px so the block above
+ * does not match; keep the same enlarged transport glyphs as portrait narrow phones.
+ */
+@container presdev (max-height: 500px) {
+  .player-page .presentation-panel-controls button.pres-icon-btn svg {
+    width: 1.62em;
+    height: 1.62em;
+  }
+}
+
+/* Landscape: tuck part/rep labels + progress in from edges (notch / home indicator) */
+@media (orientation: landscape) {
+  .player-page .presentation-meta-row,
+  .player-page .presentation-progress {
+    margin-left: max(0.4rem, env(safe-area-inset-left, 0px));
+    margin-right: max(0.4rem, env(safe-area-inset-right, 0px));
   }
 }
 

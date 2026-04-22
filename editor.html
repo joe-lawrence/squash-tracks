@@ -546,6 +546,14 @@
         height: 1.62em;
       }
     }
+
+    /* Short stage (e.g. 16∶9 preview / phone landscape): width often >430px; see player.css */
+    @container presdev (max-height: 500px) {
+      .presentation-panel-controls button.pres-icon-btn svg {
+        width: 1.62em;
+        height: 1.62em;
+      }
+    }
     .presentation-progress {
       height: 7px;
       height: clamp(7px, 1.55cqmin, 11px);
@@ -561,6 +569,13 @@
       width: 0%;
       border-radius: 3px;
       background: linear-gradient(90deg, #34d399, var(--lane-sfx));
+    }
+
+    /** Phone-landscape preview (16∶9 frame): mirror player landscape inset on part/rep + bar */
+    .presentation-device-frame[data-aspect="16-9"] .presentation-meta-row,
+    .presentation-device-frame[data-aspect="16-9"] .presentation-progress {
+      margin-left: max(0.4rem, env(safe-area-inset-left, 0px));
+      margin-right: max(0.4rem, env(safe-area-inset-right, 0px));
     }
 
     .toolbar .sep {
