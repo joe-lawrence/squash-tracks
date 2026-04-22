@@ -1,0 +1,44 @@
+{
+  "version": 2,
+  "workoutName": "Demo workout",
+  "segments": [
+    {
+      "name": "Part 1",
+      "elementId": "sample-part-1",
+      "defaultIntervalSec": 12,
+      "reps": [
+        {
+          "name": "Rep 1",
+          "elementId": "sample-rep-1",
+          "order": ["text", "tts", "sfx"],
+          "events": [
+            {
+              "lane": "text",
+              "start": 0.5,
+              "duration": 4,
+              "name": "Welcome",
+              "elementId": "ev-text-1",
+              "heading": "Player demo",
+              "body": "Load a JSON export from the editor, or edit this file."
+            },
+            {
+              "lane": "tts",
+              "start": 5.5,
+              "duration": 1.2,
+              "name": "You are halfway through this rep.",
+              "elementId": "ev-tts-1"
+            },
+            {
+              "lane": "sfx",
+              "start": 8,
+              "duration": 0.4,
+              "sfxKind": "shot",
+              "name": "Shot beep",
+              "elementId": "ev-sfx-1"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

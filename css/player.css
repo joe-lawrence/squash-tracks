@@ -1,0 +1,866 @@
+/**
+ * Standalone workout player — full viewport; presentation rules mirror editor preview.
+ * When changing cue typography / transport behavior, update editor preview styles in editor.html in the same pass (player-only rules stay under `.player-page`). Presentation SVGs use stroke-width 1.25 to match the editor preview.
+ */
+:root {
+  --bg: #070f1a;
+  --lane-sfx: #38bdf8;
+  --line: #1e3a5f;
+  --text: #e8f0fc;
+  --dim: #7c9dc4;
+  --player-progress-a: #60a5fa;
+  --player-progress-b: #2563eb;
+  --player-accent-glow: rgba(56, 189, 248, 0.32);
+  --player-accent-glow-inner: rgba(56, 189, 248, 0.18);
+  --player-part-accent: #93c5fd;
+  --player-pres-shell-bg: radial-gradient(ellipse 100% 80% at 50% 32%, #0f1f3a 0%, #030712 88%);
+  --player-pres-frame-bg: #060d18;
+  --player-pres-screen-bg: linear-gradient(165deg, #0c1829 0%, #050a14 100%);
+  --player-pres-time: #7cb4e8;
+  --player-pres-rep-meta: #bfdbfe;
+  --player-pres-cue-heading: #f8fafc;
+  --player-pres-cue-body: #bfdbfe;
+  --player-pres-cue-placeholder: #60a5fa;
+  --player-pres-cue-shadow: 0 0 48px rgba(30, 64, 175, 0.35), 0 1px 0 rgba(255, 255, 255, 0.06);
+  --player-pres-icon-border: #1e3a5f;
+  --player-pres-icon-bg: #0c1929;
+  --player-pres-icon-color: #e2e8f0;
+  --player-pres-icon-bg-hover: #132a45;
+  --player-pres-icon-border-hover: #2563eb;
+  --player-pres-progress-bg: #0a1628;
+  --player-pres-progress-border: #1e40af;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  height: 100%;
+  height: 100dvh;
+}
+
+body.player-page {
+  margin: 0;
+  height: 100%;
+  height: 100dvh;
+  max-height: 100dvh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  color: var(--text);
+  font-family: "Space Grotesk", system-ui, sans-serif;
+  -webkit-text-size-adjust: 100%;
+}
+
+/** Hidden file input (opened from Load → file in the menu). */
+.player-sr-file-host {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.player-file-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.player-page .presentation-panel-header {
+  position: relative;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.35rem 0.45rem;
+}
+
+.player-page .player-header-menu-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: clamp(2.35rem, 9cqmin, 2.85rem);
+  height: clamp(2.35rem, 9cqmin, 2.85rem);
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0;
+  border-radius: 10px;
+  border: 1px solid #3d4656;
+  background: #141820;
+  color: #94a3b8;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.player-page .player-header-menu-btn:hover {
+  border-color: #5b6474;
+  color: #e2e8f0;
+  background: #1c2430;
+}
+
+.player-page .player-header-menu-btn:focus-visible {
+  outline: 2px solid var(--lane-sfx);
+  outline-offset: 2px;
+}
+
+.player-page .player-header-menu-btn[aria-expanded="true"] {
+  border-color: var(--lane-sfx);
+  color: #f1f5f9;
+}
+
+.player-page .player-header-menu-btn-icon {
+  display: block;
+  width: clamp(1.15rem, 5cqmin, 1.45rem);
+  height: clamp(1.15rem, 5cqmin, 1.45rem);
+}
+
+body.player-menu-open .player-header-menu-btn {
+  position: relative;
+  z-index: 72;
+}
+
+.player-menu-dropdown {
+  position: absolute;
+  top: calc(100% + 0.2rem);
+  left: 0;
+  z-index: 70;
+  padding: 0;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+  color: var(--text);
+}
+
+.player-menu-dropdown[hidden] {
+  display: none;
+}
+
+.player-menu-dropdown-row {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 0.45rem;
+}
+
+.player-menu-dropdown-main {
+  flex: 0 0 auto;
+  min-width: min(10.75rem, calc(100vw - 3rem));
+  padding: 0.45rem 0.4rem 0.5rem;
+  border-radius: 10px;
+  border: 1px solid #3d4656;
+  background: rgba(18, 21, 28, 0.98);
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.player-menu-dd-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  width: 100%;
+  margin: 0;
+  padding: 0.5rem 0.55rem;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: #e2e8f0;
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.player-menu-dd-btn-icon {
+  display: flex;
+  flex-shrink: 0;
+  width: 1.75rem;
+  height: 1.75rem;
+  align-items: center;
+  justify-content: center;
+  color: #94a3b8;
+}
+
+.player-menu-dd-btn:hover .player-menu-dd-btn-icon {
+  color: var(--lane-sfx);
+}
+
+.player-menu-dd-btn:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.player-menu-dd-btn:focus-visible {
+  outline: 2px solid var(--lane-sfx);
+  outline-offset: 0;
+}
+
+.player-menu-dd-btn[aria-expanded="true"] {
+  color: #f8fafc;
+}
+
+.player-load-submenu,
+.player-theme-submenu,
+.player-theme-schemes-submenu {
+  flex: 0 0 auto;
+  align-self: flex-start;
+  min-width: min(11.25rem, calc(100vw - 5rem));
+  margin: 0;
+  padding: 0.35rem 0.4rem;
+  border: 1px solid #5b6474;
+  border-radius: 10px;
+  background: rgba(12, 14, 20, 0.98);
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.45);
+}
+
+.player-theme-flyout {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: flex-start;
+  gap: 0.45rem;
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+.player-theme-flyout[hidden] {
+  display: none !important;
+}
+
+.player-load-submenu[hidden],
+.player-theme-schemes-submenu[hidden] {
+  display: none !important;
+}
+
+.player-load-submenu-item {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  width: 100%;
+  margin: 0.08rem 0;
+  padding: 0.45rem 0.4rem;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: #e2e8f0;
+  font: inherit;
+  font-size: 0.84rem;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+}
+
+.player-load-submenu-item:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.player-load-submenu-item:focus-visible {
+  outline: 2px solid var(--lane-sfx);
+  outline-offset: 0;
+}
+
+.player-load-submenu-icon {
+  display: flex;
+  flex-shrink: 0;
+  width: 1.75rem;
+  height: 1.75rem;
+  align-items: center;
+  justify-content: center;
+  color: #94a3b8;
+}
+
+.player-load-submenu-item:hover .player-load-submenu-icon {
+  color: var(--lane-sfx);
+}
+
+/* Theme flyout — same structure as squash-ghoster-full (theme menu + .theme-preview squares) */
+.player-theme-options {
+  display: flex;
+  flex-direction: column;
+  gap: 0.08rem;
+  max-height: min(70vh, 22rem);
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.player-theme-menu-btn {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  margin: 0.06rem 0;
+  padding: 0.55rem 0.5rem;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: #e2e8f0;
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+  gap: 0.35rem;
+}
+
+.player-theme-menu-chevron {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  color: #94a3b8;
+}
+
+.player-theme-menu-btn:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: #f8fafc;
+}
+
+.player-theme-menu-btn:hover .player-theme-menu-chevron {
+  color: var(--lane-sfx);
+}
+
+.player-theme-menu-btn:focus-visible {
+  outline: 2px solid var(--lane-sfx);
+  outline-offset: 0;
+}
+
+.player-theme-option {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  margin: 0.04rem 0;
+  padding: 0.45rem 0.4rem;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: #e2e8f0;
+  font: inherit;
+  font-size: 0.84rem;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+}
+
+.player-theme-option:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.player-theme-option:focus-visible {
+  outline: 2px solid var(--lane-sfx);
+  outline-offset: 0;
+}
+
+.player-theme-option--active {
+  background: rgba(255, 255, 255, 0.08);
+  color: #f8fafc;
+  box-shadow: inset 0 0 0 2px var(--lane-sfx);
+}
+
+.player-theme-name {
+  font-weight: 500;
+}
+
+.player-theme-preview {
+  width: 1.35rem;
+  height: 1.35rem;
+  border-radius: 4px;
+  border: 1px solid #64748b;
+  position: relative;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.player-theme-preview::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+}
+
+/* Preview fills — copied from squash-ghoster-full/styles.css .theme-preview.* */
+.player-theme-preview.blue-ocean::before {
+  background: linear-gradient(135deg, #1e40af 0%, #0f172a 100%);
+}
+
+.player-theme-preview.purple-nebula::before {
+  background: linear-gradient(135deg, #2d1b69 0%, #0c0032 100%);
+}
+
+.player-theme-preview.forest-night::before {
+  background: linear-gradient(135deg, #1a2e1a 0%, #064e3b 100%);
+}
+
+.player-theme-preview.crimson-shadow::before {
+  background: linear-gradient(135deg, #2e1a1a 0%, #4c1d1d 100%);
+}
+
+.player-theme-preview.midnight-teal::before {
+  background: linear-gradient(135deg, #1a2e2e 0%, #134e4a 100%);
+}
+
+.player-theme-preview.cloud-silver::before {
+  background: linear-gradient(135deg, #f8fafc 0%, #cbd5e1 100%);
+}
+
+.player-theme-preview.warm-sunset::before {
+  background: linear-gradient(135deg, #fef7ed 0%, #fdba74 100%);
+}
+
+.player-theme-preview.fresh-mint::before {
+  background: linear-gradient(135deg, #f0fdf4 0%, #bbf7d0 100%);
+}
+
+.player-theme-preview.rose-gold::before {
+  background: linear-gradient(135deg, #fdf2f8 0%, #fbcfe8 100%);
+}
+
+.player-theme-preview.arctic-blue::before {
+  background: linear-gradient(135deg, #f0f9ff 0%, #bae6fd 100%);
+}
+
+.player-theme-preview.lavender-mist::before {
+  background: linear-gradient(135deg, #faf5ff 0%, #e9d5ff 100%);
+}
+
+.player-menu-dd-about {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin: 0;
+  padding: 0.5rem 0.55rem;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  color: #e2e8f0;
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.player-menu-dd-about-icon {
+  display: flex;
+  flex-shrink: 0;
+  width: 1.75rem;
+  height: 1.75rem;
+  align-items: center;
+  justify-content: center;
+  color: #94a3b8;
+}
+
+.player-menu-dd-about:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: #f1f5f9;
+}
+
+.player-menu-dd-about:hover .player-menu-dd-about-icon {
+  color: var(--lane-sfx);
+}
+
+.player-menu-dd-about:focus-visible {
+  outline: 2px solid var(--lane-sfx);
+  outline-offset: 0;
+}
+
+@media (max-width: 480px) {
+  .player-menu-dropdown-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .player-load-submenu {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .player-theme-flyout {
+    flex-direction: row;
+    flex-wrap: nowrap;
+    align-items: flex-start;
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 0.15rem;
+  }
+
+  .player-theme-submenu,
+  .player-theme-schemes-submenu {
+    min-width: min(10.5rem, 46vw);
+    width: auto;
+    flex: 0 0 auto;
+  }
+}
+
+.player-status {
+  position: fixed;
+  z-index: 30;
+  bottom: max(0.45rem, env(safe-area-inset-bottom));
+  left: max(0.45rem, env(safe-area-inset-left));
+  right: max(0.45rem, env(safe-area-inset-right));
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.65rem;
+  color: #fca5a5;
+  text-align: center;
+  pointer-events: none;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.85);
+}
+
+.player-main {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+}
+
+/* —— Full-viewport presentation shell —— */
+.presentation-device-shell {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  background: var(--player-pres-shell-bg);
+  border: none;
+  border-radius: 0;
+}
+
+.player-page #presDeviceFrame.presentation-device-frame {
+  box-sizing: border-box;
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  height: 100%;
+  max-height: none;
+  margin: 0;
+  aspect-ratio: unset;
+  border-radius: 0;
+  border: none;
+  box-shadow: none;
+  display: flex;
+  flex-direction: column;
+  background: var(--player-pres-frame-bg);
+  overflow: hidden;
+}
+
+.presentation-device-screen {
+  container-type: size;
+  container-name: presdev;
+  flex: 1 1 auto;
+  min-height: 0;
+  box-sizing: border-box;
+  padding: clamp(0.55rem, 4cqmin, 0.95rem) clamp(0.6rem, 4.5cqmin, 1rem) clamp(0.65rem, 4cqmin, 1rem);
+  padding-bottom: max(clamp(0.65rem, 4cqmin, 1rem), env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  background: var(--player-pres-screen-bg);
+}
+
+.presentation-panel-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.25rem 0.4rem;
+  margin-bottom: 0.35rem;
+  flex-shrink: 0;
+}
+
+.presentation-panel-footer {
+  flex-shrink: 0;
+  margin-top: auto;
+  padding-top: 0.4rem;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.pres-head-name {
+  font-size: clamp(0.68rem, 4.2cqmin, 0.9rem);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  margin: 0;
+  color: var(--text);
+  line-height: 1.2;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+}
+
+.pres-head-time {
+  font-family: "JetBrains Mono", monospace;
+  font-size: clamp(0.58rem, 3.5cqmin, 0.75rem);
+  color: var(--player-pres-time);
+  white-space: nowrap;
+  text-align: right;
+  justify-self: end;
+}
+
+.presentation-panel-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.28rem;
+  justify-content: center;
+  max-width: 100%;
+}
+
+#presBtnRewind,
+#presBtnFastForward {
+  touch-action: none;
+}
+
+.presentation-panel-controls button.pres-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: clamp(0.68rem, 3.2cqmin, 0.85rem);
+  width: 2.65em;
+  height: 2.65em;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0;
+  border-radius: 10px;
+  border: 1px solid var(--player-pres-icon-border);
+  background: var(--player-pres-icon-bg);
+  color: var(--player-pres-icon-color);
+  cursor: pointer;
+}
+
+.presentation-panel-controls button.pres-icon-btn svg {
+  display: block;
+  flex-shrink: 0;
+  width: 1em;
+  height: 1em;
+}
+
+.presentation-panel-controls button.pres-icon-btn:hover {
+  border-color: var(--player-pres-icon-border-hover);
+  background: var(--player-pres-icon-bg-hover);
+}
+
+.presentation-panel-controls button.pres-icon-btn:focus-visible {
+  outline: 2px solid var(--lane-sfx);
+  outline-offset: 2px;
+}
+
+.presentation-meta-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  font-size: clamp(0.6rem, 3.6cqmin, 0.75rem);
+  margin-bottom: 0.35rem;
+  flex-shrink: 0;
+}
+
+.presentation-meta-row.presentation-meta-row--rep-only {
+  justify-content: flex-end;
+}
+
+.presentation-meta-row.presentation-meta-row--part-only {
+  justify-content: flex-start;
+}
+
+.presentation-part-info,
+.presentation-rep-info {
+  display: flex;
+  align-items: baseline;
+  gap: 0.25rem;
+}
+
+.presentation-part-info {
+  font-weight: 600;
+  color: var(--player-part-accent);
+}
+
+.presentation-rep-info {
+  font-weight: 500;
+  color: var(--player-pres-rep-meta);
+}
+
+.presentation-cue-wrap {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0.12rem 0 0.3rem;
+  padding: 0.1rem 0;
+}
+
+.presentation-cue-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.28rem;
+  max-width: 100%;
+  text-align: center;
+}
+
+.presentation-cue-heading {
+  font-size: clamp(1.05rem, 10cqmin, 1.85rem);
+  font-weight: 700;
+  line-height: 1.22;
+  letter-spacing: -0.02em;
+  margin: 0;
+  color: var(--player-pres-cue-heading);
+  max-width: 100%;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
+.presentation-cue-body {
+  font-size: clamp(0.78rem, 5.5cqmin, 1.08rem);
+  font-weight: 500;
+  line-height: 1.35;
+  margin: 0;
+  color: var(--player-pres-cue-body);
+  max-width: 100%;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
+.presentation-cue-body.presentation-cue-placeholder {
+  color: var(--player-pres-cue-placeholder);
+  font-weight: 600;
+}
+
+.presentation-progress {
+  height: clamp(5px, 1.2cqmin, 8px);
+  border-radius: 3px;
+  background: var(--player-pres-progress-bg);
+  overflow: hidden;
+  border: 1px solid var(--player-pres-progress-border);
+  flex-shrink: 0;
+}
+
+.presentation-progress-fill {
+  height: 100%;
+  width: 0%;
+  border-radius: 2px;
+  background: linear-gradient(90deg, var(--player-progress-a), var(--player-progress-b));
+}
+
+/* —— Hero cue typography: container + viewport so fullscreen phone and wide desktop both scale —— */
+.player-page .presentation-cue-heading {
+  font-size: clamp(1rem, min(9.5cqmin, 6.5vmin), 2.2rem);
+  line-height: 1.18;
+  letter-spacing: -0.03em;
+  text-shadow: var(--player-pres-cue-shadow);
+}
+
+.player-page .presentation-cue-body {
+  font-size: clamp(0.72rem, min(5.2cqmin, 3.9vmin), 1.14rem);
+  line-height: 1.38;
+  max-width: min(36rem, 92%);
+}
+
+.player-page .presentation-cue-wrap {
+  border-radius: 1rem;
+}
+
+/* Subtle cue change pulse (class toggled from playerApp.js) */
+@keyframes playerCuePulseGlow {
+  0% {
+    box-shadow:
+      0 0 0 0 var(--player-accent-glow),
+      inset 0 0 0 1px var(--player-accent-glow-inner);
+  }
+  100% {
+    box-shadow:
+      0 0 0 28px rgba(52, 211, 153, 0),
+      inset 0 0 0 1px transparent;
+  }
+}
+
+.player-page .presentation-cue-wrap.presentation-cue-pulse {
+  animation: playerCuePulseGlow 0.62s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .player-page .presentation-cue-wrap.presentation-cue-pulse {
+    animation: none;
+  }
+}
+
+/* Short viewports / landscape phones: tighten chrome, keep cue dominant */
+@media (max-height: 520px) {
+  .player-page .presentation-device-screen {
+    padding-top: clamp(0.35rem, 2.8cqmin, 0.55rem);
+    padding-bottom: max(clamp(0.45rem, 3cqmin, 0.65rem), env(safe-area-inset-bottom));
+  }
+
+  .player-page .presentation-panel-header {
+    margin-bottom: 0.2rem;
+  }
+
+  .player-page .presentation-cue-heading {
+    font-size: clamp(0.92rem, min(8cqmin, 5.5vmin), 1.65rem);
+  }
+
+  .player-page .presentation-cue-body {
+    font-size: clamp(0.68rem, min(4.6cqmin, 3.4vmin), 1rem);
+  }
+
+  .player-page .presentation-cue-stack {
+    gap: 0.18rem;
+  }
+
+  .player-page .presentation-meta-row {
+    margin-bottom: 0.22rem;
+  }
+}
+
+@media (orientation: landscape) and (max-height: 460px) {
+  .player-page .presentation-cue-wrap {
+    margin-top: 0;
+    margin-bottom: 0.15rem;
+  }
+}
+
+/* Auto-hide transport while playing; tap stage (or Escape) to reveal ~4s */
+.player-page.player-playing:not(.player-transport-open) .presentation-panel-footer {
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(14px);
+  pointer-events: none;
+  transition:
+    opacity 0.36s ease,
+    transform 0.36s ease,
+    visibility 0s linear 0.32s;
+}
+
+.player-page.player-playing.player-transport-open .presentation-panel-footer,
+.player-page:not(.player-playing) .presentation-panel-footer {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+  pointer-events: auto;
+  transition:
+    opacity 0.22s ease,
+    transform 0.22s ease,
+    visibility 0s linear 0s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .player-page.player-playing .presentation-panel-footer {
+    transition-duration: 0.01ms;
+  }
+}

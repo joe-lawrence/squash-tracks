@@ -7,6 +7,12 @@
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@450;500;600&family=Space+Grotesk:wght@400;500;600&display=swap" rel="stylesheet" />
   <style>
     :root {
+      /** Keep in sync with `html { zoom: … }` — used to cancel zoom inside the device preview. */
+      --editor-page-zoom: 1.35;
+      /** Nominal device-frame widths (CSS px before page zoom cancel). */
+      --pres-frame-w-9-16: 260px;
+      --pres-frame-w-9-19-5: 248px;
+      --pres-frame-w-16-9: 440px;
       --bg: #0c0d10;
       --rail: #14161c;
       --lane: #0f1117;
@@ -26,7 +32,7 @@
     }
     * { box-sizing: border-box; }
     html {
-      zoom: 1.35;
+      zoom: var(--editor-page-zoom);
     }
     body {
       margin: 0;
@@ -132,13 +138,58 @@
       color: #fecaca;
     }
 
-    /* —— Workout presentation (in-editor) —— */
+    /* Preview + multitrack: side-by-side; preview collapses horizontally. */
+    .editor-main-row {
+      display: flex;
+      flex-direction: row;
+      align-items: stretch;
+      gap: 0.85rem;
+      margin-bottom: 0.85rem;
+      min-height: 0;
+    }
+    .editor-timeline-column {
+      flex: 1;
+      min-width: 0;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+    }
+    .editor-timeline-column .timeline-shell {
+      flex: 1;
+      min-height: 0;
+    }
+
+    /* —— Workout presentation (in-editor) ——
+       Keep transport + device chrome in sync with `player.html` (full-viewport shell), `css/player.css`, and `js/presentationShared.js`. */
     .presentation-panel {
+      display: flex;
+      flex-direction: column;
+      align-self: stretch;
+      width: clamp(236px, 30vw, 304px);
+      min-width: 236px;
+      flex-shrink: 0;
       background: linear-gradient(180deg, #12141a 0%, #0e1015 100%);
       border: 1px solid var(--line);
       border-radius: 10px;
       padding: 0.55rem 0.7rem 0.65rem;
-      margin-bottom: 0.85rem;
+      margin-bottom: 0;
+      transition: width 0.22s ease, min-width 0.22s ease, max-width 0.22s ease;
+    }
+    .presentation-panel--collapsed {
+      width: auto;
+      min-width: 0;
+      max-width: 10.5rem;
+    }
+    .presentation-panel--collapsed .presentation-aspect-field {
+      display: none;
+    }
+    .presentation-panel--collapsed .presentation-panel-chrome {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 0.35rem;
+      margin-bottom: 0;
+      padding-bottom: 0;
+      border-bottom: none;
     }
     .presentation-panel-chrome {
       display: flex;
@@ -150,37 +201,57 @@
       padding-bottom: 0.45rem;
       border-bottom: 1px solid rgba(42, 47, 58, 0.85);
     }
-    .pres-preview-collapse-btn {
+    /** Preview on = pressed (inset); preview off = raised. Lucide tablet-smartphone. */
+    .pres-preview-toggle {
       display: inline-flex;
       align-items: center;
-      gap: 0.3rem;
-      font-family: "JetBrains Mono", monospace;
-      font-size: 0.7rem;
-      font-weight: 500;
-      padding: 0.3rem 0.45rem;
+      justify-content: center;
+      flex-shrink: 0;
+      width: 2.15rem;
+      height: 2.15rem;
+      padding: 0;
       border-radius: 6px;
-      border: 1px solid var(--line);
-      background: #141820;
+      border: 1px solid #3d4656;
+      background: linear-gradient(180deg, #1a1f28 0%, #141820 100%);
       color: #cbd5e1;
       cursor: pointer;
+      box-shadow: 0 1px 0 rgba(255, 255, 255, 0.06);
+      transition:
+        background 0.15s ease,
+        border-color 0.15s ease,
+        box-shadow 0.15s ease,
+        color 0.15s ease,
+        transform 0.12s ease;
     }
-    .pres-preview-collapse-btn:hover {
+    .pres-preview-toggle:hover {
       border-color: #5b6474;
-      background: #1c2430;
+      color: #e2e8f0;
     }
-    .pres-preview-collapse-btn:focus-visible {
+    .pres-preview-toggle:focus-visible {
       outline: 2px solid var(--lane-sfx);
       outline-offset: 2px;
     }
-    .pres-preview-collapse-btn .pres-chevron {
-      display: block;
-      transition: transform 0.2s ease;
+    .pres-preview-toggle[aria-expanded="true"] {
+      background: linear-gradient(180deg, #0c0e12 0%, #10141c 100%);
+      border-color: #252a36;
+      color: #e2e8f0;
+      box-shadow:
+        inset 0 2px 5px rgba(0, 0, 0, 0.45),
+        inset 0 1px 0 rgba(0, 0, 0, 0.35);
+      transform: translateY(1px);
     }
-    .pres-preview-collapse-btn[aria-expanded="false"] .pres-chevron {
-      transform: rotate(-90deg);
+    .pres-preview-toggle-icon {
+      display: block;
+      flex-shrink: 0;
     }
     .pres-collapsible[hidden] {
       display: none !important;
+    }
+    .pres-collapsible:not([hidden]) {
+      flex: 1 1 auto;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
     }
     .presentation-aspect-field {
       display: flex;
@@ -188,12 +259,6 @@
       gap: 0.45rem;
       font-size: 0.72rem;
       color: var(--dim);
-    }
-    .presentation-aspect-field label {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.45rem;
-      cursor: pointer;
     }
     .presentation-aspect-field select {
       font-family: "JetBrains Mono", monospace;
@@ -204,18 +269,15 @@
       background: #0d0f12;
       color: var(--text);
       max-width: min(20rem, 100%);
-    }
-    .presentation-chrome-hint {
-      font-size: 0.62rem;
-      color: var(--dim);
-      opacity: 0.9;
+      cursor: pointer;
     }
     /** Letterboxed “device” stage — simulates full-screen margins. */
     .presentation-device-shell {
       display: flex;
       align-items: center;
       justify-content: center;
-      min-height: 88px;
+      flex: 1 1 auto;
+      min-height: 0;
       padding: 0.4rem 0.35rem;
       background: radial-gradient(ellipse 80% 70% at 50% 40%, #151820 0%, #07080c 72%);
       border-radius: 8px;
@@ -239,18 +301,35 @@
     }
     .presentation-device-frame[data-aspect="9-16"] {
       aspect-ratio: 9 / 16;
-      width: min(260px, 100%);
+      width: min(var(--pres-frame-w-9-16), 100%);
       max-height: min(52vh, 460px);
     }
     .presentation-device-frame[data-aspect="9-19_5"] {
       aspect-ratio: 9 / 19.5;
-      width: min(248px, 100%);
+      width: min(var(--pres-frame-w-9-19-5), 100%);
       max-height: min(54vh, 500px);
     }
     .presentation-device-frame[data-aspect="16-9"] {
       aspect-ratio: 16 / 9;
-      width: min(440px, 100%);
+      width: min(var(--pres-frame-w-16-9), 100%);
       max-height: min(34vh, 260px);
+    }
+    /** Flex passthrough: was a direct child of `.pres-collapsible` before the zoom-isolate wrapper. */
+    .pres-device-zoom-isolate {
+      display: flex;
+      flex-direction: column;
+      flex: 1 1 auto;
+      min-height: 0;
+      min-width: 0;
+    }
+    /**
+     * Counteract page-level `zoom` so the mock device uses “native” CSS px for cqmin/clamp math.
+     * Non-supporting browsers: preview stays slightly enlarged with the rest of the page (unchanged).
+     */
+    @supports (zoom: 0.75) {
+      .pres-device-zoom-isolate {
+        zoom: calc(1 / var(--editor-page-zoom));
+      }
     }
     /** Inner “fullscreen” viewport (what the PWA would show). */
     .presentation-device-screen {
@@ -314,22 +393,18 @@
       justify-self: center;
       max-width: 100%;
     }
-    .presentation-panel-footer .presentation-panel-controls .pres-icon-btn {
-      width: clamp(1.75rem, 7.8cqmin, 2.05rem);
-      height: clamp(1.75rem, 7.8cqmin, 2.05rem);
-    }
     #presBtnRewind,
     #presBtnFastForward {
       touch-action: none;
     }
+    /** One scale curve: `font-size` drives `em` box + SVG so glyphs track the hit target. */
     .presentation-panel-controls button.pres-icon-btn {
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      width: 2.1rem;
-      height: 2.1rem;
-      width: clamp(2rem, 10cqmin, 2.35rem);
-      height: clamp(2rem, 10cqmin, 2.35rem);
+      font-size: clamp(0.62rem, 2.85cqmin, 0.78rem);
+      width: 2.55em;
+      height: 2.55em;
       padding: 0;
       border-radius: 8px;
       border: 1px solid #3d4656;
@@ -340,6 +415,8 @@
     .presentation-panel-controls button.pres-icon-btn svg {
       display: block;
       flex-shrink: 0;
+      width: 1em;
+      height: 1em;
     }
     .presentation-panel-controls button.pres-icon-btn:hover {
       border-color: #5b6474;
@@ -386,6 +463,7 @@
       justify-content: center;
       margin: 0.12rem 0 0.3rem;
       padding: 0.1rem 0;
+      border-radius: 1rem;
     }
     .presentation-cue-stack {
       display: flex;
@@ -398,24 +476,27 @@
     }
     .presentation-cue-heading {
       font-size: 1.28rem;
-      font-size: clamp(1.05rem, 10cqmin, 1.75rem);
+      font-size: clamp(1rem, min(9.5cqmin, 6.5vmin), 2.2rem);
       font-weight: 700;
-      line-height: 1.22;
-      letter-spacing: -0.02em;
+      line-height: 1.18;
+      letter-spacing: -0.03em;
       margin: 0;
       color: #f8fafc;
       max-width: 100%;
       white-space: pre-wrap;
       word-wrap: break-word;
+      text-shadow:
+        0 0 48px rgba(15, 23, 42, 0.65),
+        0 1px 0 rgba(255, 255, 255, 0.05);
     }
     .presentation-cue-body {
       font-size: 0.88rem;
-      font-size: clamp(0.78rem, 5.5cqmin, 1.05rem);
+      font-size: clamp(0.72rem, min(5.2cqmin, 3.9vmin), 1.14rem);
       font-weight: 500;
-      line-height: 1.35;
+      line-height: 1.38;
       margin: 0;
       color: #cbd5e1;
-      max-width: 100%;
+      max-width: min(36rem, 100%);
       white-space: pre-wrap;
       word-wrap: break-word;
     }
@@ -1698,27 +1779,27 @@
     </span>
   </div>
 
+  <div class="editor-main-row" id="editorMainRow">
   <section class="presentation-panel" id="presentation-panel" aria-label="Workout presentation">
     <div class="presentation-panel-chrome">
-      <button type="button" class="pres-preview-collapse-btn" id="presPreviewToggle" aria-expanded="true" aria-controls="presCollapsible" title="Show or hide the device preview">
-        <span>Preview</span>
-        <svg class="pres-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <path d="m6 9 6 6 6-6" />
+      <button type="button" class="pres-preview-toggle" id="presPreviewToggle" aria-expanded="true" aria-controls="presCollapsible" title="Hide preview" aria-label="Hide workout preview">
+        <!-- Lucide "tablet-smartphone" — https://lucide.dev/icons/tablet-smartphone (MIT) -->
+        <svg class="pres-preview-toggle-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <rect width="10" height="14" x="3" y="8" rx="2" />
+          <path d="M5 4a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2h-2.4" />
+          <path d="M8 18h.01" />
         </svg>
       </button>
       <div class="presentation-aspect-field">
-        <label for="presAspectSelect">
-          Ratio
-          <select id="presAspectSelect" aria-label="Presentation preview aspect ratio">
-            <option value="9-16">Phone portrait (9∶16)</option>
-            <option value="9-19_5">Tall phone (9∶19.5)</option>
-            <option value="16-9">Phone landscape (16∶9)</option>
-          </select>
-        </label>
+        <select id="presAspectSelect" aria-label="Presentation preview aspect ratio">
+          <option value="9-16">Phone portrait (9∶16)</option>
+          <option value="9-19_5">Tall phone (9∶19.5)</option>
+          <option value="16-9">Phone landscape (16∶9)</option>
+        </select>
       </div>
-      <p class="presentation-chrome-hint">Device-style frame; transport sits at the bottom of the preview.</p>
     </div>
     <div class="pres-collapsible" id="presCollapsible">
+    <div class="pres-device-zoom-isolate">
     <div class="presentation-device-shell">
       <div class="presentation-device-frame" id="presDeviceFrame" data-aspect="9-16">
         <div class="presentation-device-screen">
@@ -1742,30 +1823,30 @@
           <div class="presentation-panel-footer">
             <div class="presentation-panel-controls" role="group" aria-label="Presentation transport">
               <button type="button" class="pres-icon-btn" id="presBtnSkipStart" title="Start of this rep — or previous rep if within 1 s of rep start" aria-label="Start of this rep, or previous rep if within one second of rep start">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                   <polygon points="19 20 9 12 19 4 19 20" />
                   <line x1="5" x2="5" y1="19" y2="5" />
                 </svg>
               </button>
-              <button type="button" class="pres-icon-btn" id="presBtnRewind" title="Rewind (hold)" aria-label="Rewind timeline while held">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <button type="button" class="pres-icon-btn" id="presBtnRewind" title="Rewind (hold)" aria-label="Rewind while held">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                   <polygon points="11 19 2 12 11 5 11 19" />
                   <polygon points="22 19 13 12 22 5 22 19" />
                 </svg>
               </button>
               <button type="button" class="pres-icon-btn" id="presBtnPlayPause" aria-label="Play workout" title="Play">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                   <polygon points="6 3 20 12 6 21 6 3" />
                 </svg>
               </button>
-              <button type="button" class="pres-icon-btn" id="presBtnFastForward" title="Fast forward (hold)" aria-label="Fast forward timeline while held">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <button type="button" class="pres-icon-btn" id="presBtnFastForward" title="Fast forward (hold)" aria-label="Fast forward while held">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                   <polygon points="13 19 22 12 13 5 13 19" />
                   <polygon points="2 19 11 12 2 5 2 19" />
                 </svg>
               </button>
               <button type="button" class="pres-icon-btn" id="presBtnSkipEnd" title="Start of next rep — or end of this rep on the last rep" aria-label="Start of next rep, or end of this rep when on the last rep of the workout">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                   <polygon points="5 4 15 12 5 20 5 4" />
                   <line x1="19" x2="19" y1="5" y2="19" />
                 </svg>
@@ -1776,10 +1857,10 @@
       </div>
     </div>
     </div>
+    </div>
   </section>
 
-  <p class="toast" id="toast" aria-live="polite"></p>
-
+  <div class="editor-timeline-column">
   <div class="timeline-section-heading">
     <p class="section-title">Multitrack timeline</p>
     <div class="section-title-zoom" title="Timeline zoom — pixels per second of workout time">
@@ -1847,6 +1928,10 @@
     </div>
     </div>
   </div>
+  </div>
+  </div>
+
+  <p class="toast" id="toast" aria-live="polite"></p>
 
   <div class="modal-backdrop" id="clipModal" aria-hidden="true">
     <div class="modal" role="dialog" aria-labelledby="clipModalTitle">
@@ -2149,6 +2234,8 @@
   </div>
 
   <script src="js/workoutPresentation.js"></script>
+  <script src="js/workoutPlaybackEngine.js"></script>
+  <script src="js/presentationShared.js"></script>
   <script>
     (function () {
       const FILE_VERSION_SINGLE = 1;
@@ -6898,23 +6985,7 @@
         return m + ":" + String(s).padStart(2, "0") + (f ? "." + f : "");
       }
 
-      /** Format a time value: < 60s as "45.3s", >= 60s as "1:23" */
-      function formatPresentationTime(sec) {
-        const s = Math.max(0, Number(sec) || 0);
-        if (s < 60) {
-          return (Math.round(s * 10) / 10).toFixed(1) + "s";
-        }
-        const mins = Math.floor(s / 60);
-        const secs = Math.floor(s % 60);
-        return mins + ":" + String(secs).padStart(2, "0");
-      }
-
-      /** Presentation clock: `0.7s / 9.0s` or `1:23 / 5:00` */
-      function formatPresentationElapsedTotal(globalSec, totalSec) {
-        return formatPresentationTime(globalSec) + " / " + formatPresentationTime(totalSec);
-      }
-
-      function syncWorkoutNameUI() {
+    function syncWorkoutNameUI() {
         const w = (workoutName && String(workoutName).trim()) || DEFAULT_WORKOUT_NAME;
         const d = document.getElementById("workoutNameDisplay");
         if (d) d.textContent = w;
@@ -8524,23 +8595,47 @@
         syncWorkoutNameUI();
         presentationRender();
         syncPlaybackWithTimeline();
+        rebuildPresPlaybackEngine();
       }
 
       // —— Presentation mode (full workout: all parts, wall-clock transport) ——
+      let presPlaybackEngine = null;
+      const debugPlaybackEngine =
+        typeof location !== "undefined" && new URLSearchParams(location.search).has("debugEngine");
+
+      function rebuildPresPlaybackEngine() {
+        presPlaybackEngine = null;
+        if (typeof WorkoutPlaybackEngine === "undefined" || typeof WorkoutPresentation === "undefined") return;
+        try {
+          presPlaybackEngine = WorkoutPlaybackEngine.create({ segments, audioEnabled: false });
+          presPlaybackEngine.syncAfterSeek(presTimeSec);
+          if (debugPlaybackEngine && presPlaybackEngine) {
+            console.log("[WorkoutPlaybackEngine] editor timeline events:", presPlaybackEngine.timeline.length);
+          }
+        } catch (e) {
+          presPlaybackEngine = null;
+          if (debugPlaybackEngine) console.warn("WorkoutPlaybackEngine:", e);
+        }
+      }
+
+      function syncPresPlaybackEngineAfterSeek() {
+        if (presPlaybackEngine) presPlaybackEngine.syncAfterSeek(presTimeSec);
+      }
+
       let presPlaying = false;
       let presTimeSec = 0;
       let presRafId = 0;
       let presWallLast = 0;
       let presSyncingTimeline = false;
       let playheadSelected = false;
-      /** Hold-to-scrub: −1 rewind, +1 fast-forward (workout seconds per wall second = PRES_SCRUB_RATE). */
+      /** Hold-to-scrub: −1 rewind, +1 fast-forward (workout seconds per wall second = multiplier × 1s). */
       let presScrubDir = 0;
       let presScrubAnimId = 0;
       let presScrubLastFrameTs = 0;
+      let presScrubHoldStartMs = 0;
       let presScrubPointerAc = null;
       let presScrubCaptureEl = null;
       let presScrubCapturePid = -1;
-      const PRES_SCRUB_RATE = 4;
 
       function selectPlayhead() {
         playheadSelected = true;
@@ -8576,12 +8671,14 @@
         }
         presentationRender();
         scrollPlaybackPlayheadIntoView();
+        syncPresPlaybackEngineAfterSeek();
       }
 
       function pausePreviewForSeek() {
         presPlaying = false;
         presStopRaf();
         presSyncPlayButton();
+        syncPresPlaybackEngineAfterSeek();
       }
 
       function seekPreviewToEventStart(r, eventIndex) {
@@ -8593,6 +8690,7 @@
         const g0 = WorkoutPresentation.cumulativeSegmentStart(segments, activeSegmentIndex);
         presTimeSec = WorkoutPresentation.snapTime(g0 + snapTime(ev.start));
         presClampTimeToWorkout();
+        syncPresPlaybackEngineAfterSeek();
       }
 
       function seekPreviewToPartStart(segmentIndex) {
@@ -8600,6 +8698,7 @@
         pausePreviewForSeek();
         presTimeSec = WorkoutPresentation.globalSecAtRepStart(segments, segmentIndex, 0);
         presClampTimeToWorkout();
+        syncPresPlaybackEngineAfterSeek();
       }
 
       function seekPreviewToActiveRepStart(repIndex) {
@@ -8607,6 +8706,7 @@
         pausePreviewForSeek();
         presTimeSec = WorkoutPresentation.globalSecAtRepStart(segments, activeSegmentIndex, repIndex);
         presClampTimeToWorkout();
+        syncPresPlaybackEngineAfterSeek();
       }
 
       /**
@@ -8762,10 +8862,12 @@
           } finally {
             presSyncingTimeline = false;
           }
+          syncPresPlaybackEngineAfterSeek();
           return;
         }
         layoutPlaybackPlayhead();
         if (presPlaying) autoScrollPlaybackTimeline();
+        syncPresPlaybackEngineAfterSeek();
       }
 
       function presClampTimeToWorkout() {
@@ -8782,20 +8884,24 @@
         }
       }
 
-      const PRES_SVG_PLAY =
-        '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="6 3 20 12 6 21 6 3" /></svg>';
-      const PRES_SVG_PAUSE =
-        '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="14" y="4" width="4" height="16" rx="1" /><rect x="6" y="4" width="4" height="16" rx="1" /></svg>';
-
       function presSyncPlayButton() {
         const btn = document.getElementById("presBtnPlayPause");
+        const S = typeof WorkoutPresentationShared !== "undefined" ? WorkoutPresentationShared : null;
+        const playSvg =
+          S && S.PRES_SVG_PLAY
+            ? S.PRES_SVG_PLAY
+            : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="6 3 20 12 6 21 6 3" /></svg>';
+        const pauseSvg =
+          S && S.PRES_SVG_PAUSE
+            ? S.PRES_SVG_PAUSE
+            : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="14" y="4" width="4" height="16" rx="1" /><rect x="6" y="4" width="4" height="16" rx="1" /></svg>';
         if (!btn) return;
         if (presPlaying) {
-          btn.innerHTML = PRES_SVG_PAUSE;
+          btn.innerHTML = pauseSvg;
           btn.setAttribute("aria-label", "Pause workout");
           btn.setAttribute("title", "Pause");
         } else {
-          btn.innerHTML = PRES_SVG_PLAY;
+          btn.innerHTML = playSvg;
           btn.setAttribute("aria-label", "Play workout");
           btn.setAttribute("title", "Play");
         }
@@ -8803,68 +8909,16 @@
 
       function presentationRender() {
         if (typeof WorkoutPresentation === "undefined") return;
-        const WP = WorkoutPresentation;
+        const S = typeof WorkoutPresentationShared !== "undefined" ? WorkoutPresentationShared : null;
+        if (!S || typeof S.renderPresentationIntoDocument !== "function") return;
         flushActiveSegmentMeta();
         presClampTimeToWorkout();
-        const frame = WP.presentationFrame(segments, presTimeSec);
-        const titleEl = document.getElementById("presWorkoutTitle");
-        const timeEl = document.getElementById("presTime");
-        const partEl = document.getElementById("presPartName");
-        const partCtrEl = document.getElementById("presPartCounter");
-        const repCtrEl = document.getElementById("presRepCounter");
-        const repNameEl = document.getElementById("presRepName");
-        const barEl = document.getElementById("presProgressFill");
-        if (titleEl) {
-          const wn = (workoutName && String(workoutName).trim()) || DEFAULT_WORKOUT_NAME;
-          titleEl.textContent = wn;
-        }
-        if (timeEl) {
-          timeEl.textContent = formatPresentationElapsedTotal(frame.globalSec, frame.workoutTotal);
-        }
-        const cueHeadEl = document.getElementById("presCueHeading");
-        const cueBodyEl = document.getElementById("presCueBody");
-        const cueActive = !!frame.cuePresentationActive;
-        const ch = frame.cueHeading != null ? String(frame.cueHeading) : "";
-        const cb = frame.cueBody != null ? String(frame.cueBody) : "";
-        if (cueHeadEl) {
-          cueHeadEl.textContent = ch;
-          cueHeadEl.hidden = !cueActive || !ch;
-        }
-        if (cueBodyEl) {
-          cueBodyEl.classList.remove("presentation-cue-placeholder");
-          if (!cueActive) {
-            cueBodyEl.textContent = "—";
-            cueBodyEl.hidden = false;
-            cueBodyEl.classList.add("presentation-cue-placeholder");
-          } else if (!ch && !cb) {
-            cueBodyEl.textContent = "—";
-            cueBodyEl.hidden = false;
-            cueBodyEl.classList.add("presentation-cue-placeholder");
-          } else if (ch && !cb) {
-            cueBodyEl.textContent = "";
-            cueBodyEl.hidden = true;
-          } else {
-            cueBodyEl.textContent = cb;
-            cueBodyEl.hidden = false;
-          }
-        }
-        const partInfoWrap = partEl ? partEl.closest(".presentation-part-info") : null;
-        const repInfoWrap = repNameEl ? repNameEl.closest(".presentation-rep-info") : null;
-        const metaRow = partInfoWrap ? partInfoWrap.closest(".presentation-meta-row") : null;
-        const hidePart = !!frame.presentationHidePartInfo;
-        const hideRep = !!frame.presentationHideRepInfo;
-        if (partInfoWrap) partInfoWrap.style.display = hidePart ? "none" : "";
-        if (repInfoWrap) repInfoWrap.style.display = hideRep ? "none" : "";
-        if (!hidePart && partEl) partEl.textContent = frame.partName || "—";
-        if (!hidePart && partCtrEl) partCtrEl.textContent = (frame.partIndex + 1) + " / " + frame.partCount;
-        if (!hideRep && repNameEl) repNameEl.textContent = frame.repName || "Rep 1";
-        if (!hideRep && repCtrEl) repCtrEl.textContent = (frame.repIndex + 1) + " / " + frame.repCount;
-        if (metaRow) {
-          metaRow.style.display = hidePart && hideRep ? "none" : "";
-          metaRow.classList.toggle("presentation-meta-row--rep-only", hidePart && !hideRep);
-          metaRow.classList.toggle("presentation-meta-row--part-only", !hidePart && hideRep);
-        }
-        if (barEl) barEl.style.width = (frame.repProgress01 * 100).toFixed(2) + "%";
+        S.renderPresentationIntoDocument(document, {
+          segments,
+          workoutName,
+          defaultWorkoutName: DEFAULT_WORKOUT_NAME,
+          timeSec: presTimeSec,
+        });
       }
 
       function presTick(now) {
@@ -8876,10 +8930,15 @@
           return;
         }
         const WP = WorkoutPresentation;
+        const prevT = presTimeSec;
         const dt = (now - presWallLast) / 1000;
         presWallLast = now;
         const maxT = WP.totalWorkoutDuration(segments);
         presTimeSec = Math.min(presTimeSec + dt, maxT);
+        if (presPlaybackEngine) {
+          const { fired } = presPlaybackEngine.advancePlayback(prevT, presTimeSec);
+          if (debugPlaybackEngine && fired.length) console.debug("[WorkoutPlaybackEngine] fired:", fired);
+        }
         const loc = WP.locateGlobalTime(segments, presTimeSec);
         if (loc.segmentIndex !== activeSegmentIndex) {
           presSyncingTimeline = true;
@@ -8910,6 +8969,7 @@
         presClampTimeToWorkout();
         const maxT = WorkoutPresentation.totalWorkoutDuration(segments);
         if (presTimeSec >= maxT - 1e-6) presTimeSec = 0;
+        syncPresPlaybackEngineAfterSeek();
         presPlaying = true;
         presWallLast = performance.now();
         presSyncPlayButton();
@@ -8952,6 +9012,7 @@
         }
         presScrubCaptureEl = null;
         presScrubCapturePid = -1;
+        presScrubHoldStartMs = 0;
       }
 
       function presStopScrubAndSync() {
@@ -8975,8 +9036,16 @@
         const dtWall = (ts - presScrubLastFrameTs) / 1000;
         presScrubLastFrameTs = ts;
         const maxT = WP.totalWorkoutDuration(segments);
-        const delta = presScrubDir * PRES_SCRUB_RATE * dtWall;
-        presTimeSec = snapTime(Math.max(0, Math.min(presTimeSec + delta, maxT)));
+        const elapsedWall =
+          presScrubHoldStartMs > 0 ? (performance.now() - presScrubHoldStartMs) / 1000 : 0;
+        const mult =
+          typeof WorkoutPresentationShared !== "undefined" &&
+          typeof WorkoutPresentationShared.scrubSpeedMultiplier === "function"
+            ? WorkoutPresentationShared.scrubSpeedMultiplier(elapsedWall)
+            : 4;
+        const delta = presScrubDir * mult * dtWall;
+        /** No `snapTime` while scrubbing — 0.1s grid was swallowing small per-frame deltas at low speed. */
+        presTimeSec = Math.max(0, Math.min(presTimeSec + delta, maxT));
         const loc = WP.locateGlobalTime(segments, presTimeSec);
         if (loc.segmentIndex !== activeSegmentIndex) {
           presSyncingTimeline = true;
@@ -9007,6 +9076,7 @@
         pausePreviewForSeek();
         presScrubDir = dir;
         presScrubLastFrameTs = 0;
+        presScrubHoldStartMs = performance.now();
         if (captureEl != null && pointerId != null) {
           presScrubCaptureEl = captureEl;
           presScrubCapturePid = pointerId;
@@ -9180,17 +9250,29 @@
       function setPresPreviewCollapsed(collapsed) {
         const el = document.getElementById("presCollapsible");
         const btn = document.getElementById("presPreviewToggle");
-        if (!el || !btn) return;
+        const panel = document.getElementById("presentation-panel");
+        if (!el || !btn || !panel) return;
         if (collapsed) {
           el.hidden = true;
+          panel.classList.add("presentation-panel--collapsed");
           btn.setAttribute("aria-expanded", "false");
+          btn.setAttribute("title", "Show preview");
+          btn.setAttribute("aria-label", "Show workout preview");
         } else {
           el.hidden = false;
+          panel.classList.remove("presentation-panel--collapsed");
           btn.setAttribute("aria-expanded", "true");
+          btn.setAttribute("title", "Hide preview");
+          btn.setAttribute("aria-label", "Hide workout preview");
         }
         try {
           localStorage.setItem(PRES_PREVIEW_COLLAPSE_KEY, collapsed ? "1" : "0");
         } catch (_) {}
+        queueMicrotask(() => {
+          try {
+            window.dispatchEvent(new Event("resize"));
+          } catch (_) {}
+        });
       }
 
       function initPresPreviewCollapse() {
@@ -9274,6 +9356,10 @@
         initPresentationAspectSelect();
         if (typeof WorkoutPresentation === "undefined") {
           console.warn("workoutPresentation.js missing — presentation controls disabled.");
+          return;
+        }
+        if (typeof WorkoutPresentationShared === "undefined") {
+          console.warn("presentationShared.js missing — presentation preview disabled.");
           return;
         }
         const bSkip0 = document.getElementById("presBtnSkipStart");
