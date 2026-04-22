@@ -1,5 +1,6 @@
 /**
  * Standalone workout player — full viewport; presentation rules mirror editor preview.
+ * UI font matches squash-ghoster-full (`Inter`); elapsed/total time (`.pres-head-time`) stays `JetBrains Mono`.
  * When changing cue typography / transport behavior, update editor preview styles in editor.html in the same pass (player-only rules stay under `.player-page`). Menu / submenu SVGs use stroke-width 1.25; transport footer icons use 2.
  */
 :root {
@@ -50,7 +51,7 @@ body.player-page {
   flex-direction: column;
   background: var(--bg);
   color: var(--text);
-  font-family: "Space Grotesk", system-ui, sans-serif;
+  font-family: "Inter", system-ui, sans-serif;
   -webkit-text-size-adjust: 100%;
 }
 
