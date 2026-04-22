@@ -167,11 +167,12 @@
                     <span>About</span>
                   </a>
                 </div>
-                <div id="playerMenuLoadView" class="player-menu-view player-menu-view--with-back" hidden role="group" aria-label="Load workout">
-                  <div class="player-menu-back-col">
+                <div id="playerMenuLoadView" class="player-menu-view" hidden role="group" aria-label="Load workout">
+                  <div class="player-menu-back-row">
                     <button type="button" class="player-menu-back-btn" id="playerMenuLoadBackBtn" aria-label="Back to menu" title="Back">
                       <!-- Lucide chevron-left — https://lucide.dev/icons/chevron-left (ISC) -->
                       <svg
+                        class="player-menu-back-btn-icon"
                         xmlns="http://www.w3.org/2000/svg"
                         width="20"
                         height="20"
@@ -185,9 +186,9 @@
                       >
                         <path d="m15 18-6-6 6-6" />
                       </svg>
+                      <span class="player-menu-back-label">Back</span>
                     </button>
                   </div>
-                  <div class="player-menu-view-stack">
                   <button type="button" class="player-load-submenu-item" id="playerLoadFileItem">
                     <span class="player-load-submenu-icon" aria-hidden="true">
                       <svg
@@ -248,12 +249,12 @@
                     </span>
                     <span>Paste JSON</span>
                   </button>
-                  </div>
                 </div>
-                <div id="playerMenuThemeView" class="player-menu-view player-menu-view--with-back" hidden role="group" aria-label="Theme">
-                  <div class="player-menu-back-col">
+                <div id="playerMenuThemeView" class="player-menu-view" hidden role="group" aria-label="Theme">
+                  <div class="player-menu-back-row">
                     <button type="button" class="player-menu-back-btn" id="playerMenuThemeBackBtn" aria-label="Back to menu" title="Back">
                       <svg
+                        class="player-menu-back-btn-icon"
                         xmlns="http://www.w3.org/2000/svg"
                         width="20"
                         height="20"
@@ -267,16 +268,16 @@
                       >
                         <path d="m15 18-6-6 6-6" />
                       </svg>
+                      <span class="player-menu-back-label">Back</span>
                     </button>
                   </div>
-                  <div class="player-menu-view-stack">
-                    <div id="playerThemeOptions" class="player-theme-options"></div>
-                  </div>
+                  <div id="playerThemeOptions" class="player-theme-options"></div>
                 </div>
-                <div id="playerMenuThemeSchemesView" class="player-menu-view player-menu-view--with-back" hidden role="group" aria-label="Choose color scheme">
-                  <div class="player-menu-back-col">
+                <div id="playerMenuThemeSchemesView" class="player-menu-view" hidden role="group" aria-label="Choose color scheme">
+                  <div class="player-menu-back-row">
                     <button type="button" class="player-menu-back-btn" id="playerMenuThemeSchemesBackBtn" aria-label="Back" title="Back">
                       <svg
+                        class="player-menu-back-btn-icon"
                         xmlns="http://www.w3.org/2000/svg"
                         width="20"
                         height="20"
@@ -290,11 +291,10 @@
                       >
                         <path d="m15 18-6-6 6-6" />
                       </svg>
+                      <span class="player-menu-back-label">Back</span>
                     </button>
                   </div>
-                  <div class="player-menu-view-stack">
-                    <div id="playerThemeSchemeOptions" class="player-theme-options"></div>
-                  </div>
+                  <div id="playerThemeSchemeOptions" class="player-theme-options"></div>
                 </div>
               </div>
             </div>

@@ -398,12 +398,24 @@ html[data-theme="light"] .player-menu-dd-about-icon {
   color: #64748b;
 }
 
+html[data-theme="light"] .player-menu-back-row {
+  border-bottom-color: rgba(15, 23, 42, 0.12);
+}
+
 html[data-theme="light"] .player-menu-back-btn {
+  color: #1e293b;
+}
+
+html[data-theme="light"] .player-menu-back-btn-icon {
   color: #64748b;
 }
 
 html[data-theme="light"] .player-menu-back-btn:hover {
   background: #f1f5f9;
+  color: var(--lane-sfx);
+}
+
+html[data-theme="light"] .player-menu-back-btn:hover .player-menu-back-btn-icon {
   color: var(--lane-sfx);
 }
 

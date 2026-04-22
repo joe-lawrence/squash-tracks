@@ -356,7 +356,7 @@
     .presentation-panel-footer {
       flex-shrink: 0;
       margin-top: auto;
-      padding-top: 0.4rem;
+      padding-top: 0.48rem;
       display: flex;
       justify-content: center;
       align-items: center;
@@ -504,10 +504,37 @@
       color: #64748b;
       font-weight: 600;
     }
+    /* Match `player.css`: narrow presdev stage — tie cue size to line width (cqi), not tall-vmin alone */
+    @container presdev (max-width: 430px) {
+      /*
+       * Preview-only: larger than `player.css` narrow-stage title (`…3.55cqi`, max 2rem)
+       * so cue wrap/size in the mock reads closer to full-screen `player.html`.
+       */
+      .presentation-cue-heading {
+        font-size: clamp(1.80rem, calc(1.04rem + 3.98cqi), 2.32rem);
+        font-weight: 700;
+        line-height: 1.2;
+        letter-spacing: -0.03em;
+        text-shadow:
+          0 0 48px rgba(15, 23, 42, 0.65),
+          0 1px 0 rgba(255, 255, 255, 0.05);
+      }
+
+      .presentation-cue-body {
+        font-size: clamp(1.02rem, calc(0.78rem + 3.2cqi), 1.56rem);
+        line-height: 1.38;
+        max-width: min(36rem, 98%);
+      }
+
+      .presentation-cue-stack {
+        gap: 0.24rem;
+      }
+    }
     .presentation-progress {
-      height: 6px;
-      height: clamp(4px, 1.2cqmin, 7px);
-      border-radius: 3px;
+      height: 7px;
+      height: clamp(7px, 1.55cqmin, 11px);
+      margin: 0.3rem 0 0.36rem;
+      border-radius: 4px;
       background: #1e222b;
       overflow: hidden;
       border: 1px solid #2a303c;
@@ -516,7 +543,7 @@
     .presentation-progress-fill {
       height: 100%;
       width: 0%;
-      border-radius: 2px;
+      border-radius: 3px;
       background: linear-gradient(90deg, #34d399, var(--lane-sfx));
     }
 
