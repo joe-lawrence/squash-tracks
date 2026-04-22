@@ -1,6 +1,6 @@
 /**
  * Standalone workout player — full viewport; presentation rules mirror editor preview.
- * UI font matches squash-ghoster-full (`Inter`); elapsed/total time (`.pres-head-time`) stays `JetBrains Mono`.
+ * UI font matches squash-ghoster-full (`Inter`); `editor.html` preview uses the same stack. Elapsed/total time (`.pres-head-time`) stays `JetBrains Mono`.
  * When changing cue typography / transport behavior, update editor preview styles in editor.html in the same pass (player-only rules stay under `.player-page`). Menu / submenu SVGs use stroke-width 1.25; transport footer icons use 2.
  */
 :root {
@@ -853,10 +853,10 @@ body.player-menu-open .player-menu-anchor {
   /*
    * Width-aware caps (cqi). Title must stay clearly above body size at every inline size here —
    * bold headings read wider, so the fluid term needs a higher floor/max than the body, not a lower one.
-   * Editor preview uses a slightly larger narrow-stage title in editor.html (calibration only).
+   * Editor preview uses a slightly larger narrow-stage title in editor.html (calibration).
    */
   .player-page .presentation-cue-heading {
-    font-size: clamp(1.42rem, calc(0.96rem + 3.55cqi), 2rem);
+    font-size: clamp(1.58rem, calc(1.05rem + 4.15cqi), 2.28rem);
     font-weight: 700;
     line-height: 1.2;
     letter-spacing: -0.03em;
@@ -871,6 +871,15 @@ body.player-menu-open .player-menu-anchor {
 
   .player-page .presentation-cue-stack {
     gap: 0.24rem;
+  }
+
+  /*
+   * Transport buttons stay the same em / min-pixel size; only scale the SVG inside so glyphs
+   * read larger on phones (preview frame already looked fine at 1em).
+   */
+  .player-page .presentation-panel-controls button.pres-icon-btn svg {
+    width: 1.34em;
+    height: 1.34em;
   }
 }
 

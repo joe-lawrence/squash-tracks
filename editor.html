@@ -4,7 +4,9 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Rep timeline editor</title>
-  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@450;500;600&family=Space+Grotesk:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@450;500;600&display=swap" rel="stylesheet" />
   <style>
     :root {
       /** Keep in sync with `html { zoom: … }` — used to cancel zoom inside the device preview. */
@@ -38,7 +40,7 @@
       margin: 0;
       background: var(--bg);
       color: var(--text);
-      font-family: "Space Grotesk", sans-serif;
+      font-family: "Inter", system-ui, sans-serif;
       min-height: 100vh;
       padding: 1.25rem 1.5rem 2.5rem;
     }
@@ -516,11 +518,11 @@
     /* Match `player.css`: narrow presdev stage — tie cue size to line width (cqi), not tall-vmin alone */
     @container presdev (max-width: 430px) {
       /*
-       * Preview-only: larger than `player.css` narrow-stage title (`…3.55cqi`, max 2rem)
-       * so cue wrap/size in the mock reads closer to full-screen `player.html`.
+       * Preview-only: slightly larger than `player.css` narrow-stage title so the mock stays
+       * a hair ahead of full-screen `player.html` (zoom / chrome).
        */
       .presentation-cue-heading {
-        font-size: clamp(1.80rem, calc(1.04rem + 3.98cqi), 2.32rem);
+        font-size: clamp(1.72rem, calc(1.07rem + 4.35cqi), 2.4rem);
         font-weight: 700;
         line-height: 1.2;
         letter-spacing: -0.03em;
