@@ -360,19 +360,20 @@ html[data-theme="light"] body.player-page {
   color: var(--text);
 }
 
-html[data-theme="light"] .player-page .player-header-menu-btn {
+html[data-theme="light"] .player-page .pres-head-name-menu-btn {
   border-color: #cbd5e1;
   background: #ffffff;
-  color: #475569;
+  color: #1e293b;
 }
 
-html[data-theme="light"] .player-page .player-header-menu-btn:hover {
+html[data-theme="light"] .player-page .pres-head-name-menu-btn:hover {
   border-color: #94a3b8;
   color: #0f172a;
   background: #f1f5f9;
 }
 
-html[data-theme="light"] .player-page .player-header-menu-btn[aria-expanded="true"] {
+html[data-theme="light"] .player-page .pres-head-name-menu-btn[aria-expanded="true"] {
+  border-color: var(--lane-sfx);
   color: #0f172a;
 }
 

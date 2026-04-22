@@ -263,7 +263,7 @@
     if (schemeOpts) schemeOpts.replaceChildren();
     populatePlayerThemeTier2();
     showPlayerMenuView("main");
-    const btn = document.getElementById("playerMenuBtn");
+    const btn = document.getElementById("presWorkoutTitle");
     const dd = document.getElementById("playerMenuDropdown");
     document.body.classList.remove("player-menu-open");
     if (btn) btn.setAttribute("aria-expanded", "false");
@@ -277,7 +277,7 @@
     if (schemeOpts) schemeOpts.replaceChildren();
     populatePlayerThemePanels();
     showPlayerMenuView("main");
-    const btn = document.getElementById("playerMenuBtn");
+    const btn = document.getElementById("presWorkoutTitle");
     const dd = document.getElementById("playerMenuDropdown");
     if (!btn || !dd) return;
     document.body.classList.add("player-menu-open");
@@ -290,10 +290,10 @@
   function onPlayerMenuPointerDownOutside(ev) {
     const dd = document.getElementById("playerMenuDropdown");
     if (!dd || dd.hidden) return;
-    const btn = document.getElementById("playerMenuBtn");
+    const anchor = document.getElementById("playerMenuAnchor");
     const panel = document.getElementById("playerMenuPanel");
     const t = ev.target;
-    if (btn && btn.contains(t)) return;
+    if (anchor && anchor.contains(t)) return;
     if (!dd.contains(t)) {
       closePlayerMenu();
       return;
@@ -304,7 +304,7 @@
   }
 
   function wirePlayerMenu() {
-    const btn = document.getElementById("playerMenuBtn");
+    const btn = document.getElementById("presWorkoutTitle");
     const dd = document.getElementById("playerMenuDropdown");
     const openBtn = document.getElementById("playerMenuOpenBtn");
     const aboutLink = document.getElementById("playerAboutLink");
