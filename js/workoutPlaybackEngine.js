@@ -8,19 +8,32 @@
 (function (global) {
   "use strict";
 
+  const ENGINE_DEBUG =
+    typeof global.location !== "undefined" &&
+    typeof URLSearchParams !== "undefined" &&
+    new URLSearchParams(global.location.search || "").has("ttsDebug");
+
   const LANES = new Set(["text", "tts", "sfx"]);
 
   function ttsTextFromEvent(ev) {
+    if (ev.speech != null && String(ev.speech).trim()) {
+      if (ENGINE_DEBUG) console.log("[Engine] ttsTextFromEvent: using ev.speech =", String(ev.speech).trim().slice(0, 60));
+      return String(ev.speech).trim();
+    }
     const parts = [];
     if (ev.name != null && String(ev.name).trim()) parts.push(String(ev.name).trim());
     if (ev.body != null && String(ev.body).trim()) parts.push(String(ev.body).trim());
     if (ev.heading != null && String(ev.heading).trim()) parts.push(String(ev.heading).trim());
     const s = parts.join(". ").trim();
+    if (ENGINE_DEBUG) console.log("[Engine] ttsTextFromEvent: fallback text =", (s || "TTS cue").slice(0, 60));
     return s || "TTS cue";
   }
 
   function audioCommandForEvent(ev, audioEnabled) {
-    if (!audioEnabled) return null;
+    if (!audioEnabled) {
+      if (ENGINE_DEBUG && ev.lane === "tts") console.log("[Engine] audioCommandForEvent: audioEnabled=false, skipping TTS");
+      return null;
+    }
     if (ev.lane === "text") return null;
     if (ev.lane === "sfx") {
       const kind = ev.sfxKind === "shot" ? "shot" : "split";
@@ -30,7 +43,15 @@
       return cmd;
     }
     if (ev.lane === "tts") {
-      return { type: "tts", text: ttsTextFromEvent(ev), sourceId: ev.id };
+      const cmd = {
+        type: "tts",
+        text: ttsTextFromEvent(ev),
+        sourceId: ev.id,
+        globalStartSec: ev.globalStart,
+        voiceSlot: ev.voiceSlot === "b" ? "b" : "a",
+      };
+      if (ENGINE_DEBUG) console.log("[Engine] audioCommandForEvent: TTS command created, text =", cmd.text.slice(0, 60));
+      return cmd;
     }
     return null;
   }
@@ -63,7 +84,7 @@
           const globalStart = WP.snapTime(gSeg + gRep + start);
           const globalEnd = WP.snapTime(globalStart + dur);
           const id = "s" + si + "-r" + ri + "-" + lane + "-" + globalStart.toFixed(3) + "-e" + ei;
-          out.push({
+          const row = {
             id,
             segmentIndex: si,
             repIndex: ri,
@@ -77,7 +98,12 @@
             sfxKind: raw.sfxKind,
             sfxUrl: raw.sfxUrl != null ? String(raw.sfxUrl) : "",
             elementId: raw.elementId != null ? String(raw.elementId) : "",
-          });
+          };
+          if (lane === "tts") {
+            row.voiceSlot = raw.voiceSlot === "b" ? "b" : "a";
+            if (raw.speech != null && String(raw.speech).trim()) row.speech = String(raw.speech).trim();
+          }
+          out.push(row);
         }
       }
     }
@@ -99,6 +125,14 @@
       this._segments = Array.isArray(opts.segments) ? opts.segments : [];
       this.timeline = buildPlaybackTimeline(this._segments, WP);
       this.playedKeys = new Set();
+      if (ENGINE_DEBUG) {
+        console.log("[Engine] WorkoutPlaybackEngine created: audioEnabled =", this.audioEnabled, "timeline events =", this.timeline.length);
+        const ttsEvents = this.timeline.filter(function (e) { return e.lane === "tts"; });
+        console.log("[Engine] TTS events in timeline:", ttsEvents.length);
+        if (ttsEvents.length > 0) {
+          console.log("[Engine] First TTS event:", ttsEvents[0]);
+        }
+      }
     }
 
     /** Replace workout data and rebuild the timeline. */
@@ -133,12 +167,18 @@
 
       for (let i = 0; i < this.timeline.length; i++) {
         const ev = this.timeline[i];
-        if (ev.globalStart > lo + 1e-9 && ev.globalStart <= hi + 1e-9) {
+        /* Inclusive of `lo` so cues exactly at the playhead edge fire; `playedKeys` prevents double-fire. */
+        if (ev.globalStart >= lo - 1e-9 && ev.globalStart <= hi + 1e-9) {
           if (!this.playedKeys.has(ev.id)) {
             this.playedKeys.add(ev.id);
             fired.push(ev);
             const ac = audioCommandForEvent(ev, this.audioEnabled);
-            if (ac) audioCommands.push(ac);
+            if (ac) {
+              audioCommands.push(ac);
+              if (ENGINE_DEBUG && ac.type === "tts") {
+                console.log("[Engine] advancePlayback: TTS fired at", ev.globalStart.toFixed(2), "text =", ac.text.slice(0, 40));
+              }
+            }
           }
         }
       }

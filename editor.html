@@ -182,7 +182,8 @@
       min-width: 0;
       max-width: 10.5rem;
     }
-    .presentation-panel--collapsed .presentation-aspect-field {
+    .presentation-panel--collapsed .presentation-aspect-field,
+    .presentation-panel--collapsed .pres-preview-audio-field {
       display: none;
     }
     .presentation-panel--collapsed .presentation-panel-chrome {
@@ -272,6 +273,23 @@
       color: var(--text);
       max-width: min(20rem, 100%);
       cursor: pointer;
+    }
+    .pres-preview-audio-field {
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+      font-size: 0.72rem;
+      color: var(--dim);
+      user-select: none;
+    }
+    .pres-preview-audio-field input {
+      accent-color: var(--lane-tts);
+      cursor: pointer;
+    }
+    .pres-preview-audio-field label {
+      cursor: pointer;
+      color: var(--text);
+      font-weight: 500;
     }
     /** Letterboxed “device” stage — simulates full-screen margins. */
     .presentation-device-shell {
@@ -958,6 +976,25 @@
      * Do not use % of .timeline-wide here: `min-width: 100%` can make the wide wider than
      * label + track px, which mis-scales `calc(…%… * fr)` vs the fixed-width ruler.
      */
+    /**
+     * Clip the playhead to the track region only. The playhead is a direct child of
+     * .timeline-wide with a high z-index so it stays above clips; row-local gutter
+     * z-index cannot paint over it, so we physically clip (and overflow-hide glow)
+     * instead of relying on stacking under the sticky label column.
+     */
+    .timeline-playback-playhead-clip {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: var(--lane-label-w);
+      right: 0;
+      z-index: 19;
+      overflow: hidden;
+      pointer-events: none;
+    }
+    .timeline-playback-playhead-clip[hidden] {
+      display: none;
+    }
     .timeline-playback-playhead {
       position: absolute;
       top: 0;
@@ -1166,7 +1203,8 @@
       flex-shrink: 0;
       position: sticky;
       left: 0;
-      z-index: 5;
+      /* Above lane cues (selected z-index 5) so the + Add … column never sits under clips. */
+      z-index: 25;
       background: #12141a;
       border-right: 1px solid var(--line);
       box-shadow: 4px 0 12px rgba(0, 0, 0, 0.25);
@@ -1437,12 +1475,18 @@
       min-height: 50px;
       flex: 0 0 auto;
     }
+    /** Keep cue clips (incl. selected ring / drag shadow) from painting over the sticky label column. */
+    .lane-body.lane-track {
+      overflow-x: clip;
+      overflow-y: visible;
+    }
     /** Ruler track uses the same lane-body flex contract; height comes from rep names + time scale. */
     .lane-body.ruler-inner {
       min-height: 0;
     }
     .clip {
       position: absolute;
+      /* Stay below .timeline-gutter (25) so selection never wins in the label column. */
       z-index: 4;
       top: 9px;
       bottom: 9px;
@@ -1531,7 +1575,7 @@
     .clip:active { cursor: grabbing; }
     .clip.dragging {
       cursor: grabbing;
-      z-index: 5;
+      z-index: 6;
       transition: none;
       box-shadow:
         inset 0 1px 0 rgba(255, 255, 255, 0.22),
@@ -1544,7 +1588,7 @@
       box-shadow:
         inset 0 1px 0 rgba(255, 255, 255, 0.22),
         0 0 0 2px rgba(251, 191, 36, 0.92);
-      z-index: 5;
+      z-index: 6;
     }
     .clip.text { background: linear-gradient(180deg, #f9a8d4, #db2777); color: #fff; }
     .clip.tts { background: linear-gradient(180deg, #c4b5fd, #7c3aed); color: #fff; }
@@ -1855,6 +1899,10 @@
           <option value="16-9">Phone landscape (16∶9)</option>
         </select>
       </div>
+      <div class="pres-preview-audio-field" title="TTS and SFX during preview play (on by default). Voice A / B use the same names as the workout player on this device. Uncheck to silence preview.">
+        <input type="checkbox" id="presPreviewAudioChk" checked />
+        <label for="presPreviewAudioChk">Preview audio</label>
+      </div>
     </div>
     <div class="pres-collapsible" id="presCollapsible">
     <div class="pres-device-zoom-isolate">
@@ -1975,13 +2023,15 @@
         <div class="rep-displace-hint-overlay" id="rep-displace-hint-overlay" aria-hidden="true"></div>
         <div class="rep-selection-overlay" id="rep-selection-overlay" aria-hidden="true"></div>
         <div class="rep-drag-preview-host" id="rep-drag-preview-host" aria-hidden="true"></div>
-        <div
-          class="timeline-playback-playhead"
-          id="timelinePlaybackPlayhead"
-          hidden
-          aria-hidden="true"
-          title="Time playhead — drag horizontally to scrub (set preview and workout time)"
-        ></div>
+        <div class="timeline-playback-playhead-clip" id="timelinePlaybackPlayheadClip" hidden>
+          <div
+            class="timeline-playback-playhead"
+            id="timelinePlaybackPlayhead"
+            hidden
+            aria-hidden="true"
+            title="Time playhead — drag horizontally to scrub (set preview and workout time)"
+          ></div>
+        </div>
       </div>
     </div>
     </div>
@@ -1997,6 +2047,10 @@
       <div class="field">
         <label for="editCueName">Name</label>
         <input type="text" id="editCueName" maxlength="48" autocomplete="off" spellcheck="false" />
+      </div>
+      <div class="field" id="ttsSpeechWrap" hidden>
+        <label for="editTtsSpeech">Speech</label>
+        <textarea id="editTtsSpeech" rows="4" maxlength="8000" autocomplete="off" spellcheck="true"></textarea>
       </div>
       <div id="clipTextHeadingBodyWrap" hidden>
         <div class="field">
@@ -2047,6 +2101,13 @@
         <select id="editSfxKind">
           <option value="split">Split-step</option>
           <option value="shot">Shot</option>
+        </select>
+      </div>
+      <div class="field" id="ttsVoiceSlotWrap" hidden>
+        <label for="editTtsVoiceSlot">Voice slot</label>
+        <select id="editTtsVoiceSlot">
+          <option value="a">Voice A</option>
+          <option value="b">Voice B</option>
         </select>
       </div>
       <div class="actions">
@@ -2293,6 +2354,8 @@
 
   <script src="js/workoutPresentation.js"></script>
   <script src="js/workoutPlaybackEngine.js"></script>
+  <script src="js/playerTtsVoices.js"></script>
+  <script src="js/playerPlaybackAudio.js"></script>
   <script src="js/presentationShared.js"></script>
   <script>
     (function () {
@@ -2303,6 +2366,8 @@
       const DEFAULT_WORKOUT_NAME = "New Workout";
       const WORKOUT_NAME_MAX_LEN = 64;
       const PRES_PREVIEW_COLLAPSE_KEY = "repEditorPresPreviewCollapsed";
+      /** Stored `"0"` = user turned preview sound off. Any other value (including missing) = preview audio on. */
+      const PRES_PREVIEW_AUDIO_KEY = "repEditorPresPreviewAudio";
       let workoutName = DEFAULT_WORKOUT_NAME;
 
       const LANES = [
@@ -2582,6 +2647,10 @@
       const editDuration = document.getElementById("editDuration");
       const editSfxKind = document.getElementById("editSfxKind");
       const sfxKindWrap = document.getElementById("sfxKindWrap");
+      const ttsVoiceSlotWrap = document.getElementById("ttsVoiceSlotWrap");
+      const editTtsVoiceSlot = document.getElementById("editTtsVoiceSlot");
+      const ttsSpeechWrap = document.getElementById("ttsSpeechWrap");
+      const editTtsSpeech = document.getElementById("editTtsSpeech");
       const settingsModal = document.getElementById("settingsModal");
       const libItemDeleteModal = document.getElementById("libItemDeleteModal");
       const libAddNameConflictModal = document.getElementById("libAddNameConflictModal");
@@ -2815,6 +2884,15 @@
             elementId: genElementId(),
             name: defaultNewCueName("sfx", "shot"),
           },
+          {
+            lane: "tts",
+            start: 1.5,
+            duration: 2.0,
+            voiceSlot: "a",
+            speech: "TTS test. You should hear this at one point five seconds.",
+            elementId: genElementId(),
+            name: "TTS test",
+          },
         ];
         return r;
       }
@@ -2831,6 +2909,15 @@
             .slice(0, TEXT_CUE_HEADING_BODY_MAX);
         }
         return { heading: norm(heading), body: norm(body) };
+      }
+
+      function normalizeTtsSpeech(s) {
+        if (s == null) return "";
+        return String(s)
+          .replace(/\r\n/g, "\n")
+          .replace(/\r/g, "\n")
+          .trim()
+          .slice(0, TEXT_CUE_HEADING_BODY_MAX);
       }
 
       function normalizeEvent(e) {
@@ -2856,6 +2943,11 @@
           const { heading, body } = normalizeTextCuePresentationFields(e.heading, e.body);
           if (heading) out.heading = heading;
           if (body) out.body = body;
+        }
+        if (lane === "tts") {
+          out.voiceSlot = String(e.voiceSlot || "").toLowerCase() === "b" ? "b" : "a";
+          const sp = normalizeTtsSpeech(e.speech);
+          if (sp) out.speech = sp;
         }
         return out;
       }
@@ -3111,6 +3203,7 @@
           const d = snapTime(dur);
           const ev = { lane, start: st, duration: d };
           if (lane === "sfx") ev.sfxKind = sfx === "shot" ? "shot" : "split";
+          if (lane === "tts") ev.voiceSlot = "a";
           ev.elementId = genElementId();
           ev.name = defaultNewCueName(ev.lane, ev.sfxKind);
           return ev;
@@ -3939,6 +4032,7 @@
             for (const ev of rep.events) {
               if (!ev || typeof ev !== "object") continue;
               if (ev.lane === "sfx" && !ev.sfxKind) ev.sfxKind = "split";
+              if (ev.lane === "tts" && ev.voiceSlot !== "a" && ev.voiceSlot !== "b") ev.voiceSlot = "a";
               if (shouldMigrateWorkoutElementId(ev.elementId)) ev.elementId = genElementId();
               else ev.elementId = String(ev.elementId).trim();
               if (ev.name == null || !String(ev.name).trim()) {
@@ -3968,6 +4062,7 @@
           if (!ev || typeof ev !== "object") continue;
           ev.elementId = genElementId();
           if (ev.lane === "sfx" && !ev.sfxKind) ev.sfxKind = "split";
+          if (ev.lane === "tts" && ev.voiceSlot !== "a" && ev.voiceSlot !== "b") ev.voiceSlot = "a";
           if (ev.name == null || !String(ev.name).trim()) {
             ev.name = defaultNewCueName(ev.lane, ev.sfxKind);
           }
@@ -5106,6 +5201,11 @@
               duration: snapTime(ev.duration),
             };
             if (ev.lane === "sfx") o.sfxKind = ev.sfxKind === "shot" ? "shot" : "split";
+            if (ev.lane === "tts") {
+              o.voiceSlot = ev.voiceSlot === "b" ? "b" : "a";
+              const sp = normalizeTtsSpeech(ev.speech);
+              if (sp) o.speech = sp;
+            }
             const nm = String(ev.name || "").trim();
             if (nm) o.name = nm.slice(0, 48);
             if (ev.lane === "text") {
@@ -5148,6 +5248,11 @@
                 duration: snapTime(Number(e.duration)),
               };
               if (cat === "sfx") o.sfxKind = e.sfxKind === "shot" ? "shot" : "split";
+              if (cat === "tts") {
+                o.voiceSlot = String(e.voiceSlot || "").toLowerCase() === "b" ? "b" : "a";
+                const sp = normalizeTtsSpeech(e.speech);
+                if (sp) o.speech = sp;
+              }
               if (e.name != null && String(e.name).trim()) o.name = String(e.name).trim().slice(0, 48);
               if (cat === "text") {
                 const hb = normalizeTextCuePresentationFields(e.heading, e.body);
@@ -5505,6 +5610,16 @@
         editDuration.dispatchEvent(new Event("input", { bubbles: true }));
         sfxKindWrap.hidden = cat !== "sfx";
         if (cat === "sfx") editSfxKind.value = ev.sfxKind === "shot" ? "shot" : "split";
+        if (ttsSpeechWrap) ttsSpeechWrap.hidden = cat !== "tts";
+        if (cat === "tts" && editTtsSpeech) {
+          editTtsSpeech.value = ev.speech != null ? String(ev.speech) : "";
+        } else if (editTtsSpeech) {
+          editTtsSpeech.value = "";
+        }
+        if (ttsVoiceSlotWrap) ttsVoiceSlotWrap.hidden = cat !== "tts";
+        if (cat === "tts" && editTtsVoiceSlot) {
+          editTtsVoiceSlot.value = ev.voiceSlot === "b" ? "b" : "a";
+        }
         if (clipTextHeadingBodyWrap) clipTextHeadingBodyWrap.hidden = cat !== "text";
         if (cat === "text" && editCueHeading && editCueBody) {
           editCueHeading.value = ev.heading != null ? String(ev.heading) : "";
@@ -5739,6 +5854,11 @@
                 };
                 const nm = e.name != null ? String(e.name).trim() : "";
                 if (nm) o.name = nm.slice(0, 48);
+                if (cat === "tts") {
+                  o.voiceSlot = String(e.voiceSlot || "").toLowerCase() === "b" ? "b" : "a";
+                  const sp = normalizeTtsSpeech(e.speech);
+                  if (sp) o.speech = sp;
+                }
                 if (cat === "text") {
                   const hb = normalizeTextCuePresentationFields(e.heading, e.body);
                   if (hb.heading) o.heading = hb.heading;
@@ -5888,6 +6008,11 @@
             duration: snapTime(ev.duration),
           };
           if (ev.lane === "sfx") o.sfxKind = ev.sfxKind === "shot" ? "shot" : "split";
+          if (ev.lane === "tts") {
+            o.voiceSlot = ev.voiceSlot === "b" ? "b" : "a";
+            const sp = normalizeTtsSpeech(ev.speech);
+            if (sp) o.speech = sp;
+          }
           const nm = String(ev.name || "").trim();
           if (nm) o.name = nm.slice(0, 48);
           if (ev.lane === "text") {
@@ -6094,6 +6219,11 @@
             };
             const nm = item.name != null ? String(item.name).trim() : "";
             if (nm) o.name = nm.slice(0, 48);
+            if (item.lane === "tts") {
+              o.voiceSlot = item.voiceSlot === "b" ? "b" : "a";
+              const sp = normalizeTtsSpeech(item.speech);
+              if (sp) o.speech = sp;
+            }
             if (item.lane === "text") {
               const hb = normalizeTextCuePresentationFields(item.heading, item.body);
               if (hb.heading) o.heading = hb.heading;
@@ -6221,6 +6351,11 @@
             if (hb.heading) ev.heading = hb.heading;
             if (hb.body) ev.body = hb.body;
           }
+          if (p.lane === "tts") {
+            ev.voiceSlot = p.voiceSlot === "b" ? "b" : "a";
+            const sp = normalizeTtsSpeech(p.speech);
+            if (sp) ev.speech = sp;
+          }
           reps[rTarget].events.push(ev);
         }
         selectClipRangeOnRep(rTarget, pasteStartIdx, planned.length);
@@ -6269,6 +6404,7 @@
         reseedElementIdCounterFromWorkout();
         const ev = { lane: laneId, start: snapTime(st), duration: snapTime(dur) };
         if (laneId === "sfx") ev.sfxKind = reps[r].sfxKind === "shot" ? "shot" : "split";
+        if (laneId === "tts") ev.voiceSlot = "a";
         ev.elementId = genElementId();
         ev.name = defaultNewCueName(ev.lane, ev.sfxKind);
         reps[r].events.push(ev);
@@ -7649,6 +7785,11 @@
 
       function clipLabelText(ev) {
         if (ev.lane === "sfx") return ev.sfxKind === "shot" ? "shot" : "split";
+        if (ev.lane === "tts") {
+          const L = LANES.find((x) => x.id === "tts");
+          const base = L ? L.clipLabel : "TTS";
+          return ev.voiceSlot === "b" ? base + " · B" : base + " · A";
+        }
         const L = LANES.find((x) => x.id === ev.lane);
         return L ? L.clipLabel : ev.lane;
       }
@@ -7672,6 +7813,16 @@
         editDuration.dispatchEvent(new Event("input", { bubbles: true }));
         sfxKindWrap.hidden = ev.lane !== "sfx";
         if (ev.lane === "sfx") editSfxKind.value = ev.sfxKind === "shot" ? "shot" : "split";
+        if (ttsSpeechWrap) ttsSpeechWrap.hidden = ev.lane !== "tts";
+        if (ev.lane === "tts" && editTtsSpeech) {
+          editTtsSpeech.value = ev.speech != null ? String(ev.speech) : "";
+        } else if (editTtsSpeech) {
+          editTtsSpeech.value = "";
+        }
+        if (ttsVoiceSlotWrap) ttsVoiceSlotWrap.hidden = ev.lane !== "tts";
+        if (ev.lane === "tts" && editTtsVoiceSlot) {
+          editTtsVoiceSlot.value = ev.voiceSlot === "b" ? "b" : "a";
+        }
         if (clipTextHeadingBodyWrap) clipTextHeadingBodyWrap.hidden = ev.lane !== "text";
         if (ev.lane === "text" && editCueHeading && editCueBody) {
           editCueHeading.value = ev.heading != null ? String(ev.heading) : "";
@@ -7694,6 +7845,9 @@
         if (cr) cr.style.display = "";
         clipModal.classList.remove("open");
         clipModal.setAttribute("aria-hidden", "true");
+        if (ttsSpeechWrap) ttsSpeechWrap.hidden = true;
+        if (editTtsSpeech) editTtsSpeech.value = "";
+        if (ttsVoiceSlotWrap) ttsVoiceSlotWrap.hidden = true;
         if (clipTextHeadingBodyWrap) clipTextHeadingBodyWrap.hidden = true;
         if (editCueHeading) editCueHeading.value = "";
         if (editCueBody) editCueBody.value = "";
@@ -8114,6 +8268,12 @@
           }
           const ev = evs[eventIndex];
           if (cat === "sfx") ev.sfxKind = editSfxKind.value === "shot" ? "shot" : "split";
+          if (cat === "tts" && editTtsVoiceSlot) ev.voiceSlot = editTtsVoiceSlot.value === "b" ? "b" : "a";
+          if (cat === "tts" && editTtsSpeech) {
+            const sp = normalizeTtsSpeech(editTtsSpeech.value);
+            if (sp) ev.speech = sp;
+            else delete ev.speech;
+          }
           const nm = editCueName ? String(editCueName.value || "").trim().slice(0, 48) : "";
           if (nm) ev.name = nm;
           else delete ev.name;
@@ -8177,6 +8337,14 @@
         }
         if (ev.lane === "sfx") {
           ev.sfxKind = editSfxKind.value === "shot" ? "shot" : "split";
+        }
+        if (ev.lane === "tts" && editTtsVoiceSlot) {
+          ev.voiceSlot = editTtsVoiceSlot.value === "b" ? "b" : "a";
+        }
+        if (ev.lane === "tts" && editTtsSpeech) {
+          const sp = normalizeTtsSpeech(editTtsSpeech.value);
+          if (sp) ev.speech = sp;
+          else delete ev.speech;
         }
 
         const nm = editCueName ? String(editCueName.value || "").trim().slice(0, 48) : "";
@@ -8658,14 +8826,76 @@
 
       // —— Presentation mode (full workout: all parts, wall-clock transport) ——
       let presPlaybackEngine = null;
+      /** When true, `syncPresPlaybackEngineAfterSeek` / `rebuildPresPlaybackEngine` skip `cancelAll` so TTS from the same tick is not cut by `refreshAll` after a part switch. */
+      let skipPresPreviewAudioCancelOnce = false;
       const debugPlaybackEngine =
         typeof location !== "undefined" && new URLSearchParams(location.search).has("debugEngine");
 
+      function readPresPreviewAudioEnabled() {
+        if (typeof createPlayerPlaybackAudio !== "function") {
+          if (debugPlaybackEngine) console.log("[Editor] readPresPreviewAudioEnabled: createPlayerPlaybackAudio not a function");
+          return false;
+        }
+        try {
+          const stored = localStorage.getItem(PRES_PREVIEW_AUDIO_KEY);
+          const enabled = stored !== "0";
+          if (debugPlaybackEngine) console.log("[Editor] readPresPreviewAudioEnabled: stored =", stored, "enabled =", enabled);
+          return enabled;
+        } catch (_) {
+          return true;
+        }
+      }
+
+      function writePresPreviewAudioEnabled(on) {
+        try {
+          localStorage.setItem(PRES_PREVIEW_AUDIO_KEY, on ? "1" : "0");
+        } catch (_) {}
+      }
+
+      function readEditorPlayerVoiceAName() {
+        try {
+          const x = localStorage.getItem("playerTtsVoiceA");
+          return x != null && String(x).trim() !== "" ? String(x).trim() : "Default";
+        } catch (_) {
+          return "Default";
+        }
+      }
+
+      function readEditorPlayerVoiceBName() {
+        try {
+          const x = localStorage.getItem("playerTtsVoiceB");
+          return x != null && String(x).trim() !== "" ? String(x).trim() : "Default";
+        } catch (_) {
+          return "Default";
+        }
+      }
+
+      function readEditorPlayerAudioDuckingOn() {
+        try {
+          return localStorage.getItem("playerAudioDucking") === "on";
+        } catch (_) {
+          return false;
+        }
+      }
+
+      const presPreviewAudio =
+        typeof createPlayerPlaybackAudio === "function"
+          ? createPlayerPlaybackAudio({
+              getVoiceAName: readEditorPlayerVoiceAName,
+              getVoiceBName: readEditorPlayerVoiceBName,
+              getAudioDuckingOn: readEditorPlayerAudioDuckingOn,
+            })
+          : null;
+
       function rebuildPresPlaybackEngine() {
+        if (presPreviewAudio && !skipPresPreviewAudioCancelOnce) presPreviewAudio.cancelAll();
         presPlaybackEngine = null;
         if (typeof WorkoutPlaybackEngine === "undefined" || typeof WorkoutPresentation === "undefined") return;
         try {
-          presPlaybackEngine = WorkoutPlaybackEngine.create({ segments, audioEnabled: false });
+          presPlaybackEngine = WorkoutPlaybackEngine.create({
+            segments,
+            audioEnabled: readPresPreviewAudioEnabled(),
+          });
           presPlaybackEngine.syncAfterSeek(presTimeSec);
           if (debugPlaybackEngine && presPlaybackEngine) {
             console.log("[WorkoutPlaybackEngine] editor timeline events:", presPlaybackEngine.timeline.length);
@@ -8677,6 +8907,12 @@
       }
 
       function syncPresPlaybackEngineAfterSeek() {
+        /* Do not cancel TTS while preview is playing: `presPlay` queues a microtask that calls
+           `syncPlaybackWithTimeline`, which would otherwise `cancelAll` right after the Play gesture
+           (killing the prime utterance and breaking Chromium speech before the first RAF tick). */
+        if (presPreviewAudio && !skipPresPreviewAudioCancelOnce && !presPlaying) {
+          presPreviewAudio.cancelAll();
+        }
         if (presPlaybackEngine) presPlaybackEngine.syncAfterSeek(presTimeSec);
       }
 
@@ -8775,11 +9011,13 @@
        */
       function layoutPlaybackPlayhead() {
         const line = document.getElementById("timelinePlaybackPlayhead");
+        const clip = document.getElementById("timelinePlaybackPlayheadClip");
         const wide = document.getElementById("timeline-wide");
         if (!line || !wide || !rulerEl || typeof WorkoutPresentation === "undefined") return;
         const total = totalTimelineSec();
         if (total < 1e-9) {
           line.hidden = true;
+          if (clip) clip.hidden = true;
           return;
         }
         const WP = WorkoutPresentation;
@@ -8792,8 +9030,15 @@
           rulerLeftInWide += el.offsetLeft;
           el = el.offsetParent;
         }
-        const x = rulerLeftInWide + fr * rulerEl.offsetWidth;
-        line.style.left = x + "px";
+        const rw = Math.max(0, rulerEl.offsetWidth);
+        const half = 5;
+        const xRaw = rulerLeftInWide + fr * rw;
+        /* Keep the 10px playhead (translateX(-50%)) from extending left into the sticky label column. */
+        const xc = Math.min(Math.max(xRaw, rulerLeftInWide + half), rulerLeftInWide + Math.max(rw, 2 * half) - half);
+        const labelPx = parseFloat(getComputedStyle(wide).getPropertyValue("--lane-label-w")) || 140;
+        /* xc is in #timeline-wide coordinates; clip starts at --lane-label-w. */
+        line.style.left = xc - labelPx + "px";
+        if (clip) clip.hidden = false;
         line.hidden = false;
         line.setAttribute("aria-hidden", "false");
       }
@@ -8988,22 +9233,32 @@
           return;
         }
         const WP = WorkoutPresentation;
+        flushActiveSegmentMeta();
         const prevT = presTimeSec;
         const dt = (now - presWallLast) / 1000;
         presWallLast = now;
         const maxT = WP.totalWorkoutDuration(segments);
         presTimeSec = Math.min(presTimeSec + dt, maxT);
         if (presPlaybackEngine) {
-          const { fired } = presPlaybackEngine.advancePlayback(prevT, presTimeSec);
+          const { fired, audioCommands } = presPlaybackEngine.advancePlayback(prevT, presTimeSec);
           if (debugPlaybackEngine && fired.length) console.debug("[WorkoutPlaybackEngine] fired:", fired);
+          if (debugPlaybackEngine && audioCommands.length) console.debug("[WorkoutPlaybackEngine] audioCommands:", audioCommands);
+          if (readPresPreviewAudioEnabled() && presPreviewAudio && audioCommands.length) {
+            if (debugPlaybackEngine) console.debug("[Editor] calling presPreviewAudio.executeCommands with", audioCommands.length, "commands");
+            presPreviewAudio.executeCommands(audioCommands, { workoutTimeSec: presTimeSec });
+          } else if (debugPlaybackEngine && audioCommands.length) {
+            console.debug("[Editor] NOT calling executeCommands: previewAudioEnabled =", readPresPreviewAudioEnabled(), "presPreviewAudio =", !!presPreviewAudio);
+          }
         }
         const loc = WP.locateGlobalTime(segments, presTimeSec);
         if (loc.segmentIndex !== activeSegmentIndex) {
+          if (presPlaying) skipPresPreviewAudioCancelOnce = true;
           presSyncingTimeline = true;
           try {
             activateSegment(loc.segmentIndex, false);
           } finally {
             presSyncingTimeline = false;
+            skipPresPreviewAudioCancelOnce = false;
           }
         } else {
           layoutPlaybackPlayhead();
@@ -9028,6 +9283,15 @@
         const maxT = WorkoutPresentation.totalWorkoutDuration(segments);
         if (presTimeSec >= maxT - 1e-6) presTimeSec = 0;
         syncPresPlaybackEngineAfterSeek();
+        if (readPresPreviewAudioEnabled() && presPreviewAudio) {
+          void presPreviewAudio.resumeIfNeeded().catch(() => {});
+          try {
+            if (typeof speechSynthesis !== "undefined") {
+              void speechSynthesis.getVoices();
+              if (typeof speechSynthesis.resume === "function") speechSynthesis.resume();
+            }
+          } catch (_) {}
+        }
         presPlaying = true;
         presWallLast = performance.now();
         presSyncPlayButton();
@@ -9431,6 +9695,15 @@
         presBindScrubButton(bFF, 1);
         if (bSkip1) bSkip1.addEventListener("click", () => presWorkoutEnd());
         presSyncPlayButton();
+        const presAudioChk = document.getElementById("presPreviewAudioChk");
+        if (presAudioChk) {
+          presAudioChk.checked = readPresPreviewAudioEnabled();
+          presAudioChk.addEventListener("change", () => {
+            writePresPreviewAudioEnabled(!!presAudioChk.checked);
+            if (!presAudioChk.checked && presPreviewAudio) presPreviewAudio.cancelAll();
+            rebuildPresPlaybackEngine();
+          });
+        }
         presentationRender();
       }
 

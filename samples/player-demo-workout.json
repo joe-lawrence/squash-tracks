@@ -23,10 +23,30 @@
             },
             {
               "lane": "tts",
+              "start": 1.5,
+              "duration": 2.0,
+              "name": "Early TTS",
+              "speech": "TTS test at one point five seconds.",
+              "elementId": "ev-tts-0",
+              "voiceSlot": "a"
+            },
+            {
+              "lane": "tts",
               "start": 5.5,
               "duration": 1.2,
-              "name": "You are halfway through this rep.",
-              "elementId": "ev-tts-1"
+              "name": "Halfway",
+              "speech": "You are halfway through this rep.",
+              "elementId": "ev-tts-1",
+              "voiceSlot": "a"
+            },
+            {
+              "lane": "tts",
+              "start": 5.85,
+              "duration": 0.9,
+              "name": "Voice B cue",
+              "speech": "Voice B slot — assign a different voice in the player menu.",
+              "elementId": "ev-tts-2",
+              "voiceSlot": "b"
             },
             {
               "lane": "sfx",

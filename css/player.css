@@ -131,6 +131,9 @@ body.player-menu-open .player-menu-anchor {
   top: calc(100% + 0.2rem);
   left: 0;
   z-index: 70;
+  box-sizing: border-box;
+  /* At least as wide as the title anchor (so TTS rows span the header column); floor for short titles; cap for viewport. */
+  width: min(max(100%, 11.75rem), min(18rem, calc(100vw - 2rem)));
   padding: 0;
   border: none;
   background: transparent;
@@ -143,8 +146,8 @@ body.player-menu-open .player-menu-anchor {
 }
 
 .player-menu-panel {
-  min-width: min(10.75rem, calc(100vw - 3rem));
-  max-width: min(18rem, calc(100vw - 2rem));
+  box-sizing: border-box;
+  width: 100%;
   border-radius: 10px;
   border: 1px solid #3d4656;
   background: rgba(18, 21, 28, 0.98);
@@ -157,6 +160,11 @@ body.player-menu-open .player-menu-anchor {
   flex-direction: column;
   gap: 0.2rem;
   padding: 0.45rem 0.4rem 0.5rem;
+}
+
+/* TTS list: extra right inset so badges + row highlight stay clear of the panel border. */
+#playerMenuTtsView.player-menu-view {
+  padding-right: 0.75rem;
 }
 
 .player-menu-view[hidden] {
@@ -270,6 +278,31 @@ body.player-menu-open .player-menu-anchor {
   color: #f8fafc;
 }
 
+.player-menu-dd-chevron {
+  margin-left: auto;
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  color: #94a3b8;
+}
+
+.player-menu-dd-btn:hover .player-menu-dd-chevron {
+  color: var(--lane-sfx);
+}
+
+/* Audio ducking on — amber stroke + glow (squash-ghoster duck-toggle, dark menu) */
+.player-menu-audio-duck-btn.player-menu-audio-duck-btn--on .player-menu-dd-btn-icon svg {
+  stroke: #fcd34d;
+  color: #fcd34d;
+  filter: drop-shadow(0 0 4px rgba(252, 211, 77, 0.8)) drop-shadow(0 0 8px rgba(252, 211, 77, 0.6));
+}
+
+.player-menu-audio-duck-btn.player-menu-audio-duck-btn--on:hover .player-menu-dd-btn-icon svg {
+  stroke: #f59e0b;
+  color: #f59e0b;
+  filter: drop-shadow(0 0 6px rgba(245, 158, 11, 0.9)) drop-shadow(0 0 12px rgba(245, 158, 11, 0.7));
+}
+
 .player-load-submenu-item {
   display: flex;
   align-items: center;
@@ -319,6 +352,131 @@ body.player-menu-open .player-menu-anchor {
   max-height: min(70vh, 22rem);
   overflow-x: hidden;
   overflow-y: auto;
+}
+
+.player-menu-tts-body {
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  width: 100%;
+  max-height: min(68vh, 21rem);
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 0.05rem 0 0.15rem 0;
+}
+
+.player-menu-tts-table {
+  display: flex;
+  flex-direction: column;
+  gap: 0.12rem;
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+}
+
+.player-menu-tts-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 0.08rem;
+}
+
+.player-menu-tts-voice-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 2rem 2rem;
+  align-items: center;
+  gap: 0.35rem;
+  width: 100%;
+  margin: 0;
+  box-sizing: border-box;
+  /* Clear space after B inside the row (hover / “on” background) so it is not flush with the panel edge. */
+  padding: 0.1rem 0.95rem 0.1rem 0;
+  border-radius: 8px;
+}
+
+.player-menu-tts-voice-row:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.player-menu-tts-voice-row--on {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.player-menu-tts-voice-main {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-width: 0;
+  margin: 0;
+  padding: 0.38rem 0.4rem;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: #e2e8f0;
+  font: inherit;
+  font-size: 0.84rem;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+}
+
+.player-menu-tts-voice-main:focus-visible {
+  outline: 2px solid var(--lane-sfx);
+  outline-offset: 0;
+}
+
+.player-menu-tts-voice-main .player-menu-tts-speech-wrap {
+  display: flex;
+  flex-shrink: 0;
+  width: 1.5rem;
+  height: 1.5rem;
+  align-items: center;
+  justify-content: center;
+  color: #94a3b8;
+}
+
+.player-menu-tts-voice-main:hover .player-menu-tts-speech-wrap {
+  color: var(--lane-sfx);
+}
+
+.player-menu-tts-voice-row--on .player-menu-tts-voice-main .player-menu-tts-speech-wrap {
+  color: var(--lane-sfx);
+}
+
+.player-menu-tts-voice-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  line-height: 1.25;
+}
+
+.player-menu-tts-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 1.55rem;
+  margin: 0 auto;
+  padding: 0;
+  border-radius: 6px;
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: #64748b;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  background: rgba(15, 23, 42, 0.35);
+  cursor: pointer;
+}
+
+.player-menu-tts-badge:focus-visible {
+  outline: 2px solid var(--lane-sfx);
+  outline-offset: 0;
+}
+
+.player-menu-tts-badge--on {
+  color: #f8fafc;
+  border-color: var(--lane-sfx);
+  background: rgba(56, 189, 248, 0.22);
+  box-shadow: inset 0 0 0 1px rgba(56, 189, 248, 0.12);
 }
 
 .player-theme-menu-btn {
@@ -515,10 +673,12 @@ body.player-menu-open .player-menu-anchor {
 }
 
 @media (max-width: 480px) {
+  .player-menu-dropdown {
+    width: min(max(100%, 11.25rem), calc(100vw - 2rem));
+  }
+
   .player-menu-panel {
     min-width: 0;
-    width: min(100%, calc(100vw - 2rem));
-    max-width: none;
   }
 }
 
@@ -803,30 +963,6 @@ body.player-menu-open .player-menu-anchor {
 
 .player-page .presentation-cue-wrap {
   border-radius: 1rem;
-}
-
-/* Subtle cue change pulse (class toggled from playerApp.js) */
-@keyframes playerCuePulseGlow {
-  0% {
-    box-shadow:
-      0 0 0 0 var(--player-accent-glow),
-      inset 0 0 0 1px var(--player-accent-glow-inner);
-  }
-  100% {
-    box-shadow:
-      0 0 0 28px rgba(52, 211, 153, 0),
-      inset 0 0 0 1px transparent;
-  }
-}
-
-.player-page .presentation-cue-wrap.presentation-cue-pulse {
-  animation: playerCuePulseGlow 0.62s ease-out;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .player-page .presentation-cue-wrap.presentation-cue-pulse {
-    animation: none;
-  }
 }
 
 /* Short viewports / landscape phones: tighten chrome, keep cue dominant */

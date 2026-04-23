@@ -44,6 +44,7 @@
 
 - **Input:** `{ segments, workoutName }` after the same load/validation path the editor trusts (eventually a shared `workoutNormalize` / `parseWorkoutJson` if import logic grows).
 - **Clock:** one authoritative **`globalTimeSec`**; scrub/play/pause only move that clock and call `engine.sync(time)` / `engine.onSeekEnd()`.
+- **TTS:** each rep `events[]` item with **`lane: "tts"`** may include **`voiceSlot`**: **`"a"`** (default) or **`"b"`**, and optional multiline **`speech`** (what is spoken); if `speech` is empty, utterance text falls back to **`name`** / **`body`** / **`heading`**. The engine forwards **`voiceSlot`** on **`audioCommands`** for Voice A vs B in the player.
 
 ## UI polish direction (“Ghoster-like” without Ghoster’s codebase)
 

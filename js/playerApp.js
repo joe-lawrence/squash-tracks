@@ -148,6 +148,183 @@
     populatePlayerThemeTier3();
   }
 
+  function readStoredTtsVoiceA() {
+    try {
+      const x = localStorage.getItem("playerTtsVoiceA");
+      return x != null && String(x).trim() !== "" ? String(x).trim() : "Default";
+    } catch (_) {
+      return "Default";
+    }
+  }
+
+  function readStoredTtsVoiceB() {
+    try {
+      const x = localStorage.getItem("playerTtsVoiceB");
+      return x != null && String(x).trim() !== "" ? String(x).trim() : "Default";
+    } catch (_) {
+      return "Default";
+    }
+  }
+
+  function writeStoredTtsVoices(a, b) {
+    try {
+      localStorage.setItem("playerTtsVoiceA", a);
+      localStorage.setItem("playerTtsVoiceB", b);
+    } catch (_) {}
+  }
+
+  function ttsSelectVoiceForBothSlots(valueName) {
+    writeStoredTtsVoices(valueName, valueName);
+  }
+
+  function ttsRowAssignmentState(valueName) {
+    const a = readStoredTtsVoiceA();
+    const b = readStoredTtsVoiceB();
+    const isA = a === valueName;
+    const isB = b === valueName;
+    if (isA && isB) return "both";
+    if (isA) return "a";
+    if (isB) return "b";
+    return "none";
+  }
+
+  function ttsAssignVoiceSlot(slot, valueName) {
+    try {
+      if (slot === "a") localStorage.setItem("playerTtsVoiceA", valueName);
+      else localStorage.setItem("playerTtsVoiceB", valueName);
+    } catch (_) {}
+  }
+
+  function readPlayerAudioDuckingOn() {
+    try {
+      return localStorage.getItem("playerAudioDucking") === "on";
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function syncPlayerAudioDuckingButton() {
+    const btn = document.getElementById("playerMenuAudioDuckingBtn");
+    if (!btn) return;
+    const on = document.documentElement.getAttribute("data-player-audio-ducking") === "on";
+    btn.classList.toggle("player-menu-audio-duck-btn--on", on);
+    btn.setAttribute("aria-pressed", on ? "true" : "false");
+  }
+
+  function applyPlayerAudioDuckingFromStorage() {
+    const on = readPlayerAudioDuckingOn();
+    document.documentElement.setAttribute("data-player-audio-ducking", on ? "on" : "off");
+    syncPlayerAudioDuckingButton();
+  }
+
+  function setPlayerAudioDucking(on) {
+    try {
+      localStorage.setItem("playerAudioDucking", on ? "on" : "off");
+    } catch (_) {}
+    document.documentElement.setAttribute("data-player-audio-ducking", on ? "on" : "off");
+    syncPlayerAudioDuckingButton();
+  }
+
+  function togglePlayerAudioDucking() {
+    const cur = document.documentElement.getAttribute("data-player-audio-ducking") === "on";
+    setPlayerAudioDucking(!cur);
+  }
+
+  function populatePlayerTtsVoiceMenus() {
+    const list = document.getElementById("playerTtsVoiceList");
+    if (!list) return;
+
+    function speechIconWrap() {
+      const wrap = document.createElement("span");
+      wrap.className = "player-menu-tts-speech-wrap";
+      wrap.setAttribute("aria-hidden", "true");
+      wrap.innerHTML =
+        '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round"><path d="M8.8 20v-4.1l1.9.2a2.3 2.3 0 0 0 2.164-2.1V8.3A5.37 5.37 0 0 0 2 8.25c0 2.8.656 3.054 1 4.55a5.77 5.77 0 0 1 .029 2.758L2 20"/><path d="M19.8 17.8a7.5 7.5 0 0 0 .003-10.603"/><path d="M17 15a3.5 3.5 0 0 0-.025-4.975"/></svg>';
+      return wrap;
+    }
+
+    function describeAssignment(st) {
+      if (st === "both") return "Pattern A B: this voice on A and B.";
+      if (st === "a") return "Pattern A _: this voice on A only.";
+      if (st === "b") return "Pattern _ B: this voice on B only.";
+      return "Pattern _ _: not assigned.";
+    }
+
+    function makeVoiceRow(label, valueName) {
+      const st = ttsRowAssignmentState(valueName);
+      const row = document.createElement("div");
+      row.className = "player-menu-tts-voice-row" + (st !== "none" ? " player-menu-tts-voice-row--on" : "");
+
+      const mainBtn = document.createElement("button");
+      mainBtn.type = "button";
+      mainBtn.className = "player-menu-tts-voice-main";
+      mainBtn.setAttribute(
+        "aria-label",
+        label +
+          ". " +
+          describeAssignment(st) +
+          " Click name to use this voice for both A and B. Use the A or B button to set only that slot."
+      );
+      mainBtn.appendChild(speechIconWrap());
+      const lab = document.createElement("span");
+      lab.className = "player-menu-tts-voice-label";
+      lab.textContent = label;
+      mainBtn.appendChild(lab);
+      mainBtn.addEventListener("click", function (e) {
+        e.stopPropagation();
+        ttsSelectVoiceForBothSlots(valueName);
+        populatePlayerTtsVoiceMenus();
+      });
+      row.appendChild(mainBtn);
+
+      const badgeA = document.createElement("button");
+      badgeA.type = "button";
+      badgeA.className =
+        "player-menu-tts-badge" + (st === "a" || st === "both" ? " player-menu-tts-badge--on" : "");
+      badgeA.textContent = "A";
+      badgeA.setAttribute("aria-label", "Set Voice A to " + label);
+      badgeA.addEventListener("click", function (e) {
+        e.stopPropagation();
+        ttsAssignVoiceSlot("a", valueName);
+        populatePlayerTtsVoiceMenus();
+      });
+      row.appendChild(badgeA);
+
+      const badgeB = document.createElement("button");
+      badgeB.type = "button";
+      badgeB.className =
+        "player-menu-tts-badge" + (st === "b" || st === "both" ? " player-menu-tts-badge--on" : "");
+      badgeB.textContent = "B";
+      badgeB.setAttribute("aria-label", "Set Voice B to " + label);
+      badgeB.addEventListener("click", function (e) {
+        e.stopPropagation();
+        ttsAssignVoiceSlot("b", valueName);
+        populatePlayerTtsVoiceMenus();
+      });
+      row.appendChild(badgeB);
+
+      return row;
+    }
+
+    const T = window.PlayerTtsVoices;
+    const filtered =
+      T && typeof T.getFilteredSpeechVoices === "function" ? T.getFilteredSpeechVoices() : [];
+
+    list.replaceChildren();
+
+    const rows = [{ valueName: "Default", label: "Default" }];
+    for (let i = 0; i < filtered.length; i++) {
+      const v = filtered[i];
+      if (!v || !v.name) continue;
+      rows.push({ valueName: v.name, label: v.name });
+    }
+
+    for (let j = 0; j < rows.length; j++) {
+      const r = rows[j];
+      list.appendChild(makeVoiceRow(r.label, r.valueName));
+    }
+  }
+
   let segments = [];
   let workoutName = DEFAULT_WORKOUT_NAME;
   let presTimeSec = 0;
@@ -170,11 +347,16 @@
   const debugEngine = urlParams.has("debugEngine");
   const muteAudio = urlParams.has("muteAudio");
   const playerAudio =
-    typeof createPlayerPlaybackAudio === "function" ? createPlayerPlaybackAudio() : null;
+    typeof createPlayerPlaybackAudio === "function"
+      ? createPlayerPlaybackAudio({
+          getVoiceAName: readStoredTtsVoiceA,
+          getVoiceBName: readStoredTtsVoiceB,
+          getAudioDuckingOn: readPlayerAudioDuckingOn,
+        })
+      : null;
   let playbackEngine = null;
 
   let playerTransportRevealTimer = 0;
-  let lastPresentationCueSig = "";
 
   function setPlayerPlayingUi(playing) {
     document.body.classList.toggle("player-playing", !!playing);
@@ -195,25 +377,6 @@
       document.body.classList.remove("player-transport-open");
       playerTransportRevealTimer = 0;
     }, 4200);
-  }
-
-  function maybePulsePresentationCue() {
-    const head = document.getElementById("presCueHeading");
-    const body = document.getElementById("presCueBody");
-    const sig =
-      (head && !head.hidden ? String(head.textContent || "") : "") +
-      "\0" +
-      (body ? String(body.textContent || "") : "");
-    if (sig === lastPresentationCueSig) return;
-    lastPresentationCueSig = sig;
-    const wrap = document.querySelector(".presentation-cue-wrap");
-    if (!wrap) return;
-    wrap.classList.remove("presentation-cue-pulse");
-    void wrap.offsetWidth;
-    wrap.classList.add("presentation-cue-pulse");
-    window.setTimeout(function () {
-      wrap.classList.remove("presentation-cue-pulse");
-    }, 700);
   }
 
   function rebuildPlaybackEngine() {
@@ -247,6 +410,7 @@
       load: "playerMenuLoadView",
       theme: "playerMenuThemeView",
       "theme-schemes": "playerMenuThemeSchemesView",
+      tts: "playerMenuTtsView",
     };
     Object.keys(map).forEach(function (k) {
       const el = document.getElementById(map[k]);
@@ -254,12 +418,16 @@
     });
     const openBtn = document.getElementById("playerMenuOpenBtn");
     const themeBtn = document.getElementById("playerMenuThemeBtn");
+    const ttsBtn = document.getElementById("playerMenuTtsBtn");
     if (openBtn) openBtn.setAttribute("aria-expanded", view === "load" ? "true" : "false");
     if (themeBtn) {
       themeBtn.setAttribute(
         "aria-expanded",
         view === "theme" || view === "theme-schemes" ? "true" : "false"
       );
+    }
+    if (ttsBtn) {
+      ttsBtn.setAttribute("aria-expanded", view === "tts" ? "true" : "false");
     }
   }
 
@@ -289,6 +457,8 @@
     document.body.classList.add("player-menu-open");
     btn.setAttribute("aria-expanded", "true");
     dd.hidden = false;
+    populatePlayerTtsVoiceMenus();
+    syncPlayerAudioDuckingButton();
     const openBtn = document.getElementById("playerMenuOpenBtn");
     if (openBtn) openBtn.focus();
   }
@@ -318,6 +488,7 @@
     const loadUrl = document.getElementById("playerLoadUrlItem");
     const loadPaste = document.getElementById("playerLoadPasteItem");
     const themeBtn = document.getElementById("playerMenuThemeBtn");
+    const ttsBtn = document.getElementById("playerMenuTtsBtn");
     const input = document.getElementById("playerFileInput");
     if (!btn || !dd) return;
 
@@ -363,6 +534,37 @@
         if (schemeOpts) schemeOpts.replaceChildren();
         populatePlayerThemePanels();
         showPlayerMenuView("theme");
+      });
+    }
+
+    if (ttsBtn) {
+      ttsBtn.addEventListener("click", function (e) {
+        e.stopPropagation();
+        const ttsV = document.getElementById("playerMenuTtsView");
+        if (ttsV && !ttsV.hidden) {
+          showPlayerMenuView("main");
+          return;
+        }
+        populatePlayerTtsVoiceMenus();
+        showPlayerMenuView("tts");
+      });
+    }
+
+    const audioDuckBtn = document.getElementById("playerMenuAudioDuckingBtn");
+    if (audioDuckBtn) {
+      audioDuckBtn.addEventListener("click", function (e) {
+        e.stopPropagation();
+        togglePlayerAudioDucking();
+      });
+    }
+
+    const ttsBack = document.getElementById("playerMenuTtsBackBtn");
+    if (ttsBack) {
+      ttsBack.addEventListener("click", function (e) {
+        e.stopPropagation();
+        showPlayerMenuView("main");
+        const tb = document.getElementById("playerMenuTtsBtn");
+        if (tb) tb.focus();
       });
     }
 
@@ -429,6 +631,15 @@
         void handlePasteWorkoutJson();
       });
     }
+
+    try {
+      if (window.speechSynthesis && typeof window.speechSynthesis.addEventListener === "function") {
+        window.speechSynthesis.addEventListener("voiceschanged", function () {
+          const ttsV = document.getElementById("playerMenuTtsView");
+          if (ttsV && !ttsV.hidden) populatePlayerTtsVoiceMenus();
+        });
+      }
+    } catch (_) {}
   }
 
   async function handlePasteWorkoutJson() {
@@ -525,7 +736,6 @@
       defaultWorkoutName: DEFAULT_WORKOUT_NAME,
       timeSec: presTimeSec,
     });
-    maybePulsePresentationCue();
   }
 
   function presStopRaf() {
@@ -586,7 +796,7 @@
       const { fired, audioCommands } = playbackEngine.advancePlayback(prevT, presTimeSec);
       if (debugEngine && fired.length) console.debug("[WorkoutPlaybackEngine] fired:", fired);
       if (!muteAudio && playerAudio && audioCommands.length) {
-        playerAudio.executeCommands(audioCommands);
+        playerAudio.executeCommands(audioCommands, { workoutTimeSec: presTimeSec });
       }
     }
     presentationRender();
@@ -873,6 +1083,13 @@
             if (tb) tb.focus();
             return;
           }
+          const ttsV = document.getElementById("playerMenuTtsView");
+          if (ttsV && !ttsV.hidden) {
+            showPlayerMenuView("main");
+            const tbn = document.getElementById("playerMenuTtsBtn");
+            if (tbn) tbn.focus();
+            return;
+          }
           const loadV = document.getElementById("playerMenuLoadView");
           if (loadV && !loadV.hidden) {
             showPlayerMenuView("main");
@@ -912,7 +1129,6 @@
     presStopRaf();
     presSyncPlayButton();
     setPlayerPlayingUi(false);
-    lastPresentationCueSig = "";
     workoutName = wn;
     segments = segs;
     presTimeSec = 0;
@@ -952,6 +1168,7 @@
 
   async function boot() {
     applyPlayerThemeToDocument(readPlayerThemeState());
+    applyPlayerAudioDuckingFromStorage();
     bindPresentationControls();
     wireFileInput();
     wirePlayerMenu();
