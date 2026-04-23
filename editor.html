@@ -577,12 +577,13 @@
       }
     }
     .presentation-progress {
+      position: relative;
       height: 7px;
       height: clamp(7px, 1.55cqmin, 11px);
       margin: 0.3rem 0 0.36rem;
       border-radius: 4px;
       background: #1e222b;
-      overflow: hidden;
+      overflow: visible;
       border: 1px solid #2a303c;
       flex-shrink: 0;
       cursor: pointer;
@@ -593,6 +594,24 @@
       width: 0%;
       border-radius: 3px;
       background: linear-gradient(90deg, #34d399, var(--lane-sfx));
+    }
+    .presentation-progress-ticks {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      pointer-events: none;
+    }
+    .presentation-progress-tick {
+      position: absolute;
+      top: -2px;
+      bottom: -2px;
+      width: 3px;
+      background: var(--lane-tts, #a78bfa);
+      border-radius: 1px;
+      opacity: 0.85;
+      transform: translateX(-50%);
     }
 
     /** Phone-landscape preview (16∶9 frame): mirror player landscape inset on part/rep + bar */
@@ -1931,6 +1950,7 @@
           </div>
           <div class="presentation-progress" id="presProgressBar" aria-hidden="true">
             <div class="presentation-progress-fill" id="presProgressFill"></div>
+            <div class="presentation-progress-ticks" id="presProgressTicks"></div>
           </div>
           <div class="presentation-panel-footer">
             <div class="presentation-panel-controls" role="group" aria-label="Presentation transport">
@@ -2926,14 +2946,20 @@
           .slice(0, TEXT_CUE_HEADING_BODY_MAX);
       }
 
-      function normalizeEvent(e) {
+      function normalizeEvent(e, repDuration) {
         if (!e || typeof e !== "object") return null;
         const lane = e.lane;
         if (!LANES.some((L) => L.id === lane)) return null;
-        const start = Number(e.start);
+        let start = Number(e.start);
         let duration = Number(e.duration);
         if (Number.isNaN(duration) || duration < TIME_SNAP_SEC) duration = TIME_SNAP_SEC;
         if (Number.isNaN(start)) return null;
+        // Clamp start time to valid rep-local range
+        if (start < 0) start = 0;
+        if (repDuration && start >= repDuration) {
+          console.warn("[Editor] Event start " + start + "s exceeds rep duration " + repDuration + "s, clamping to " + (repDuration - TIME_SNAP_SEC));
+          start = Math.max(0, repDuration - TIME_SNAP_SEC);
+        }
         const sfxK = lane === "sfx" ? (e.sfxKind === "shot" ? "shot" : "split") : null;
         const out = { lane, start: snapTime(start), duration: snapTime(duration) };
         if (lane === "sfx") out.sfxKind = sfxK;
@@ -2975,15 +3001,22 @@
         return out;
       }
 
-      function normalizeRep(raw) {
+      function normalizeRep(raw, defaultIntervalSec) {
         if (!raw || typeof raw !== "object") return emptyRep();
         const o = emptyRep();
         if (raw.sfxKind === "shot") o.sfxKind = "shot";
         o.order = normalizeOrder(raw.order);
-        if (Array.isArray(raw.events)) o.events = raw.events.map(normalizeEvent).filter(Boolean);
+        // Determine rep duration for event validation
+        let repDur = defaultIntervalSec || DEFAULT_INTERVAL_FALLBACK;
         if (raw.intervalSec !== undefined && raw.intervalSec !== null) {
           const iv = Number(raw.intervalSec);
-          if (!Number.isNaN(iv) && iv > 0) o.intervalSec = snapTime(iv);
+          if (!Number.isNaN(iv) && iv > 0) {
+            repDur = snapTime(iv);
+            o.intervalSec = repDur;
+          }
+        }
+        if (Array.isArray(raw.events)) {
+          o.events = raw.events.map(function(e) { return normalizeEvent(e, repDur); }).filter(Boolean);
         }
         if (raw.name != null && String(raw.name).trim()) o.name = String(raw.name).trim().slice(0, 48);
         if (raw.elementId != null && String(raw.elementId).trim()) {
@@ -3015,12 +3048,14 @@
       }
 
       function normalizeImportedRepsArray(rawReps, fileDefaultInterval) {
-        const out = rawReps.map(normalizeRep);
-        if (out.length === 0) out.push(starterRep());
+        // Determine default interval first for event time validation
         let di = DEFAULT_INTERVAL_FALLBACK;
         const diRaw = Number(fileDefaultInterval);
         if (!Number.isNaN(diRaw) && diRaw > 0) di = snapTime(diRaw);
-        else di = inferDefaultIntervalFromReps(out);
+        const out = rawReps.map(function(r) { return normalizeRep(r, di); });
+        if (out.length === 0) out.push(starterRep());
+        // Re-check if we need to infer from content
+        if (Number.isNaN(diRaw) || diRaw <= 0) di = inferDefaultIntervalFromReps(out);
         return { reps: out, defaultIntervalSec: di };
       }
 
@@ -4762,7 +4797,8 @@
             if (!ev) continue;
             ev.start = snapTime(snapTime(Number(ev.start)) - g0);
           }
-          payloads.push(normalizeRep(raw));
+          const repDur = repDuration(rIdx);
+          payloads.push(normalizeRep(raw, repDur));
         }
         return payloads;
       }
@@ -5240,7 +5276,7 @@
         if (cat === "rep") {
           const rr = data.reps;
           if (!Array.isArray(rr) || rr.length === 0) throw new Error('Need a non-empty "reps" array.');
-          return { reps: rr.map(normalizeRep) };
+          return { reps: rr.map(function(r) { return normalizeRep(r, defaultIntervalSec); }) };
         }
         if (cat === "text" || cat === "tts" || cat === "sfx") {
           const evs = data.events;
@@ -6266,7 +6302,7 @@
         pushUndoSnapshot();
         reseedElementIdCounterFromWorkout();
         const toInsert = repClipboard.reps.map((p) => {
-          const pr = normalizeRep(JSON.parse(JSON.stringify(p)));
+          const pr = normalizeRep(JSON.parse(JSON.stringify(p)), defaultIntervalSec);
           assignFreshIdsToRep(pr, false);
           return pr;
         });
@@ -9221,6 +9257,53 @@
         }
       }
 
+      let lastTicksRepKey = "";
+
+      function renderTtsTicks() {
+        const ticksEl = document.getElementById("presProgressTicks");
+        if (!ticksEl) return;
+        const WP = typeof WorkoutPresentation !== "undefined" ? WorkoutPresentation : null;
+        if (!WP) return;
+
+        const loc = WP.locateGlobalTime(segments, presTimeSec);
+        const seg = loc.segment;
+        if (!seg || !Array.isArray(seg.reps)) {
+          ticksEl.innerHTML = "";
+          return;
+        }
+        const rIdx = WP.repIndexAtLocalSec(seg, loc.localSec);
+        const repKey = loc.segmentIndex + "-" + rIdx;
+
+        if (repKey === lastTicksRepKey) return;
+        lastTicksRepKey = repKey;
+
+        const segStart = WP.cumulativeSegmentStart(segments, loc.segmentIndex);
+        const g0 = WP.cumulativeRepStartInSegment(seg, rIdx);
+        const repStartGlobal = segStart + g0;
+        const repDur = WP.repDurationForDefault(seg.reps[rIdx], seg.defaultIntervalSec);
+        
+        if (repDur <= 0) {
+          ticksEl.innerHTML = "";
+          return;
+        }
+
+        const milestones = presPlaybackEngine && typeof presPlaybackEngine.getTtsMilestones === "function"
+          ? presPlaybackEngine.getTtsMilestones() : [];
+
+        const repEndGlobal = repStartGlobal + repDur;
+        const ticksInRep = milestones.filter(function(ts) {
+          return ts >= repStartGlobal - 0.001 && ts < repEndGlobal + 0.001;
+        });
+
+        let html = "";
+        for (let i = 0; i < ticksInRep.length; i++) {
+          const ts = ticksInRep[i];
+          const pct = ((ts - repStartGlobal) / repDur) * 100;
+          html += '<div class="presentation-progress-tick" style="left:' + pct.toFixed(4) + '%"></div>';
+        }
+        ticksEl.innerHTML = html;
+      }
+
       function presentationRender() {
         if (typeof WorkoutPresentation === "undefined") return;
         const S = typeof WorkoutPresentationShared !== "undefined" ? WorkoutPresentationShared : null;
@@ -9233,6 +9316,7 @@
           defaultWorkoutName: DEFAULT_WORKOUT_NAME,
           timeSec: presTimeSec,
         });
+        renderTtsTicks();
       }
 
       function presTick(now) {
@@ -9352,8 +9436,13 @@
 
       function presStopScrubAndSync() {
         presScrubInternalStop();
+        const WPE = typeof WorkoutPlaybackEngine !== "undefined" ? WorkoutPlaybackEngine : null;
+        if (WPE && typeof WPE.resetTtsStickyState === "function") {
+          WPE.resetTtsStickyState();
+        }
         if (typeof WorkoutPresentation === "undefined") return;
-        presTimeSec = snapTime(presTimeSec);
+        // Allow 0.0s exactly, otherwise snap to grid
+        presTimeSec = presTimeSec <= 0.05 ? 0 : snapTime(presTimeSec);
         presClampTimeToWorkout();
         if (presScrubWasPlaying) {
           presScrubWasPlaying = false;
@@ -9385,8 +9474,19 @@
             ? WorkoutPresentationShared.scrubSpeedMultiplier(elapsedWall)
             : 4;
         const delta = presScrubDir * mult * dtWall;
-        /** No `snapTime` while scrubbing — 0.1s grid was swallowing small per-frame deltas at low speed. */
-        presTimeSec = Math.max(0, Math.min(presTimeSec + delta, maxT));
+        let rawTarget = Math.max(0, Math.min(presTimeSec + delta, maxT));
+
+        const WPE = typeof WorkoutPlaybackEngine !== "undefined" ? WorkoutPlaybackEngine : null;
+        const milestones = presPlaybackEngine && typeof presPlaybackEngine.getTtsMilestones === "function"
+          ? presPlaybackEngine.getTtsMilestones() : null;
+        if (WPE && milestones && milestones.length > 0) {
+          const prevTime = presTimeSec;
+          const result = WPE.applyTtsStickyMilestones(presTimeSec, rawTarget, milestones);
+          rawTarget = result.time;
+          WPE.checkTtsMilestonesCrossed(prevTime, rawTarget, milestones);
+        }
+
+        presTimeSec = rawTarget;
         const loc = WP.locateGlobalTime(segments, presTimeSec);
         if (loc.segmentIndex !== activeSegmentIndex) {
           presSyncingTimeline = true;
@@ -9746,17 +9846,19 @@
           const DRAG_THRESHOLD_PX = 5;
 
           function getRepInfo() {
-            if (typeof WorkoutPresentation === "undefined") return null;
-            const WP = WorkoutPresentation;
+            const WP = typeof WorkoutPresentation !== "undefined" ? WorkoutPresentation : null;
+            if (!WP) return null;
             flushActiveSegmentMeta();
             const loc = WP.locateGlobalTime(segments, presTimeSec);
             const seg = loc.segment;
             if (!seg || !Array.isArray(seg.reps)) return null;
             const rIdx = WP.repIndexAtLocalSec(seg, loc.localSec);
-            const repStartGlobal = WP.globalSecAtRepStart(segments, loc.segmentIndex, rIdx);
+            const segStart = WP.cumulativeSegmentStart(segments, loc.segmentIndex);
+            const g0 = WP.cumulativeRepStartInSegment(seg, rIdx);
+            const repStartGlobal = segStart + g0;
             const rep = seg.reps[rIdx];
             const repDur = WP.repDurationForDefault(rep, seg.defaultIntervalSec);
-            return { repStartGlobal, repDur, segmentIndex: loc.segmentIndex };
+            return { repStartGlobal, repDur, segmentIndex: loc.segmentIndex, repIndex: rIdx };
           }
 
           function getCurrentRepPct() {
@@ -9766,11 +9868,34 @@
             return Math.max(0, Math.min(1, offset / info.repDur));
           }
 
-          function applyRepPct(pct) {
-            const info = getRepInfo();
+          let progressLockedRepInfo = null;
+
+          function applyRepPct(pct, skipSticky) {
+            const info = progressLockedRepInfo || getRepInfo();
             if (!info) return;
-            const targetGlobal = info.repStartGlobal + pct * info.repDur;
-            presTimeSec = snapTime(targetGlobal);
+            
+            const clampedPct = Math.max(0, Math.min(1, pct));
+            let targetGlobal = info.repStartGlobal + clampedPct * info.repDur;
+            
+            // Clamp to rep boundaries
+            const repEnd = info.repStartGlobal + info.repDur - 0.001;
+            targetGlobal = Math.max(info.repStartGlobal, Math.min(repEnd, targetGlobal));
+
+            let stickyApplied = false;
+            if (!skipSticky) {
+              const WPE = typeof WorkoutPlaybackEngine !== "undefined" ? WorkoutPlaybackEngine : null;
+              const milestones = presPlaybackEngine && typeof presPlaybackEngine.getTtsMilestones === "function"
+                ? presPlaybackEngine.getTtsMilestones() : null;
+              if (WPE && milestones && milestones.length > 0) {
+                const prevTime = presTimeSec;
+                const result = WPE.applyTtsStickyMilestones(presTimeSec, targetGlobal, milestones);
+                targetGlobal = result.time;
+                stickyApplied = result.sticky;
+                WPE.checkTtsMilestonesCrossed(prevTime, targetGlobal, milestones);
+              }
+            }
+
+            presTimeSec = stickyApplied ? targetGlobal : snapTime(targetGlobal);
             presClampTimeToWorkout();
             presentationRender();
             syncPlaybackWithTimeline();
@@ -9800,7 +9925,7 @@
               ? Sh.scrubSpeedMultiplier(elapsedSec)
               : 4;
 
-            const info = getRepInfo();
+            const info = progressLockedRepInfo || getRepInfo();
             const repDur = info ? info.repDur : 1;
             const stepPct = (speedMult * dt) / Math.max(0.1, repDur);
 
@@ -9847,10 +9972,13 @@
 
             const rect = presProgressBar.getBoundingClientRect();
             progressTargetPct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+            
+            // Lock rep info at drag start to prevent jumping to next rep
+            progressLockedRepInfo = getRepInfo();
 
             if (isDoubleClick) {
               progressDirectDrag = true;
-              applyRepPct(progressTargetPct);
+              applyRepPct(progressTargetPct, true);
             } else {
               progressGlideStartMs = performance.now();
               progressGlideLastTs = 0;
@@ -9869,7 +9997,7 @@
             }
 
             if (progressDirectDrag) {
-              applyRepPct(newPct);
+              applyRepPct(newPct, false);
             } else {
               progressTargetPct = newPct;
             }
@@ -9879,7 +10007,10 @@
             if (!progressDragging) return;
             progressDragging = false;
             progressDirectDrag = false;
+            progressLockedRepInfo = null;
             stopProgressGlide();
+            const WPE = typeof WorkoutPlaybackEngine !== "undefined" ? WorkoutPlaybackEngine : null;
+            if (WPE && WPE.resetTtsStickyState) WPE.resetTtsStickyState();
             if (progressWasPlaying) {
               syncPresPlaybackEngineAfterSeek();
               presWallLast = performance.now();

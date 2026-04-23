@@ -934,11 +934,12 @@ body.player-menu-open .player-menu-anchor {
 }
 
 .presentation-progress {
+  position: relative;
   height: clamp(7px, 1.55cqmin, 11px);
   margin: 0.3rem 0 0.36rem;
   border-radius: 4px;
   background: var(--player-pres-progress-bg);
-  overflow: hidden;
+  overflow: visible;
   border: 1px solid var(--player-pres-progress-border);
   flex-shrink: 0;
   cursor: pointer;
@@ -950,6 +951,27 @@ body.player-menu-open .player-menu-anchor {
   width: 0%;
   border-radius: 3px;
   background: linear-gradient(90deg, var(--player-progress-a), var(--player-progress-b));
+}
+
+.presentation-progress-ticks {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+}
+
+.presentation-progress-tick {
+  position: absolute;
+  top: -2px;
+  bottom: -2px;
+  width: 3px;
+  background: var(--player-pres-cue-heading, #f8fafc);
+  border-radius: 1px;
+  opacity: 0.9;
+  transform: translateX(-50%);
+  box-shadow: 0 0 4px var(--player-accent-glow, rgba(56, 189, 248, 0.32));
 }
 
 /* —— Hero cue typography: container + viewport so fullscreen phone and wide desktop both scale —— */

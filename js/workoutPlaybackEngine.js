@@ -185,10 +185,123 @@
 
       return { fired, audioCommands };
     }
+
+    /**
+     * Get sorted array of TTS cue start times (for sticky milestone feature).
+     * @returns {number[]}
+     */
+    getTtsMilestones() {
+      const milestones = [];
+      for (let i = 0; i < this.timeline.length; i++) {
+        const ev = this.timeline[i];
+        if (ev.lane === "tts") {
+          milestones.push(ev.globalStart);
+        }
+      }
+      if (ENGINE_DEBUG && milestones.length > 0) {
+        console.log("[Engine] getTtsMilestones:", milestones.map(m => m.toFixed(2)).join(", "));
+      }
+      return milestones;
+    }
+  }
+
+  // Sticky milestone state
+  let _stickyMilestone = null;
+  let _stickyStartTime = 0;
+  let _stickyCumulativePush = 0;
+  const STICKY_HOLD_MS = 1000;
+  const STICKY_PUSH_THRESHOLD = 1.5;
+
+  /**
+   * Apply "sticky" resistance when scrubbing near TTS milestones.
+   * @param {number} currentTime - current playhead position
+   * @param {number} rawTargetTime - where scrubbing wants to go
+   * @param {number[]} ttsMilestones - sorted array of TTS start times
+   * @param {object} [opts]
+   * @returns {{time: number, sticky: boolean}} adjusted target time and whether sticky is active
+   */
+  function applyTtsStickyMilestones(currentTime, rawTargetTime, ttsMilestones, opts) {
+    if (!ttsMilestones || ttsMilestones.length === 0) return { time: rawTargetTime, sticky: false };
+    const SNAP_THRESHOLD = (opts && opts.snapThreshold) || 0.4;
+
+    const movingForward = rawTargetTime > currentTime;
+    const now = typeof performance !== "undefined" ? performance.now() : Date.now();
+
+    // Check if we're currently stuck at a milestone
+    if (_stickyMilestone !== null) {
+      const stuckDuration = now - _stickyStartTime;
+      const pushAmount = Math.abs(rawTargetTime - _stickyMilestone);
+      _stickyCumulativePush += pushAmount;
+
+      // Release conditions: held long enough OR pushed hard enough
+      if (stuckDuration >= STICKY_HOLD_MS || _stickyCumulativePush >= STICKY_PUSH_THRESHOLD) {
+        if (ENGINE_DEBUG) console.log("[Engine] Sticky: RELEASING from", _stickyMilestone.toFixed(2), "after", stuckDuration.toFixed(0), "ms, push:", _stickyCumulativePush.toFixed(2));
+        _stickyMilestone = null;
+        _stickyStartTime = 0;
+        _stickyCumulativePush = 0;
+        return { time: rawTargetTime, sticky: false };
+      }
+
+      // Still stuck - stay at milestone
+      if (ENGINE_DEBUG) console.log("[Engine] Sticky: HOLDING at", _stickyMilestone.toFixed(2), "duration:", stuckDuration.toFixed(0), "ms, push:", _stickyCumulativePush.toFixed(2));
+      return { time: _stickyMilestone, sticky: true };
+    }
+
+    // Check if we should stick to a milestone
+    for (let i = 0; i < ttsMilestones.length; i++) {
+      const ts = ttsMilestones[i];
+      
+      // Check if we're crossing or about to cross this milestone
+      const wouldCross = movingForward 
+        ? (currentTime < ts && rawTargetTime >= ts - SNAP_THRESHOLD)
+        : (currentTime > ts && rawTargetTime <= ts + SNAP_THRESHOLD);
+      
+      if (wouldCross) {
+        // Stick to this milestone
+        _stickyMilestone = ts;
+        _stickyStartTime = now;
+        _stickyCumulativePush = 0;
+        if (ENGINE_DEBUG) console.log("[Engine] Sticky: STICKING to milestone", ts.toFixed(2));
+        return { time: ts, sticky: true };
+      }
+    }
+
+    return { time: rawTargetTime, sticky: false };
+  }
+
+  /**
+   * Reset sticky state (call when scrubbing stops).
+   */
+  function resetTtsStickyState() {
+    _stickyMilestone = null;
+    _stickyStartTime = 0;
+    _stickyCumulativePush = 0;
+  }
+
+  /**
+   * Check if any milestones were crossed and trigger haptic feedback.
+   * @param {number} prevTime
+   * @param {number} newTime
+   * @param {number[]} ttsMilestones
+   */
+  function checkTtsMilestonesCrossed(prevTime, newTime, ttsMilestones) {
+    if (!ttsMilestones || ttsMilestones.length === 0) return;
+    if (typeof navigator === "undefined" || typeof navigator.vibrate !== "function") return;
+    for (let i = 0; i < ttsMilestones.length; i++) {
+      const ts = ttsMilestones[i];
+      const crossed = (prevTime < ts && newTime >= ts) || (prevTime > ts && newTime <= ts);
+      if (crossed) {
+        try { navigator.vibrate(12); } catch (_) {}
+        return;
+      }
+    }
   }
 
   global.WorkoutPlaybackEngine = {
     buildPlaybackTimeline,
+    applyTtsStickyMilestones,
+    checkTtsMilestonesCrossed,
+    resetTtsStickyState,
     create(opts) {
       return new WorkoutPlaybackEngine(Object.assign({ audioEnabled: true }, opts || {}));
     },

@@ -727,6 +727,57 @@
     presTimeSec = Math.max(0, Math.min(presTimeSec, maxT));
   }
 
+  let lastTicksRepKey = "";
+
+  function renderTtsTicks() {
+    const ticksEl = document.getElementById("presProgressTicks");
+    if (!ticksEl) return;
+    const w = WP();
+    if (!w) return;
+
+    // Get current rep info
+    const loc = w.locateGlobalTime(segments, presTimeSec);
+    const seg = loc.segment;
+    if (!seg || !Array.isArray(seg.reps)) {
+      ticksEl.innerHTML = "";
+      return;
+    }
+    const rIdx = w.repIndexAtLocalSec(seg, loc.localSec);
+    const repKey = loc.segmentIndex + "-" + rIdx;
+
+    // Only update if rep changed
+    if (repKey === lastTicksRepKey) return;
+    lastTicksRepKey = repKey;
+
+    const segStart = w.cumulativeSegmentStart(segments, loc.segmentIndex);
+    const g0 = w.cumulativeRepStartInSegment(seg, rIdx);
+    const repStartGlobal = segStart + g0;
+    const repDur = w.repDurationForDefault(seg.reps[rIdx], seg.defaultIntervalSec);
+    
+    if (repDur <= 0) {
+      ticksEl.innerHTML = "";
+      return;
+    }
+
+    // Get TTS milestones in this rep
+    const milestones = playbackEngine && typeof playbackEngine.getTtsMilestones === "function"
+      ? playbackEngine.getTtsMilestones() : [];
+    
+    const repEndGlobal = repStartGlobal + repDur;
+    const ticksInRep = milestones.filter(function(ts) {
+      return ts >= repStartGlobal - 0.001 && ts < repEndGlobal + 0.001;
+    });
+
+    // Render ticks positioned relative to rep progress
+    let html = "";
+    for (let i = 0; i < ticksInRep.length; i++) {
+      const ts = ticksInRep[i];
+      const pct = ((ts - repStartGlobal) / repDur) * 100;
+      html += '<div class="presentation-progress-tick" style="left:' + pct.toFixed(4) + '%"></div>';
+    }
+    ticksEl.innerHTML = html;
+  }
+
   function presentationRender() {
     if (!Sh() || !WP()) return;
     presClampTimeToWorkout();
@@ -736,6 +787,7 @@
       defaultWorkoutName: DEFAULT_WORKOUT_NAME,
       timeSec: presTimeSec,
     });
+    renderTtsTicks();
   }
 
   function presStopRaf() {
@@ -867,9 +919,14 @@
 
   function presStopScrubAndSync() {
     presScrubInternalStop();
+    const WPE = typeof WorkoutPlaybackEngine !== "undefined" ? WorkoutPlaybackEngine : null;
+    if (WPE && typeof WPE.resetTtsStickyState === "function") {
+      WPE.resetTtsStickyState();
+    }
     const w = WP();
     if (!w) return;
-    presTimeSec = w.snapTime(presTimeSec);
+    // Allow 0.0s exactly, otherwise snap to grid
+    presTimeSec = presTimeSec <= 0.05 ? 0 : w.snapTime(presTimeSec);
     presClampTimeToWorkout();
     if (presScrubWasPlaying) {
       presScrubWasPlaying = false;
@@ -896,7 +953,19 @@
       presScrubHoldStartMs > 0 ? (performance.now() - presScrubHoldStartMs) / 1000 : 0;
     const mult = S.scrubSpeedMultiplier(elapsedWall);
     const delta = presScrubDir * mult * dtWall;
-    presTimeSec = Math.max(0, Math.min(presTimeSec + delta, maxT));
+    let rawTarget = Math.max(0, Math.min(presTimeSec + delta, maxT));
+
+    const WPE = typeof WorkoutPlaybackEngine !== "undefined" ? WorkoutPlaybackEngine : null;
+    const milestones = playbackEngine && typeof playbackEngine.getTtsMilestones === "function"
+      ? playbackEngine.getTtsMilestones() : null;
+    if (WPE && milestones && milestones.length > 0) {
+      const prevTime = presTimeSec;
+      const result = WPE.applyTtsStickyMilestones(presTimeSec, rawTarget, milestones);
+      rawTarget = result.time;
+      WPE.checkTtsMilestonesCrossed(prevTime, rawTarget, milestones);
+    }
+
+    presTimeSec = rawTarget;
     presentationRender();
     if (presTimeSec <= 1e-9 && presScrubDir < 0) {
       presStopScrubAndSync();
@@ -1093,10 +1162,12 @@
         const seg = loc.segment;
         if (!seg || !Array.isArray(seg.reps)) return null;
         const rIdx = w.repIndexAtLocalSec(seg, loc.localSec);
-        const repStartGlobal = w.globalSecAtRepStart(segments, loc.segmentIndex, rIdx);
+        const segStart = w.cumulativeSegmentStart(segments, loc.segmentIndex);
+        const g0 = w.cumulativeRepStartInSegment(seg, rIdx);
+        const repStartGlobal = segStart + g0;
         const rep = seg.reps[rIdx];
         const repDur = w.repDurationForDefault(rep, seg.defaultIntervalSec);
-        return { repStartGlobal, repDur, segmentIndex: loc.segmentIndex };
+        return { repStartGlobal, repDur, segmentIndex: loc.segmentIndex, repIndex: rIdx };
       }
 
       function getCurrentRepPct() {
@@ -1106,12 +1177,35 @@
         return Math.max(0, Math.min(1, offset / info.repDur));
       }
 
-      function applyRepPct(pct) {
+      let progressLockedRepInfo = null;
+
+      function applyRepPct(pct, skipSticky) {
         const w = WP();
-        const info = getRepInfo();
+        const info = progressLockedRepInfo || getRepInfo();
         if (!w || !info) return;
-        const targetGlobal = info.repStartGlobal + pct * info.repDur;
-        presTimeSec = w.snapTime(targetGlobal);
+        
+        const clampedPct = Math.max(0, Math.min(1, pct));
+        let targetGlobal = info.repStartGlobal + clampedPct * info.repDur;
+        
+        // Clamp to rep boundaries
+        const repEnd = info.repStartGlobal + info.repDur - 0.001;
+        targetGlobal = Math.max(info.repStartGlobal, Math.min(repEnd, targetGlobal));
+
+        let stickyApplied = false;
+        if (!skipSticky) {
+          const WPE = typeof WorkoutPlaybackEngine !== "undefined" ? WorkoutPlaybackEngine : null;
+          const milestones = playbackEngine && typeof playbackEngine.getTtsMilestones === "function"
+            ? playbackEngine.getTtsMilestones() : null;
+          if (WPE && milestones && milestones.length > 0) {
+            const prevTime = presTimeSec;
+            const result = WPE.applyTtsStickyMilestones(presTimeSec, targetGlobal, milestones);
+            targetGlobal = result.time;
+            stickyApplied = result.sticky;
+            WPE.checkTtsMilestonesCrossed(prevTime, targetGlobal, milestones);
+          }
+        }
+
+        presTimeSec = stickyApplied ? targetGlobal : w.snapTime(targetGlobal);
         presClampTimeToWorkout();
         presentationRender();
       }
@@ -1140,7 +1234,7 @@
           ? S.scrubSpeedMultiplier(elapsedSec)
           : 4;
 
-        const info = getRepInfo();
+        const info = progressLockedRepInfo || getRepInfo();
         const repDur = info ? info.repDur : 1;
         const stepPct = (speedMult * dt) / Math.max(0.1, repDur);
 
@@ -1189,10 +1283,13 @@
 
         const rect = presProgressBar.getBoundingClientRect();
         progressTargetPct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+        
+        // Lock rep info at drag start to prevent jumping to next rep
+        progressLockedRepInfo = getRepInfo();
 
         if (isDoubleClick) {
           progressDirectDrag = true;
-          applyRepPct(progressTargetPct);
+          applyRepPct(progressTargetPct, true);
         } else {
           progressGlideStartMs = performance.now();
           progressGlideLastTs = 0;
@@ -1211,7 +1308,7 @@
         }
 
         if (progressDirectDrag) {
-          applyRepPct(newPct);
+          applyRepPct(newPct, false);
         } else {
           progressTargetPct = newPct;
         }
@@ -1221,7 +1318,10 @@
         if (!progressDragging) return;
         progressDragging = false;
         progressDirectDrag = false;
+        progressLockedRepInfo = null;
         stopProgressGlide();
+        const WPE = typeof WorkoutPlaybackEngine !== "undefined" ? WorkoutPlaybackEngine : null;
+        if (WPE && WPE.resetTtsStickyState) WPE.resetTtsStickyState();
         if (progressWasPlaying) {
           syncPlaybackEngineAfterSeek();
           presWallLast = performance.now();
