@@ -61,18 +61,18 @@
       const reps = seg && Array.isArray(seg.reps) ? seg.reps : [];
       for (let ri = 0; ri < reps.length; ri++) {
         const rep = reps[ri];
-        const gRep = WP.cumulativeRepStartInSegment(seg, ri);
         const events = rep && Array.isArray(rep.events) ? rep.events : [];
         for (let ei = 0; ei < events.length; ei++) {
           const raw = events[ei];
           if (!raw || typeof raw !== "object") continue;
           const lane = raw.lane;
           if (!LANES.has(lane)) continue;
+          // Event start times are segment-local (editor timeline position), not rep-local
           const start = WP.snapTime(Number(raw.start) || 0);
           let dur = Number(raw.duration);
           if (!Number.isFinite(dur) || dur < WP.TIME_SNAP_SEC) dur = WP.TIME_SNAP_SEC;
           dur = WP.snapTime(dur);
-          const globalStart = WP.snapTime(gSeg + gRep + start);
+          const globalStart = WP.snapTime(gSeg + start);
           const globalEnd = WP.snapTime(globalStart + dur);
           const id = "s" + si + "-r" + ri + "-" + lane + "-" + globalStart.toFixed(3) + "-e" + ei;
           const row = {

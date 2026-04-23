@@ -2954,7 +2954,7 @@
           .slice(0, TEXT_CUE_HEADING_BODY_MAX);
       }
 
-      function normalizeEvent(e, repDuration) {
+      function normalizeEvent(e) {
         if (!e || typeof e !== "object") return null;
         const lane = e.lane;
         if (!LANES.some((L) => L.id === lane)) return null;
@@ -2962,12 +2962,7 @@
         let duration = Number(e.duration);
         if (Number.isNaN(duration) || duration < TIME_SNAP_SEC) duration = TIME_SNAP_SEC;
         if (Number.isNaN(start)) return null;
-        // Clamp start time to valid rep-local range
         if (start < 0) start = 0;
-        if (repDuration && start >= repDuration) {
-          console.warn("[Editor] Event start " + start + "s exceeds rep duration " + repDuration + "s, clamping to " + (repDuration - TIME_SNAP_SEC));
-          start = Math.max(0, repDuration - TIME_SNAP_SEC);
-        }
         const sfxK = lane === "sfx" ? (e.sfxKind === "shot" ? "shot" : "split") : null;
         const out = { lane, start: snapTime(start), duration: snapTime(duration) };
         if (lane === "sfx") out.sfxKind = sfxK;
@@ -3018,17 +3013,14 @@
         const o = emptyRep();
         if (raw.sfxKind === "shot") o.sfxKind = "shot";
         o.order = normalizeOrder(raw.order);
-        // Determine rep duration for event validation
-        let repDur = defaultIntervalSec || DEFAULT_INTERVAL_FALLBACK;
         if (raw.intervalSec !== undefined && raw.intervalSec !== null) {
           const iv = Number(raw.intervalSec);
           if (!Number.isNaN(iv) && iv > 0) {
-            repDur = snapTime(iv);
-            o.intervalSec = repDur;
+            o.intervalSec = snapTime(iv);
           }
         }
         if (Array.isArray(raw.events)) {
-          o.events = raw.events.map(function(e) { return normalizeEvent(e, repDur); }).filter(Boolean);
+          o.events = raw.events.map(function(e) { return normalizeEvent(e); }).filter(Boolean);
         }
         if (raw.name != null && String(raw.name).trim()) o.name = String(raw.name).trim().slice(0, 48);
         if (raw.elementId != null && String(raw.elementId).trim()) {
@@ -3261,6 +3253,7 @@
           ev.name = defaultNewCueName(ev.lane, ev.sfxKind);
           return ev;
         };
+        // Event start times are segment-local (timeline position within segment)
         x.events = [
           mkEv("text", c + 0.4, 0.4),
           mkEv("tts", c + 0.9, 1.2),
