@@ -2136,6 +2136,12 @@
           <option value="b">Voice B</option>
         </select>
       </div>
+      <div class="field" id="milestoneWrap">
+        <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer">
+          <input type="checkbox" id="editMilestone" style="width:auto;margin:0" />
+          Show as timeline milestone
+        </label>
+      </div>
       <div class="actions">
         <button type="button" class="danger" id="clipModalRemove" style="margin-right:auto;border-color:#7f1d1d;color:#fecaca">Remove</button>
         <button type="button" id="clipModalCancel">Cancel</button>
@@ -2675,6 +2681,8 @@
       const sfxKindWrap = document.getElementById("sfxKindWrap");
       const ttsVoiceSlotWrap = document.getElementById("ttsVoiceSlotWrap");
       const editTtsVoiceSlot = document.getElementById("editTtsVoiceSlot");
+      const milestoneWrap = document.getElementById("milestoneWrap");
+      const editMilestone = document.getElementById("editMilestone");
       const ttsSpeechWrap = document.getElementById("ttsSpeechWrap");
       const editTtsSpeech = document.getElementById("editTtsSpeech");
       const settingsModal = document.getElementById("settingsModal");
@@ -2980,6 +2988,10 @@
           out.voiceSlot = String(e.voiceSlot || "").toLowerCase() === "b" ? "b" : "a";
           const sp = normalizeTtsSpeech(e.speech);
           if (sp) out.speech = sp;
+        }
+        // Milestone property: explicit true/false is preserved, undefined uses lane default (TTS=true, others=false)
+        if (e.milestone === true || e.milestone === false) {
+          out.milestone = e.milestone;
         }
         return out;
       }
@@ -5255,6 +5267,7 @@
               if (hb.heading) o.heading = hb.heading;
               if (hb.body) o.body = hb.body;
             }
+            if (ev.milestone === true || ev.milestone === false) o.milestone = ev.milestone;
             return o;
           });
           return {
@@ -5301,6 +5314,7 @@
                 if (hb.heading) o.heading = hb.heading;
                 if (hb.body) o.body = hb.body;
               }
+              if (e.milestone === true || e.milestone === false) o.milestone = e.milestone;
               return o;
             }),
           };
@@ -5670,6 +5684,11 @@
           editCueHeading.value = "";
           editCueBody.value = "";
         }
+        // Milestone checkbox: use explicit value if set, else default based on lane (TTS=true, others=false)
+        if (editMilestone) {
+          const defaultMilestone = cat === "tts";
+          editMilestone.checked = ev.milestone !== undefined ? ev.milestone : defaultMilestone;
+        }
         const startLbl = document.querySelector('label[for="editStart"]');
         if (startLbl) startLbl.textContent = "Start — rep-relative time (s)";
         const cr = document.getElementById("clipModalRemove");
@@ -5906,6 +5925,7 @@
                   if (hb.heading) o.heading = hb.heading;
                   if (hb.body) o.body = hb.body;
                 }
+                if (e.milestone === true || e.milestone === false) o.milestone = e.milestone;
                 return o;
               }),
             };
@@ -6062,6 +6082,7 @@
             if (hb.heading) o.heading = hb.heading;
             if (hb.body) o.body = hb.body;
           }
+          if (ev.milestone === true || ev.milestone === false) o.milestone = ev.milestone;
           return o;
         });
         repClipboard = null;
@@ -6271,6 +6292,7 @@
               if (hb.heading) o.heading = hb.heading;
               if (hb.body) o.body = hb.body;
             }
+            if (item.milestone === true || item.milestone === false) o.milestone = item.milestone;
             return o;
           });
           if (!plannedNewCuesPlacementValid(planned)) continue;
@@ -6398,6 +6420,7 @@
             const sp = normalizeTtsSpeech(p.speech);
             if (sp) ev.speech = sp;
           }
+          if (p.milestone === true || p.milestone === false) ev.milestone = p.milestone;
           reps[rTarget].events.push(ev);
         }
         selectClipRangeOnRep(rTarget, pasteStartIdx, planned.length);
@@ -7873,6 +7896,11 @@
           editCueHeading.value = "";
           editCueBody.value = "";
         }
+        // Milestone checkbox: use explicit value if set, else default based on lane (TTS=true, others=false)
+        if (editMilestone) {
+          const defaultMilestone = ev.lane === "tts";
+          editMilestone.checked = ev.milestone !== undefined ? ev.milestone : defaultMilestone;
+        }
         replaceClipSelection(r, eventIndex);
         clipModal.classList.add("open");
         clipModal.setAttribute("aria-hidden", "false");
@@ -8329,6 +8357,15 @@
             if (hb.body) ev.body = hb.body;
             else delete ev.body;
           }
+          // Milestone: only store if different from default (TTS=true, others=false)
+          if (editMilestone) {
+            const defaultMilestone = cat === "tts";
+            if (editMilestone.checked !== defaultMilestone) {
+              ev.milestone = editMilestone.checked;
+            } else {
+              delete ev.milestone;
+            }
+          }
           ev.relStart = st;
           ev.duration = dur;
           let validated;
@@ -8400,6 +8437,15 @@
           else delete ev.heading;
           if (hb.body) ev.body = hb.body;
           else delete ev.body;
+        }
+        // Milestone: only store if different from default (TTS=true, others=false)
+        if (editMilestone) {
+          const defaultMilestone = ev.lane === "tts";
+          if (editMilestone.checked !== defaultMilestone) {
+            ev.milestone = editMilestone.checked;
+          } else {
+            delete ev.milestone;
+          }
         }
         ev.start = st;
         ev.duration = dur;
@@ -8932,6 +8978,7 @@
       function rebuildPresPlaybackEngine() {
         if (presPreviewAudio && !skipPresPreviewAudioCancelOnce) presPreviewAudio.cancelAll();
         presPlaybackEngine = null;
+        lastTicksRepKey = ""; // Reset tick cache so milestones re-render
         if (typeof WorkoutPlaybackEngine === "undefined" || typeof WorkoutPresentation === "undefined") return;
         try {
           presPlaybackEngine = WorkoutPlaybackEngine.create({

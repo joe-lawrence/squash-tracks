@@ -381,6 +381,7 @@
 
   function rebuildPlaybackEngine() {
     playbackEngine = null;
+    lastTicksRepKey = ""; // Reset tick cache so milestones re-render
     if (!WP() || typeof WorkoutPlaybackEngine === "undefined") return;
     try {
       playbackEngine = WorkoutPlaybackEngine.create({ segments, audioEnabled: !muteAudio });

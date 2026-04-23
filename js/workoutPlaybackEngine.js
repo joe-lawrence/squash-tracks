@@ -98,6 +98,7 @@
             sfxKind: raw.sfxKind,
             sfxUrl: raw.sfxUrl != null ? String(raw.sfxUrl) : "",
             elementId: raw.elementId != null ? String(raw.elementId) : "",
+            milestone: raw.milestone,
           };
           if (lane === "tts") {
             row.voiceSlot = raw.voiceSlot === "b" ? "b" : "a";
@@ -187,21 +188,28 @@
     }
 
     /**
-     * Get sorted array of TTS cue start times (for sticky milestone feature).
+     * Get sorted array of milestone start times (for sticky milestone feature).
+     * TTS events default to milestone=true, others default to false.
      * @returns {number[]}
      */
-    getTtsMilestones() {
+    getMilestones() {
       const milestones = [];
       for (let i = 0; i < this.timeline.length; i++) {
         const ev = this.timeline[i];
-        if (ev.lane === "tts") {
+        const isMilestone = ev.milestone !== undefined ? ev.milestone : (ev.lane === "tts");
+        if (isMilestone) {
           milestones.push(ev.globalStart);
         }
       }
       if (ENGINE_DEBUG && milestones.length > 0) {
-        console.log("[Engine] getTtsMilestones:", milestones.map(m => m.toFixed(2)).join(", "));
+        console.log("[Engine] getMilestones:", milestones.map(m => m.toFixed(2)).join(", "));
       }
       return milestones;
+    }
+
+    /** @deprecated Use getMilestones() instead */
+    getTtsMilestones() {
+      return this.getMilestones();
     }
   }
 
