@@ -1076,20 +1076,104 @@
     if (presProgressBar) {
       let progressDragging = false;
       let progressWasPlaying = false;
+      let progressTargetPct = 0;
+      let progressGlideRafId = 0;
+      let progressGlideStartMs = 0;
+      let progressGlideLastTs = 0;
+      let progressLastClickTime = 0;
+      let progressStartX = 0;
+      let progressDirectDrag = false;
+      const DOUBLE_CLICK_MS = 350;
+      const DRAG_THRESHOLD_PX = 5;
 
-      function applyProgressPct(pct) {
+      function getRepInfo() {
         const w = WP();
-        if (!w) return;
-        const maxT = w.totalWorkoutDuration(segments);
-        presTimeSec = w.snapTime(pct * maxT);
+        if (!w) return null;
+        const loc = w.locateGlobalTime(segments, presTimeSec);
+        const seg = loc.segment;
+        if (!seg || !Array.isArray(seg.reps)) return null;
+        const rIdx = w.repIndexAtLocalSec(seg, loc.localSec);
+        const repStartGlobal = w.globalSecAtRepStart(segments, loc.segmentIndex, rIdx);
+        const rep = seg.reps[rIdx];
+        const repDur = w.repDurationForDefault(rep, seg.defaultIntervalSec);
+        return { repStartGlobal, repDur, segmentIndex: loc.segmentIndex };
+      }
+
+      function getCurrentRepPct() {
+        const info = getRepInfo();
+        if (!info || info.repDur <= 0) return 0;
+        const offset = presTimeSec - info.repStartGlobal;
+        return Math.max(0, Math.min(1, offset / info.repDur));
+      }
+
+      function applyRepPct(pct) {
+        const w = WP();
+        const info = getRepInfo();
+        if (!w || !info) return;
+        const targetGlobal = info.repStartGlobal + pct * info.repDur;
+        presTimeSec = w.snapTime(targetGlobal);
         presClampTimeToWorkout();
         presentationRender();
+      }
+
+      function progressGlideFrame(ts) {
+        if (!progressDragging || progressDirectDrag) {
+          progressGlideRafId = 0;
+          return;
+        }
+        if (progressGlideLastTs === 0) progressGlideLastTs = ts;
+        const dt = (ts - progressGlideLastTs) / 1000;
+        progressGlideLastTs = ts;
+
+        const currentPct = getCurrentRepPct();
+        const diff = progressTargetPct - currentPct;
+
+        if (Math.abs(diff) < 0.005) {
+          applyRepPct(progressTargetPct);
+          progressGlideRafId = requestAnimationFrame(progressGlideFrame);
+          return;
+        }
+
+        const elapsedSec = (performance.now() - progressGlideStartMs) / 1000;
+        const S = Sh();
+        const speedMult = S && typeof S.scrubSpeedMultiplier === "function"
+          ? S.scrubSpeedMultiplier(elapsedSec)
+          : 4;
+
+        const info = getRepInfo();
+        const repDur = info ? info.repDur : 1;
+        const stepPct = (speedMult * dt) / Math.max(0.1, repDur);
+
+        let newPct;
+        if (Math.abs(diff) <= stepPct) {
+          newPct = progressTargetPct;
+        } else {
+          newPct = currentPct + (diff > 0 ? stepPct : -stepPct);
+        }
+        applyRepPct(Math.max(0, Math.min(1, newPct)));
+        progressGlideRafId = requestAnimationFrame(progressGlideFrame);
+      }
+
+      function stopProgressGlide() {
+        if (progressGlideRafId) {
+          cancelAnimationFrame(progressGlideRafId);
+          progressGlideRafId = 0;
+        }
+        progressGlideLastTs = 0;
       }
 
       presProgressBar.addEventListener("pointerdown", (e) => {
         if (e.button !== 0) return;
         e.preventDefault();
+        stopProgressGlide();
+
+        const now = performance.now();
+        const isDoubleClick = (now - progressLastClickTime) < DOUBLE_CLICK_MS;
+        progressLastClickTime = now;
+
         progressDragging = true;
+        progressDirectDrag = false;
+        progressStartX = e.clientX;
         progressWasPlaying = presPlaying;
         presStopRaf();
         if (!progressWasPlaying) {
@@ -1102,21 +1186,42 @@
         try {
           presProgressBar.setPointerCapture(e.pointerId);
         } catch (_) {}
+
         const rect = presProgressBar.getBoundingClientRect();
-        const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-        applyProgressPct(pct);
+        progressTargetPct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+
+        if (isDoubleClick) {
+          progressDirectDrag = true;
+          applyRepPct(progressTargetPct);
+        } else {
+          progressGlideStartMs = performance.now();
+          progressGlideLastTs = 0;
+          progressGlideRafId = requestAnimationFrame(progressGlideFrame);
+        }
       });
 
       presProgressBar.addEventListener("pointermove", (e) => {
         if (!progressDragging) return;
         const rect = presProgressBar.getBoundingClientRect();
-        const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-        applyProgressPct(pct);
+        const newPct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+
+        if (!progressDirectDrag && Math.abs(e.clientX - progressStartX) > DRAG_THRESHOLD_PX) {
+          progressDirectDrag = true;
+          stopProgressGlide();
+        }
+
+        if (progressDirectDrag) {
+          applyRepPct(newPct);
+        } else {
+          progressTargetPct = newPct;
+        }
       });
 
       function endProgressDrag(e) {
         if (!progressDragging) return;
         progressDragging = false;
+        progressDirectDrag = false;
+        stopProgressGlide();
         if (progressWasPlaying) {
           syncPlaybackEngineAfterSeek();
           presWallLast = performance.now();
