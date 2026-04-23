@@ -211,10 +211,57 @@
     btn.setAttribute("aria-pressed", on ? "true" : "false");
   }
 
+  // --- Audio Ducking Heartbeat ---
+  // Keeps speechSynthesis active so the OS doesn't constantly adjust system sound levels.
+  let duckingHeartbeatInterval = null;
+
+  function stopDuckingHeartbeat() {
+    if (duckingHeartbeatInterval) {
+      clearInterval(duckingHeartbeatInterval);
+      duckingHeartbeatInterval = null;
+    }
+  }
+
+  function startDuckingHeartbeat(announce) {
+    stopDuckingHeartbeat();
+    const syn = window.speechSynthesis;
+    if (!syn) return;
+
+    // Optionally speak "Audio ducking enabled" once at normal volume
+    if (announce) {
+      try {
+        const msg = new SpeechSynthesisUtterance("Audio ducking enabled");
+        msg.lang = navigator.language || "en-US";
+        msg.volume = 1.0;
+        syn.speak(msg);
+      } catch (_) {}
+    }
+
+    // Every 1 second, speak an empty utterance at volume 0 to keep synthesis active
+    duckingHeartbeatInterval = setInterval(function () {
+      if (document.documentElement.getAttribute("data-player-audio-ducking") !== "on") {
+        stopDuckingHeartbeat();
+        return;
+      }
+      if (syn && !syn.speaking && !syn.pending) {
+        try {
+          const silent = new SpeechSynthesisUtterance("");
+          silent.lang = "en-US";
+          silent.volume = 0.0;
+          syn.speak(silent);
+        } catch (_) {}
+      }
+    }, 1000);
+  }
+
   function applyPlayerAudioDuckingFromStorage() {
     const on = readPlayerAudioDuckingOn();
     document.documentElement.setAttribute("data-player-audio-ducking", on ? "on" : "off");
     syncPlayerAudioDuckingButton();
+    // Start heartbeat if ducking was already enabled (but don't announce — user knows from previous session)
+    if (on) {
+      startDuckingHeartbeat(false);
+    }
   }
 
   function setPlayerAudioDucking(on) {
@@ -223,6 +270,11 @@
     } catch (_) {}
     document.documentElement.setAttribute("data-player-audio-ducking", on ? "on" : "off");
     syncPlayerAudioDuckingButton();
+    if (on) {
+      startDuckingHeartbeat(true);
+    } else {
+      stopDuckingHeartbeat();
+    }
   }
 
   function togglePlayerAudioDucking() {
