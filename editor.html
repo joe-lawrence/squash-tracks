@@ -397,8 +397,9 @@
     }
     .pres-head-time {
       font-family: "JetBrains Mono", monospace;
-      font-size: 0.65rem;
-      font-size: clamp(0.58rem, 3.5cqmin, 0.72rem);
+      font-size: 0.78rem;
+      font-size: clamp(0.68rem, 4cqmin, 0.88rem);
+      font-weight: 600;
       color: #94a3b8;
       white-space: nowrap;
       text-align: right;
@@ -581,6 +582,8 @@
       overflow: hidden;
       border: 1px solid #2a303c;
       flex-shrink: 0;
+      cursor: pointer;
+      touch-action: none;
     }
     .presentation-progress-fill {
       height: 100%;
@@ -1923,7 +1926,7 @@
             <span class="presentation-part-info"><span id="presPartName">Part 1</span> (<span id="presPartCounter">1 / 1</span>)</span>
             <span class="presentation-rep-info"><span id="presRepName">Rep 1</span> (<span id="presRepCounter">1 / 1</span>)</span>
           </div>
-          <div class="presentation-progress" aria-hidden="true">
+          <div class="presentation-progress" id="presProgressBar" aria-hidden="true">
             <div class="presentation-progress-fill" id="presProgressFill"></div>
           </div>
           <div class="presentation-panel-footer">
@@ -8975,6 +8978,11 @@
         syncPresPlaybackEngineAfterSeek();
       }
 
+      /** Seek without stopping playback - just sync engine state. */
+      function seekPreviewKeepPlaying() {
+        syncPresPlaybackEngineAfterSeek();
+      }
+
       function seekPreviewToEventStart(r, eventIndex) {
         if (typeof WorkoutPresentation === "undefined") return;
         ensureEvents(r);
@@ -9337,11 +9345,19 @@
         presScrubHoldStartMs = 0;
       }
 
+      let presScrubWasPlaying = false;
+
       function presStopScrubAndSync() {
         presScrubInternalStop();
         if (typeof WorkoutPresentation === "undefined") return;
         presTimeSec = snapTime(presTimeSec);
         presClampTimeToWorkout();
+        if (presScrubWasPlaying) {
+          presScrubWasPlaying = false;
+          syncPresPlaybackEngineAfterSeek();
+          presWallLast = performance.now();
+          presRafId = requestAnimationFrame(presTick);
+        }
         presentationRender();
         syncPlaybackWithTimeline();
         scrollPlaybackPlayheadIntoView();
@@ -9395,7 +9411,13 @@
       function presStartScrub(dir, captureEl, pointerId) {
         if (typeof WorkoutPresentation === "undefined") return;
         presScrubInternalStop();
-        pausePreviewForSeek();
+        presScrubWasPlaying = presPlaying;
+        presStopRaf();
+        if (!presScrubWasPlaying) {
+          presPlaying = false;
+          presSyncPlayButton();
+        }
+        syncPresPlaybackEngineAfterSeek();
         presScrubDir = dir;
         presScrubLastFrameTs = 0;
         presScrubHoldStartMs = performance.now();
@@ -9461,7 +9483,8 @@
       function presWorkoutStart() {
         if (typeof WorkoutPresentation === "undefined") return;
         presScrubInternalStop();
-        pausePreviewForSeek();
+        const wasPlaying = presPlaying;
+        if (!wasPlaying) pausePreviewForSeek();
         const WP = WorkoutPresentation;
         flushActiveSegmentMeta();
         presClampTimeToWorkout();
@@ -9498,6 +9521,10 @@
         } finally {
           presSyncingTimeline = false;
         }
+        if (wasPlaying) {
+          seekPreviewKeepPlaying();
+          presWallLast = performance.now();
+        }
         presentationRender();
         syncPlaybackWithTimeline();
         scrollPlaybackPlayheadIntoView();
@@ -9507,7 +9534,8 @@
       function presWorkoutEnd() {
         if (typeof WorkoutPresentation === "undefined") return;
         presScrubInternalStop();
-        pausePreviewForSeek();
+        const wasPlaying = presPlaying;
+        if (!wasPlaying) pausePreviewForSeek();
         const WP = WorkoutPresentation;
         flushActiveSegmentMeta();
         presClampTimeToWorkout();
@@ -9530,6 +9558,10 @@
           activateSegment(loc2.segmentIndex, false);
         } finally {
           presSyncingTimeline = false;
+        }
+        if (wasPlaying) {
+          seekPreviewKeepPlaying();
+          presWallLast = performance.now();
         }
         presentationRender();
         syncPlaybackWithTimeline();
@@ -9695,6 +9727,74 @@
         presBindScrubButton(bFF, 1);
         if (bSkip1) bSkip1.addEventListener("click", () => presWorkoutEnd());
         presSyncPlayButton();
+
+        const presProgressBar = document.getElementById("presProgressBar");
+        if (presProgressBar) {
+          let progressDragging = false;
+          let progressWasPlaying = false;
+
+          function applyProgressPct(pct) {
+            if (typeof WorkoutPresentation === "undefined") return;
+            const WP = WorkoutPresentation;
+            flushActiveSegmentMeta();
+            const maxT = WP.totalWorkoutDuration(segments);
+            presTimeSec = snapTime(pct * maxT);
+            presClampTimeToWorkout();
+            const loc = WP.locateGlobalTime(segments, presTimeSec);
+            presSyncingTimeline = true;
+            try {
+              activateSegment(loc.segmentIndex, false);
+            } finally {
+              presSyncingTimeline = false;
+            }
+            presentationRender();
+            syncPlaybackWithTimeline();
+          }
+
+          presProgressBar.addEventListener("pointerdown", (e) => {
+            if (e.button !== 0) return;
+            e.preventDefault();
+            progressDragging = true;
+            progressWasPlaying = presPlaying;
+            presStopRaf();
+            if (!progressWasPlaying) {
+              presPlaying = false;
+              presSyncPlayButton();
+            }
+            syncPresPlaybackEngineAfterSeek();
+            try {
+              presProgressBar.setPointerCapture(e.pointerId);
+            } catch (_) {}
+            const rect = presProgressBar.getBoundingClientRect();
+            const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+            applyProgressPct(pct);
+          });
+
+          presProgressBar.addEventListener("pointermove", (e) => {
+            if (!progressDragging) return;
+            const rect = presProgressBar.getBoundingClientRect();
+            const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+            applyProgressPct(pct);
+          });
+
+          function endProgressDrag(e) {
+            if (!progressDragging) return;
+            progressDragging = false;
+            if (progressWasPlaying) {
+              syncPresPlaybackEngineAfterSeek();
+              presWallLast = performance.now();
+              presRafId = requestAnimationFrame(presTick);
+            }
+            try {
+              presProgressBar.releasePointerCapture(e.pointerId);
+            } catch (_) {}
+            scrollPlaybackPlayheadIntoView();
+          }
+
+          presProgressBar.addEventListener("pointerup", endProgressDrag);
+          presProgressBar.addEventListener("pointercancel", endProgressDrag);
+        }
+
         const presAudioChk = document.getElementById("presPreviewAudioChk");
         if (presAudioChk) {
           presAudioChk.checked = readPresPreviewAudioEnabled();

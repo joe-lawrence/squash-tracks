@@ -783,7 +783,8 @@ body.player-menu-open .player-menu-anchor {
 
 .pres-head-time {
   font-family: "JetBrains Mono", monospace;
-  font-size: clamp(0.58rem, 3.5cqmin, 0.75rem);
+  font-size: clamp(0.68rem, 4cqmin, 0.88rem);
+  font-weight: 600;
   color: var(--player-pres-time);
   white-space: nowrap;
   text-align: right;
@@ -937,6 +938,8 @@ body.player-menu-open .player-menu-anchor {
   overflow: hidden;
   border: 1px solid var(--player-pres-progress-border);
   flex-shrink: 0;
+  cursor: pointer;
+  touch-action: none;
 }
 
 .presentation-progress-fill {

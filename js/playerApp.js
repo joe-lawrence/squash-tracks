@@ -768,6 +768,11 @@
     if (playerAudio) playerAudio.cancelAll();
   }
 
+  /** Sync engine after seek without stopping playback. */
+  function seekPreviewKeepPlaying() {
+    syncPlaybackEngineAfterSeek();
+  }
+
   function presPause() {
     presPlaying = false;
     presStopRaf();
@@ -858,14 +863,21 @@
     presScrubHoldStartMs = 0;
   }
 
+  let presScrubWasPlaying = false;
+
   function presStopScrubAndSync() {
     presScrubInternalStop();
     const w = WP();
     if (!w) return;
     presTimeSec = w.snapTime(presTimeSec);
     presClampTimeToWorkout();
+    if (presScrubWasPlaying) {
+      presScrubWasPlaying = false;
+      syncPlaybackEngineAfterSeek();
+      presWallLast = performance.now();
+      presRafId = requestAnimationFrame(presTick);
+    }
     presentationRender();
-    syncPlaybackEngineAfterSeek();
   }
 
   function presScrubFrame(ts) {
@@ -901,7 +913,15 @@
     const w = WP();
     if (!w) return;
     presScrubInternalStop();
-    pausePreviewForSeek();
+    presScrubWasPlaying = presPlaying;
+    presStopRaf();
+    if (!presScrubWasPlaying) {
+      presPlaying = false;
+      presSyncPlayButton();
+      setPlayerPlayingUi(false);
+      if (playerAudio) playerAudio.cancelAll();
+    }
+    syncPlaybackEngineAfterSeek();
     presScrubDir = dir;
     presScrubLastFrameTs = 0;
     presScrubHoldStartMs = performance.now();
@@ -959,7 +979,8 @@
     const w = WP();
     if (!w) return;
     presScrubInternalStop();
-    pausePreviewForSeek();
+    const wasPlaying = presPlaying;
+    if (!wasPlaying) pausePreviewForSeek();
     presClampTimeToWorkout();
     const loc = w.locateGlobalTime(segments, presTimeSec);
     const { segmentIndex, localSec, segment } = loc;
@@ -990,15 +1011,19 @@
       presTimeSec = w.snapTime(target);
       presClampTimeToWorkout();
     }
+    if (wasPlaying) {
+      seekPreviewKeepPlaying();
+      presWallLast = performance.now();
+    }
     presentationRender();
-    syncPlaybackEngineAfterSeek();
   }
 
   function presWorkoutEnd() {
     const w = WP();
     if (!w) return;
     presScrubInternalStop();
-    pausePreviewForSeek();
+    const wasPlaying = presPlaying;
+    if (!wasPlaying) pausePreviewForSeek();
     presClampTimeToWorkout();
     const loc = w.locateGlobalTime(segments, presTimeSec);
     const { segmentIndex, localSec, segment } = loc;
@@ -1013,8 +1038,11 @@
       presTimeSec = w.snapTime(Math.max(0, Math.min(target, w.totalWorkoutDuration(segments))));
       presClampTimeToWorkout();
     }
+    if (wasPlaying) {
+      seekPreviewKeepPlaying();
+      presWallLast = performance.now();
+    }
     presentationRender();
-    syncPlaybackEngineAfterSeek();
   }
 
   function bindPresentationControls() {
@@ -1043,6 +1071,66 @@
     presBindScrubButton(bFF, 1);
     if (bSkip1) bSkip1.addEventListener("click", () => presWorkoutEnd());
     presSyncPlayButton();
+
+    const presProgressBar = document.getElementById("presProgressBar");
+    if (presProgressBar) {
+      let progressDragging = false;
+      let progressWasPlaying = false;
+
+      function applyProgressPct(pct) {
+        const w = WP();
+        if (!w) return;
+        const maxT = w.totalWorkoutDuration(segments);
+        presTimeSec = w.snapTime(pct * maxT);
+        presClampTimeToWorkout();
+        presentationRender();
+      }
+
+      presProgressBar.addEventListener("pointerdown", (e) => {
+        if (e.button !== 0) return;
+        e.preventDefault();
+        progressDragging = true;
+        progressWasPlaying = presPlaying;
+        presStopRaf();
+        if (!progressWasPlaying) {
+          presPlaying = false;
+          presSyncPlayButton();
+          setPlayerPlayingUi(false);
+          if (playerAudio) playerAudio.cancelAll();
+        }
+        syncPlaybackEngineAfterSeek();
+        try {
+          presProgressBar.setPointerCapture(e.pointerId);
+        } catch (_) {}
+        const rect = presProgressBar.getBoundingClientRect();
+        const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+        applyProgressPct(pct);
+      });
+
+      presProgressBar.addEventListener("pointermove", (e) => {
+        if (!progressDragging) return;
+        const rect = presProgressBar.getBoundingClientRect();
+        const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+        applyProgressPct(pct);
+      });
+
+      function endProgressDrag(e) {
+        if (!progressDragging) return;
+        progressDragging = false;
+        if (progressWasPlaying) {
+          syncPlaybackEngineAfterSeek();
+          presWallLast = performance.now();
+          presRafId = requestAnimationFrame(presTick);
+        }
+        try {
+          presProgressBar.releasePointerCapture(e.pointerId);
+        } catch (_) {}
+      }
+
+      presProgressBar.addEventListener("pointerup", endProgressDrag);
+      presProgressBar.addEventListener("pointercancel", endProgressDrag);
+    }
+
     const presScreen = document.querySelector(".player-main .presentation-device-screen");
     if (presScreen) {
       presScreen.addEventListener(

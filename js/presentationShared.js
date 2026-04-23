@@ -127,7 +127,8 @@
       metaRow.classList.toggle("presentation-meta-row--rep-only", hidePart && !hideRep);
       metaRow.classList.toggle("presentation-meta-row--part-only", !hidePart && hideRep);
     }
-    if (barEl) barEl.style.width = (frame.repProgress01 * 100).toFixed(2) + "%";
+    const workoutProgress01 = frame.workoutTotal > 0 ? frame.globalSec / frame.workoutTotal : 0;
+    if (barEl) barEl.style.width = (workoutProgress01 * 100).toFixed(2) + "%";
   }
 
   global.WorkoutPresentationShared = {
