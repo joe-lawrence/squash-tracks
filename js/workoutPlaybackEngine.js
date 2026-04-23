@@ -8,16 +8,10 @@
 (function (global) {
   "use strict";
 
-  const ENGINE_DEBUG =
-    typeof global.location !== "undefined" &&
-    typeof URLSearchParams !== "undefined" &&
-    new URLSearchParams(global.location.search || "").has("ttsDebug");
-
   const LANES = new Set(["text", "tts", "sfx"]);
 
   function ttsTextFromEvent(ev) {
     if (ev.speech != null && String(ev.speech).trim()) {
-      if (ENGINE_DEBUG) console.log("[Engine] ttsTextFromEvent: using ev.speech =", String(ev.speech).trim().slice(0, 60));
       return String(ev.speech).trim();
     }
     const parts = [];
@@ -25,13 +19,11 @@
     if (ev.body != null && String(ev.body).trim()) parts.push(String(ev.body).trim());
     if (ev.heading != null && String(ev.heading).trim()) parts.push(String(ev.heading).trim());
     const s = parts.join(". ").trim();
-    if (ENGINE_DEBUG) console.log("[Engine] ttsTextFromEvent: fallback text =", (s || "TTS cue").slice(0, 60));
     return s || "TTS cue";
   }
 
   function audioCommandForEvent(ev, audioEnabled) {
     if (!audioEnabled) {
-      if (ENGINE_DEBUG && ev.lane === "tts") console.log("[Engine] audioCommandForEvent: audioEnabled=false, skipping TTS");
       return null;
     }
     if (ev.lane === "text") return null;
@@ -50,7 +42,6 @@
         globalStartSec: ev.globalStart,
         voiceSlot: ev.voiceSlot === "b" ? "b" : "a",
       };
-      if (ENGINE_DEBUG) console.log("[Engine] audioCommandForEvent: TTS command created, text =", cmd.text.slice(0, 60));
       return cmd;
     }
     return null;
@@ -126,14 +117,6 @@
       this._segments = Array.isArray(opts.segments) ? opts.segments : [];
       this.timeline = buildPlaybackTimeline(this._segments, WP);
       this.playedKeys = new Set();
-      if (ENGINE_DEBUG) {
-        console.log("[Engine] WorkoutPlaybackEngine created: audioEnabled =", this.audioEnabled, "timeline events =", this.timeline.length);
-        const ttsEvents = this.timeline.filter(function (e) { return e.lane === "tts"; });
-        console.log("[Engine] TTS events in timeline:", ttsEvents.length);
-        if (ttsEvents.length > 0) {
-          console.log("[Engine] First TTS event:", ttsEvents[0]);
-        }
-      }
     }
 
     /** Replace workout data and rebuild the timeline. */
@@ -176,9 +159,6 @@
             const ac = audioCommandForEvent(ev, this.audioEnabled);
             if (ac) {
               audioCommands.push(ac);
-              if (ENGINE_DEBUG && ac.type === "tts") {
-                console.log("[Engine] advancePlayback: TTS fired at", ev.globalStart.toFixed(2), "text =", ac.text.slice(0, 40));
-              }
             }
           }
         }
@@ -200,9 +180,6 @@
         if (isMilestone) {
           milestones.push(ev.globalStart);
         }
-      }
-      if (ENGINE_DEBUG && milestones.length > 0) {
-        console.log("[Engine] getMilestones:", milestones.map(m => m.toFixed(2)).join(", "));
       }
       return milestones;
     }
@@ -243,7 +220,6 @@
 
       // Release conditions: held long enough OR pushed hard enough
       if (stuckDuration >= STICKY_HOLD_MS || _stickyCumulativePush >= STICKY_PUSH_THRESHOLD) {
-        if (ENGINE_DEBUG) console.log("[Engine] Sticky: RELEASING from", _stickyMilestone.toFixed(2), "after", stuckDuration.toFixed(0), "ms, push:", _stickyCumulativePush.toFixed(2));
         _stickyMilestone = null;
         _stickyStartTime = 0;
         _stickyCumulativePush = 0;
@@ -251,7 +227,6 @@
       }
 
       // Still stuck - stay at milestone
-      if (ENGINE_DEBUG) console.log("[Engine] Sticky: HOLDING at", _stickyMilestone.toFixed(2), "duration:", stuckDuration.toFixed(0), "ms, push:", _stickyCumulativePush.toFixed(2));
       return { time: _stickyMilestone, sticky: true };
     }
 
@@ -269,7 +244,6 @@
         _stickyMilestone = ts;
         _stickyStartTime = now;
         _stickyCumulativePush = 0;
-        if (ENGINE_DEBUG) console.log("[Engine] Sticky: STICKING to milestone", ts.toFixed(2));
         return { time: ts, sticky: true };
       }
     }

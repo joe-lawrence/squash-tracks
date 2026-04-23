@@ -9,11 +9,6 @@
 (function (global) {
   "use strict";
 
-  const TTS_DEBUG =
-    typeof global.location !== "undefined" &&
-    typeof URLSearchParams !== "undefined" &&
-    new URLSearchParams(global.location.search || "").has("ttsDebug");
-
   /** Workout seconds — drop queued TTS never started this far past its start (large scrub only). */
   const TTS_STALE_SKIP_SEC = 90;
   /** Timeline jitter allowance for “cue is due” (seconds). */
@@ -25,19 +20,6 @@
 
   function createPlayerPlaybackAudio(opts) {
     if (opts == null || typeof opts !== "object") opts = {};
-
-    if (TTS_DEBUG) {
-      console.log("[TTS] createPlayerPlaybackAudio called");
-      console.log("[TTS] speechSynthesis available:", !!global.speechSynthesis);
-      console.log("[TTS] SpeechSynthesisUtterance available:", typeof global.SpeechSynthesisUtterance);
-      if (global.speechSynthesis) {
-        const voices = global.speechSynthesis.getVoices() || [];
-        console.log("[TTS] initial voices count:", voices.length);
-        if (voices.length > 0) {
-          console.log("[TTS] first 5 voices:", voices.slice(0, 5).map(function (v) { return v.name + " (" + v.lang + ")"; }));
-        }
-      }
-    }
 
     let ctx = null;
     const activeNodes = [];
@@ -90,7 +72,6 @@
           best = v;
         }
       }
-      if (TTS_DEBUG) console.log("[TTS] pickDefaultEnglishVoice:", best ? best.name + " (" + best.lang + ")" : "none");
       return best;
     }
 
@@ -159,12 +140,10 @@
     function ensureVoicesLoadedPromise(syn) {
       return new Promise(function (resolve) {
         if (!syn || typeof syn.getVoices !== "function") {
-          if (TTS_DEBUG) console.warn("[TTS] ensureVoicesLoadedPromise: no speechSynthesis or getVoices");
           resolve([]);
           return;
         }
         const list0 = syn.getVoices() || [];
-        if (TTS_DEBUG) console.log("[TTS] ensureVoicesLoadedPromise: initial voices count =", list0.length);
         if (list0.length > 0) {
           resolve(list0);
           return;
@@ -180,11 +159,9 @@
             void syn.getVoices();
           } catch (_) {}
           const finalList = syn.getVoices() || [];
-          if (TTS_DEBUG) console.log("[TTS] ensureVoicesLoadedPromise: resolved with", finalList.length, "voices");
           resolve(finalList);
         }
         function onVc() {
-          if (TTS_DEBUG) console.log("[TTS] voiceschanged event fired");
           if ((syn.getVoices() || []).length > 0) finish();
         }
         syn.addEventListener("voiceschanged", onVc);
@@ -202,13 +179,11 @@
     function ensureSpeechSynthesisReady(syn) {
       return new Promise(function (resolve) {
         if (!syn || !("SpeechSynthesisUtterance" in global)) {
-          if (TTS_DEBUG) console.warn("[TTS] ensureSpeechSynthesisReady: speechSynthesis or SpeechSynthesisUtterance not available");
           resolve(false);
           return;
         }
         try {
           if (syn.paused && typeof syn.resume === "function") {
-            if (TTS_DEBUG) console.log("[TTS] ensureSpeechSynthesisReady: resuming paused synthesis");
             syn.resume();
           }
         } catch (_) {}
@@ -217,7 +192,6 @@
             if (syn.paused && typeof syn.resume === "function") syn.resume();
           } catch (_) {}
           const ready = !!(voices && voices.length > 0);
-          if (TTS_DEBUG) console.log("[TTS] ensureSpeechSynthesisReady: ready =", ready, "voices =", voices.length);
           resolve(ready);
         });
       });
@@ -229,16 +203,13 @@
      */
     function performTtsHealthCheck(syn) {
       if (!syn) return false;
-      if (TTS_DEBUG) console.log("[TTS] performTtsHealthCheck: paused =", syn.paused, "speaking =", syn.speaking, "pending =", syn.pending);
       try {
         if (syn.paused && typeof syn.resume === "function") {
-          if (TTS_DEBUG) console.log("[TTS] performTtsHealthCheck: resuming");
           syn.resume();
         }
       } catch (_) {}
       try {
         if (syn.speaking) {
-          if (TTS_DEBUG) console.log("[TTS] performTtsHealthCheck: cancelling current speech");
           syn.cancel();
         }
       } catch (_) {}
@@ -248,7 +219,6 @@
     function pumpTtsQueue() {
       const syn = global.speechSynthesis;
       if (!syn) {
-        if (TTS_DEBUG) console.warn("[TTS] pumpTtsQueue: no speechSynthesis");
         return;
       }
 
@@ -257,28 +227,22 @@
       const t = lastWorkoutTimeSec;
 
       if (ttsQueue.length === 0) {
-        if (TTS_DEBUG) console.log("[TTS] pumpTtsQueue: queue empty");
         return;
       }
 
       const occupied = !!(syn.speaking || syn.pending);
       const next = ttsQueue[0];
 
-      if (TTS_DEBUG) console.log("[TTS] pumpTtsQueue: queueLen =", ttsQueue.length, "occupied =", occupied, "workoutTime =", t.toFixed(2), "nextCueTime =", next.globalStartSec.toFixed(2));
-
       if (occupied) {
         if (t + TTS_TIMELINE_EPS_SEC < next.globalStartSec) {
-          if (TTS_DEBUG) console.log("[TTS] pumpTtsQueue: occupied but next cue not due yet, waiting");
           return;
         }
         const canPreempt =
           ttsCurrentlyPlaying == null ||
           ttsCurrentlyPlaying.globalStartSec < next.globalStartSec - TTS_SAME_START_SEC;
         if (!canPreempt) {
-          if (TTS_DEBUG) console.log("[TTS] pumpTtsQueue: occupied, cannot preempt current");
           return;
         }
-        if (TTS_DEBUG) console.log("[TTS] pumpTtsQueue: preempting current for newer cue");
         synInterruptForTtsResync();
         return pumpTtsQueue();
       }
@@ -286,24 +250,18 @@
       const gen = ttsGen;
       const item = ttsQueue.shift();
       if (!item || !item.text) {
-        if (TTS_DEBUG) console.log("[TTS] pumpTtsQueue: empty item, skip");
         global.queueMicrotask(pumpTtsQueue);
         return;
       }
 
-      if (TTS_DEBUG) console.log("[TTS] pumpTtsQueue: processing item:", item.text.slice(0, 80), "slot =", item.slot);
-
       ensureSpeechSynthesisReady(syn).then(function (ready) {
         if (gen !== ttsGen) {
-          if (TTS_DEBUG) console.log("[TTS] pumpTtsQueue: generation changed, re-queue item");
           ttsQueue.unshift(item);
           return;
         }
         if (!ready) {
           item._voiceRetries = (item._voiceRetries || 0) + 1;
-          if (TTS_DEBUG) console.warn("[TTS] pumpTtsQueue: not ready, retry", item._voiceRetries);
           if (item._voiceRetries > 24) {
-            if (TTS_DEBUG) console.error("[TTS] pumpTtsQueue: giving up after 24 retries");
             if (gen === ttsGen) {
               ttsCurrentlyPlaying = null;
               pumpTtsQueue();
@@ -339,7 +297,6 @@
         } catch (_) {
           v = null;
         }
-        if (TTS_DEBUG) console.log("[TTS] pumpTtsQueue: resolved voice =", v ? v.name : "(default)", "lang =", v ? v.lang : "?");
         if (v) {
           try {
             u.voice = v;
@@ -367,28 +324,22 @@
         ttsCurrentlyPlaying = { globalStartSec: item.globalStartSec, slot: item.slot };
 
         function onDone() {
-          if (TTS_DEBUG) console.log("[TTS] utterance done/error for:", item.text.slice(0, 40));
           if (gen !== ttsGen) return;
           ttsCurrentlyPlaying = null;
           pumpTtsQueue();
         }
         u.addEventListener("end", function () {
-          if (TTS_DEBUG) console.log("[TTS] utterance 'end' event");
           onDone();
         });
-        u.addEventListener("error", function (ev) {
-          if (TTS_DEBUG) console.warn("[TTS] utterance 'error' event:", ev && ev.error);
+        u.addEventListener("error", function () {
           onDone();
         });
         try {
           if (syn.paused && typeof syn.resume === "function") syn.resume();
         } catch (_) {}
         try {
-          if (TTS_DEBUG) console.log("[TTS] calling syn.speak() with text:", item.text.slice(0, 80), "rate =", u.rate, "volume =", u.volume);
           syn.speak(u);
-          if (TTS_DEBUG) console.log("[TTS] syn.speak() returned, speaking =", syn.speaking, "pending =", syn.pending);
-        } catch (e) {
-          if (TTS_DEBUG) console.error("[TTS] syn.speak() threw:", e);
+        } catch (_) {
           onDone();
         }
       });
@@ -468,14 +419,12 @@
     function speakTts(text, slot, globalStartSec, sourceId) {
       const syn = global.speechSynthesis;
       if (!syn) {
-        if (TTS_DEBUG) console.warn("[TTS] speakTts: no speechSynthesis, skipping");
         return;
       }
       const t = String(text || "")
         .trim()
         .slice(0, 8000);
       if (!t) {
-        if (TTS_DEBUG) console.warn("[TTS] speakTts: empty text after trim, skipping");
         return;
       }
       const s = slot === "b" ? "b" : "a";
@@ -484,7 +433,6 @@
           ? globalStartSec
           : lastWorkoutTimeSec;
       const sid = sourceId != null ? String(sourceId) : "";
-      if (TTS_DEBUG) console.log("[TTS] speakTts: queuing text:", t.slice(0, 60), "slot =", s, "globalStart =", g.toFixed(2));
       ttsQueue.push({ text: t, slot: s, globalStartSec: g, sourceId: sid });
     }
 
@@ -508,11 +456,9 @@
         const wt = meta.workoutTimeSec;
         if (typeof wt === "number" && Number.isFinite(wt)) lastWorkoutTimeSec = wt;
       }
-      if (TTS_DEBUG) console.log("[TTS] executeCommands: received", cmds.length, "commands, workoutTime =", lastWorkoutTimeSec.toFixed(2));
       for (let i = 0; i < cmds.length; i++) {
         const cmd = cmds[i];
         if (!cmd || typeof cmd !== "object") continue;
-        if (TTS_DEBUG) console.log("[TTS] executeCommands: cmd", i, "type =", cmd.type, cmd.type === "tts" ? "text = " + (cmd.text || "").slice(0, 40) : "");
         if (cmd.type === "sfx")
           playSfx(cmd.kind === "shot" ? "shot" : "split", cmd.url);
         else if (cmd.type === "tts") {

@@ -4809,7 +4809,7 @@
             if (!ev) continue;
             ev.start = snapTime(snapTime(Number(ev.start)) - g0);
           }
-          const repDur = repDuration(rIdx);
+          const repDur = repDurationSec(rIdx);
           payloads.push(normalizeRep(raw, repDur));
         }
         return payloads;
