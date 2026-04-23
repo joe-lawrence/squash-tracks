@@ -53,6 +53,9 @@ body.player-page {
   color: var(--text);
   font-family: "Inter", system-ui, sans-serif;
   -webkit-text-size-adjust: 100%;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  user-select: none;
 }
 
 /** Hidden file input (opened from Load → file in the menu). */
