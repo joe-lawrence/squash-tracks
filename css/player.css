@@ -773,6 +773,76 @@ body.player-menu-open .player-menu-anchor {
   border-radius: inherit;
 }
 
+/**
+ * Manual rep transition: theme-colored Lucide circle-check-big button.
+ * No darkened overlay — just the button centered in the content area.
+ */
+.presentation-manual-rep-gate {
+  --pres-manual-gate-footer: clamp(4.35rem, 15cqmin, 6rem);
+  --pres-manual-gate-header: clamp(2.8rem, 10cqmin, 3.5rem);
+  position: absolute;
+  inset: 0;
+  z-index: 8;
+  pointer-events: none;
+}
+
+.presentation-manual-rep-gate__shade {
+  display: none;
+}
+
+.presentation-manual-rep-gate__btn {
+  position: absolute;
+  left: 50%;
+  top: calc((100% - var(--pres-manual-gate-footer) + var(--pres-manual-gate-header)) * 0.5);
+  transform: translate(-50%, -50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: clamp(5.5rem, 28cqmin, 7.5rem);
+  height: clamp(5.5rem, 28cqmin, 7.5rem);
+  padding: 0;
+  margin: 0;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  color: var(--player-pres-vfx-scheme, var(--lane-sfx));
+  background: color-mix(in srgb, var(--player-pres-icon-bg) 55%, transparent);
+  box-shadow:
+    0 0 0 2px color-mix(in srgb, var(--player-pres-vfx-scheme) 45%, transparent),
+    0 0 28px var(--player-accent-glow-inner),
+    0 0 52px var(--player-accent-glow);
+  pointer-events: auto;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  user-select: none;
+  animation: presentation-manual-rep-gate-glow 1.6s ease-in-out infinite;
+}
+
+.presentation-manual-rep-gate__btn:hover {
+  filter: brightness(1.08);
+}
+
+.presentation-manual-rep-gate__btn:focus-visible {
+  outline: 2px solid var(--player-pres-vfx-scheme);
+  outline-offset: 3px;
+}
+
+@keyframes presentation-manual-rep-gate-glow {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 2px color-mix(in srgb, var(--player-pres-vfx-scheme) 40%, transparent),
+      0 0 22px var(--player-accent-glow-inner),
+      0 0 44px var(--player-accent-glow);
+  }
+  50% {
+    box-shadow:
+      0 0 0 2px color-mix(in srgb, var(--player-pres-vfx-scheme) 65%, transparent),
+      0 0 32px var(--player-accent-glow-inner),
+      0 0 64px var(--player-accent-glow);
+  }
+}
+
 .presentation-panel-header {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;

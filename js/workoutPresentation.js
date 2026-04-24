@@ -168,13 +168,26 @@
     return (1 - u) * 2;
   }
 
-  /** @returns {{ ev: object, rel01: number } | null} */
-  function findWinningVfxEvent(segment, localSec) {
+  /**
+   * @param {number} [onlyRepIndex] — when set (>= 0), only events on that rep are considered (manual gate: no next-rep overlap).
+   * @returns {{ ev: object, rel01: number } | null}
+   */
+  function findWinningVfxEvent(segment, localSec, onlyRepIndex) {
     if (!segment || !Array.isArray(segment.reps)) return null;
     const t = snapTime(localSec);
     let best = null;
     let bestStart = -Infinity;
-    for (const rep of segment.reps) {
+    const reps = segment.reps;
+    const r0 =
+      onlyRepIndex != null && Number.isFinite(Number(onlyRepIndex)) && Number(onlyRepIndex) >= 0
+        ? Math.min(reps.length - 1, Math.max(0, Number(onlyRepIndex) | 0))
+        : 0;
+    const r1 =
+      onlyRepIndex != null && Number.isFinite(Number(onlyRepIndex)) && Number(onlyRepIndex) >= 0
+        ? r0 + 1
+        : reps.length;
+    for (let r = r0; r < r1; r++) {
+      const rep = reps[r];
       if (!rep || !Array.isArray(rep.events)) continue;
       for (const ev of rep.events) {
         if (!ev || ev.lane !== "vfx") continue;
@@ -202,6 +215,20 @@
     if (eff === "fireworks" || eff === "sparks") return "fireworks";
     if (eff === "fireballs" || eff === "trail") return "fireballs";
     return "background";
+  }
+
+  /** Fireworks burst anchor: random in stage (default) or fixed center. */
+  function normalizeVfxFireworksPlacement(ev) {
+    const v = ev && ev.vfxFireworksPlacement != null ? String(ev.vfxFireworksPlacement).trim().toLowerCase() : "";
+    if (v === "centered" || v === "centre") return "centered";
+    return "random";
+  }
+
+  /** Fireworks hue base: random per burst (default) or presentation theme accent (CSS). */
+  function normalizeVfxFireworksColor(ev) {
+    const v = ev && ev.vfxFireworksColor != null ? String(ev.vfxFireworksColor).trim().toLowerCase() : "";
+    if (v === "theme" || v === "scheme") return "theme";
+    return "random";
   }
 
   /** Deterministic 32-bit mix for seeds (no Math.random in presentation math). */
@@ -246,7 +273,7 @@
    * Bursts: each full burst plays for `SPARKS_BURST_DURATION_SEC`; count is derived from cue duration
    * (see `sparksBurstCountFromCueDurationSec`). Bursts are sequential in wall time, not compressed into rel01.
    */
-  function activeVfxSparksState(segment, localSec, vfxVisualSalt) {
+  function activeVfxSparksState(segment, localSec, vfxVisualSalt, onlyRepIndex) {
     const salt = Number(vfxVisualSalt) >>> 0;
     const inactive = {
       active: false,
@@ -258,12 +285,14 @@
       anchorX01: 0.5,
       anchorY01: 0.5,
       hueCenter: 0,
+      fireworksPlacement: "random",
+      fireworksColorMode: "random",
       particleCount: SPARKS_PARTICLE_COUNT,
       speedMul: SPARKS_SPEED_MUL,
       hueSpread: SPARKS_HUE_SPREAD,
       gravityMul: SPARKS_GRAVITY_MUL,
     };
-    const win = findWinningVfxEvent(segment, localSec);
+    const win = findWinningVfxEvent(segment, localSec, onlyRepIndex);
     if (!win) return inactive;
     const best = win.ev;
     if (vfxEffectTypeOf(best) !== "fireworks") return inactive;
@@ -290,11 +319,25 @@
       vfxMix32(idHash, burstIndex * 0x9e3779b9)
     );
     const seed = vfxMix32(seedBase, salt);
-    const rngHue = vfxMix32(seed, 1);
-    const rngAnchor = vfxMix32(seed, 2);
-    const hueCenter = (rngHue % 36000) / 100;
-    const anchorX01 = 0.12 + (rngAnchor % 10000) / 10000 * 0.76;
-    const anchorY01 = 0.12 + ((rngAnchor >>> 14) % 10000) / 10000 * 0.76;
+    const placement = normalizeVfxFireworksPlacement(best);
+    const colorMode = normalizeVfxFireworksColor(best);
+    let anchorX01;
+    let anchorY01;
+    if (placement === "centered") {
+      anchorX01 = 0.5;
+      anchorY01 = 0.5;
+    } else {
+      const rngAnchor = vfxMix32(seed, 2);
+      anchorX01 = 0.12 + (rngAnchor % 10000) / 10000 * 0.76;
+      anchorY01 = 0.12 + ((rngAnchor >>> 14) % 10000) / 10000 * 0.76;
+    }
+    let hueCenter;
+    if (colorMode === "theme") {
+      hueCenter = 0;
+    } else {
+      const rngHue = vfxMix32(seed, 1);
+      hueCenter = (rngHue % 36000) / 100;
+    }
     return {
       active: true,
       relInBurst01,
@@ -305,6 +348,8 @@
       anchorX01,
       anchorY01,
       hueCenter,
+      fireworksPlacement: placement,
+      fireworksColorMode: colorMode,
       particleCount: SPARKS_PARTICLE_COUNT,
       speedMul: SPARKS_SPEED_MUL,
       hueSpread: SPARKS_HUE_SPREAD,
@@ -316,7 +361,7 @@
    * Fireballs overlay: fixed hue (10 / 30°), emitters along a band near the bottom of the stage.
    * Exactly one wall-clock burst per cue: active only for `min(cue duration, SPARKS_BURST_DURATION_SEC)` from cue start.
    */
-  function activeVfxTrailState(segment, localSec) {
+  function activeVfxTrailState(segment, localSec, onlyRepIndex) {
     const inactive = {
       active: false,
       relInBurst01: 0,
@@ -331,7 +376,7 @@
       hueSpread: TRAIL_HUE_SPREAD,
       gravityMul: TRAIL_GRAVITY_MUL,
     };
-    const win = findWinningVfxEvent(segment, localSec);
+    const win = findWinningVfxEvent(segment, localSec, onlyRepIndex);
     if (!win) return inactive;
     const best = win.ev;
     if (vfxEffectTypeOf(best) !== "fireballs") return inactive;
@@ -367,9 +412,9 @@
   }
 
   /** Which VFX event wins when several overlap (latest start wins, same as text lane). */
-  function activeVfxOverlayState(segment, localSec) {
+  function activeVfxOverlayState(segment, localSec, onlyRepIndex) {
     const empty = { active: false, opacity: 0, colorMode: "scheme", customHex: "" };
-    const win = findWinningVfxEvent(segment, localSec);
+    const win = findWinningVfxEvent(segment, localSec, onlyRepIndex);
     if (!win) return empty;
     const best = win.ev;
     if (vfxEffectTypeOf(best) !== "background") return empty;
@@ -390,14 +435,25 @@
   }
 
   /** Active text-lane cue content for presentation (heading + body, not cue name). */
-  function activeTextCuePresentation(segment, localSec) {
+  /** @param {number} [onlyRepIndex] — same as `findWinningVfxEvent` (manual gate). */
+  function activeTextCuePresentation(segment, localSec, onlyRepIndex) {
     if (!segment || !Array.isArray(segment.reps)) {
       return { active: false, heading: "", body: "" };
     }
     const t = snapTime(localSec);
     let best = null;
     let bestStart = -Infinity;
-    for (const rep of segment.reps) {
+    const reps = segment.reps;
+    const r0 =
+      onlyRepIndex != null && Number.isFinite(Number(onlyRepIndex)) && Number(onlyRepIndex) >= 0
+        ? Math.min(reps.length - 1, Math.max(0, Number(onlyRepIndex) | 0))
+        : 0;
+    const r1 =
+      onlyRepIndex != null && Number.isFinite(Number(onlyRepIndex)) && Number(onlyRepIndex) >= 0
+        ? r0 + 1
+        : reps.length;
+    for (let r = r0; r < r1; r++) {
+      const rep = reps[r];
       if (!rep || !Array.isArray(rep.events)) continue;
       for (const ev of rep.events) {
         if (!ev || ev.lane !== "text") continue;
@@ -427,7 +483,35 @@
   function presentationFrame(segments, globalSec, frameOpts) {
     const fo = frameOpts && typeof frameOpts === "object" ? frameOpts : null;
     const vfxVisualSalt = fo && Number.isFinite(Number(fo.vfxVisualSalt)) ? Number(fo.vfxVisualSalt) >>> 0 : 0;
-    const { segmentIndex, localSec, segment, workoutTotal } = locateGlobalTime(segments, globalSec);
+    const hold = fo && fo.holdManualRep && typeof fo.holdManualRep === "object" ? fo.holdManualRep : null;
+    let segmentIndex;
+    let localSec;
+    let segment;
+    let workoutTotal;
+    let holdRepIndex = null;
+    if (hold && Array.isArray(segments)) {
+      const si = hold.segmentIndex | 0;
+      const ri0 = hold.repIndex | 0;
+      const segH = segments[si];
+      if (segH && Array.isArray(segH.reps) && ri0 >= 0 && ri0 < segH.reps.length) {
+        segmentIndex = si;
+        segment = segH;
+        const gSeg = cumulativeSegmentStart(segments, si);
+        const repEndG = globalSecAtRepEnd(segments, si, ri0);
+        const repEndLocal = snapTime(repEndG - gSeg);
+        const g0 = cumulativeRepStartInSegment(segment, ri0);
+        localSec = snapTime(Math.max(g0, repEndLocal - TIME_SNAP_SEC * 0.05));
+        holdRepIndex = ri0;
+        workoutTotal = totalWorkoutDuration(segments);
+      }
+    }
+    if (holdRepIndex == null) {
+      const loc = locateGlobalTime(segments, globalSec);
+      segmentIndex = loc.segmentIndex;
+      localSec = loc.localSec;
+      segment = loc.segment;
+      workoutTotal = loc.workoutTotal;
+    }
     const partCount = Array.isArray(segments) ? segments.length : 0;
     if (!segment) {
       return {
@@ -466,10 +550,11 @@
     }
     const reps = segment.reps || [];
     const nReps = reps.length;
-    const rIdx = repIndexAtLocalSec(segment, localSec);
+    const rIdx = holdRepIndex != null ? holdRepIndex : repIndexAtLocalSec(segment, localSec);
     const g0 = cumulativeRepStartInSegment(segment, rIdx);
     const rDur = repDurationForDefault(reps[rIdx], segment.defaultIntervalSec);
-    const offset = Math.max(0, Math.min(snapTime(localSec - g0), rDur));
+    const offset =
+      holdRepIndex != null ? rDur : Math.max(0, Math.min(snapTime(localSec - g0), rDur));
     const prog = rDur > 1e-9 ? offset / rDur : 0;
     const rawPartName = segment.name != null ? String(segment.name).trim() : "";
     const presentationHidePartInfo = rawPartName.startsWith(".");
@@ -478,10 +563,11 @@
     const rawRepName = rep && rep.name != null ? String(rep.name).trim() : "";
     const presentationHideRepInfo = rawRepName.startsWith(".");
     const repName = presentationHideRepInfo ? "" : repDisplayName(segment, rIdx);
-    const cuePres = activeTextCuePresentation(segment, localSec);
-    const vfx = activeVfxOverlayState(segment, localSec);
-    const trailSt = activeVfxTrailState(segment, localSec);
-    const sparksSt = activeVfxSparksState(segment, localSec, vfxVisualSalt);
+    const onlyRi = holdRepIndex != null ? holdRepIndex : undefined;
+    const cuePres = activeTextCuePresentation(segment, localSec, onlyRi);
+    const vfx = activeVfxOverlayState(segment, localSec, onlyRi);
+    const trailSt = activeVfxTrailState(segment, localSec, onlyRi);
+    const sparksSt = activeVfxSparksState(segment, localSec, vfxVisualSalt, onlyRi);
     let vfxSparks;
     if (trailSt.active) {
       vfxSparks = Object.assign({ effectKind: "fireballs" }, trailSt);
@@ -499,6 +585,8 @@
         anchorX01: 0.5,
         anchorY01: 0.5,
         hueCenter: 0,
+        fireworksPlacement: "random",
+        fireworksColorMode: "random",
         particleCount: 120,
         speedMul: 1,
         hueSpread: 40,
@@ -535,6 +623,90 @@
     return snapTime(cumulativeSegmentStart(segments, segmentIndex) + cumulativeRepStartInSegment(seg, repIndex));
   }
 
+  /**
+   * Global end of rep `(segmentIndex, repIndex)` on the same snap grid as `locateGlobalTime` / rep starts:
+   * next rep’s start, or next segment’s first rep, or this segment’s end for the workout’s last rep.
+   */
+  function globalSecAtRepEnd(segments, segmentIndex, repIndex) {
+    if (!Array.isArray(segments) || segmentIndex < 0 || segmentIndex >= segments.length) {
+      return 0;
+    }
+    const seg = segments[segmentIndex];
+    const reps = seg && Array.isArray(seg.reps) ? seg.reps : [];
+    if (!Array.isArray(reps) || repIndex < 0 || repIndex >= reps.length) {
+      return snapTime(cumulativeSegmentStart(segments, segmentIndex));
+    }
+    if (repIndex + 1 < reps.length) {
+      return globalSecAtRepStart(segments, segmentIndex, repIndex + 1);
+    }
+    if (segmentIndex + 1 < segments.length) {
+      return globalSecAtRepStart(segments, segmentIndex + 1, 0);
+    }
+    return snapTime(cumulativeSegmentStart(segments, segmentIndex) + segmentTimelineDuration(seg));
+  }
+
+  /** Rep `transition`: `"manual"` pauses at this rep’s end until the user taps continue; anything else is automatic. */
+  function repTransitionIsManual(rep) {
+    if (!rep || typeof rep !== "object") return false;
+    const v = rep.transition != null ? String(rep.transition).trim().toLowerCase() : "";
+    return v === "manual";
+  }
+
+  /**
+   * Earliest manual-transition rep **end** crossed between `fromExclusive` (playhead at tick start) and
+   * `toInclusive` (candidate time after the tick). Uses the same rep boundaries as the rest of the engine
+   * (`globalSecAtRepEnd`, not `start + duration`, so the gate matches e.g. a 4.5 s rep and not an off-by-one snap).
+   * @returns {{ segmentIndex: number, repIndex: number, globalSec: number } | null}
+   */
+  function firstManualRepBoundaryBetween(segments, fromExclusive, toInclusive) {
+    if (!Array.isArray(segments)) return null;
+    const lo = Number(fromExclusive);
+    const hi = Number(toInclusive);
+    if (!Number.isFinite(lo) || !Number.isFinite(hi) || hi <= lo + 1e-12) return null;
+    /* Snap high bound so float playhead (e.g. 4.4999999) still counts as reaching a 4.5 s grid end. */
+    const hiSnap = snapTime(hi);
+    let bestG = Infinity;
+    let best = null;
+    for (let si = 0; si < segments.length; si++) {
+      const seg = segments[si];
+      const reps = seg && Array.isArray(seg.reps) ? seg.reps : [];
+      for (let ri = 0; ri < reps.length; ri++) {
+        if (!repTransitionIsManual(reps[ri])) continue;
+        const g = globalSecAtRepEnd(segments, si, ri);
+        /* Still strictly before this rep end at tick start, and at or past it after the step. */
+        if (lo >= g - 1e-9) continue;
+        if (hiSnap < g - 1e-9) continue;
+        if (g < bestG - 1e-9) {
+          bestG = g;
+          best = { segmentIndex: si, repIndex: ri, globalSec: g };
+        }
+      }
+    }
+    return best;
+  }
+
+  /**
+   * When the playhead is on the **end** instant of a rep with manual transition (e.g. press Play there).
+   * @returns {{ segmentIndex: number, repIndex: number, globalSec: number } | null}
+   */
+  function manualRepAwaitingAckAtTime(segments, globalSec) {
+    if (!Array.isArray(segments)) return null;
+    const t = snapTime(globalSec);
+    const tol = TIME_SNAP_SEC * 0.5 + 1e-9;
+    for (let si = 0; si < segments.length; si++) {
+      const seg = segments[si];
+      const reps = seg && Array.isArray(seg.reps) ? seg.reps : [];
+      for (let ri = 0; ri < reps.length; ri++) {
+        if (!repTransitionIsManual(reps[ri])) continue;
+        const endG = globalSecAtRepEnd(segments, si, ri);
+        if (Math.abs(t - endG) <= tol) {
+          return { segmentIndex: si, repIndex: ri, globalSec: endG };
+        }
+      }
+    }
+    return null;
+  }
+
   global.WorkoutPresentation = {
     TIME_SNAP_SEC,
     SPARKS_BURST_DURATION_SEC,
@@ -549,11 +721,17 @@
     locateGlobalTime,
     presentationFrame,
     globalSecAtRepStart,
+    globalSecAtRepEnd,
+    repTransitionIsManual,
+    firstManualRepBoundaryBetween,
+    manualRepAwaitingAckAtTime,
     activeTextCuePresentation,
     repDisplayName,
     activeVfxOverlayState,
     activeVfxSparksState,
     activeVfxTrailState,
     findWinningVfxEvent,
+    normalizeVfxFireworksPlacement,
+    normalizeVfxFireworksColor,
   };
 })(typeof window !== "undefined" ? window : globalThis);

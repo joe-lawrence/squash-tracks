@@ -388,6 +388,77 @@
       pointer-events: none;
       border-radius: inherit;
     }
+    .rep-transition-select {
+      width: 100%;
+      max-width: 22rem;
+      padding: 0.35rem 0.5rem;
+      border-radius: 6px;
+      border: 1px solid var(--line);
+      background: var(--bg);
+      color: var(--text);
+      font: inherit;
+    }
+    /** Manual rep transition overlay (preview) — theme accent + glow */
+    .presentation-manual-rep-gate {
+      --pres-manual-gate-footer: clamp(4.35rem, 15cqmin, 6rem);
+      --pres-manual-gate-header: clamp(2.8rem, 10cqmin, 3.5rem);
+      position: absolute;
+      inset: 0;
+      z-index: 8;
+      pointer-events: none;
+    }
+    .presentation-manual-rep-gate__shade {
+      display: none;
+    }
+    .presentation-manual-rep-gate__btn {
+      position: absolute;
+      left: 50%;
+      top: calc((100% - var(--pres-manual-gate-footer) + var(--pres-manual-gate-header)) * 0.5);
+      transform: translate(-50%, -50%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: clamp(5.5rem, 28cqmin, 7.5rem);
+      height: clamp(5.5rem, 28cqmin, 7.5rem);
+      padding: 0;
+      margin: 0;
+      border: none;
+      border-radius: 50%;
+      cursor: pointer;
+      color: var(--lane-sfx);
+      background: color-mix(in srgb, var(--bg) 70%, rgba(30, 30, 35, 0.5));
+      box-shadow:
+        0 0 0 2px color-mix(in srgb, var(--lane-sfx) 45%, transparent),
+        0 0 28px color-mix(in srgb, var(--lane-sfx) 35%, transparent),
+        0 0 52px color-mix(in srgb, var(--lane-sfx) 22%, transparent);
+      pointer-events: auto;
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+      user-select: none;
+      animation: presentation-manual-rep-gate-glow-editor 1.6s ease-in-out infinite;
+    }
+    .presentation-manual-rep-gate__btn:hover {
+      filter: brightness(1.08);
+    }
+    .presentation-manual-rep-gate__btn:focus-visible {
+      outline: 2px solid var(--lane-sfx);
+      outline-offset: 3px;
+    }
+    @keyframes presentation-manual-rep-gate-glow-editor {
+      0%,
+      100% {
+        box-shadow:
+          0 0 0 2px color-mix(in srgb, var(--lane-sfx) 40%, transparent),
+          0 0 22px color-mix(in srgb, var(--lane-sfx) 28%, transparent),
+          0 0 44px color-mix(in srgb, var(--lane-sfx) 16%, transparent);
+      }
+      50% {
+        box-shadow:
+          0 0 0 2px color-mix(in srgb, var(--lane-sfx) 65%, transparent),
+          0 0 32px color-mix(in srgb, var(--lane-sfx) 38%, transparent),
+          0 0 64px color-mix(in srgb, var(--lane-sfx) 24%, transparent);
+      }
+    }
     /** Top bar: workout name | timing (transport lives in `.presentation-panel-footer`). */
     .presentation-panel-header {
       display: grid;
@@ -1959,6 +2030,33 @@
         <div class="presentation-device-screen">
           <div class="presentation-vfx-overlay" id="presVfxOverlay" hidden aria-hidden="true"></div>
           <canvas class="presentation-vfx-sparks-canvas" id="presVfxSparksCanvas" hidden aria-hidden="true"></canvas>
+          <div class="presentation-manual-rep-gate" id="presManualRepGate" hidden aria-hidden="true">
+            <div class="presentation-manual-rep-gate__shade" aria-hidden="true"></div>
+            <button
+              type="button"
+              class="presentation-manual-rep-gate__btn"
+              id="presManualRepGateBtn"
+              aria-label="Continue workout preview"
+              title="Continue"
+            >
+              <!-- Lucide circle-check-big — https://lucide.dev/icons/circle-check-big (ISC) -->
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="96"
+                height="96"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.35"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M21.801 10A10 10 0 1 1 17 3.335" />
+                <path d="m9 11 3 3L22 4" />
+              </svg>
+            </button>
+          </div>
           <div class="presentation-panel-header">
             <p class="pres-head-name" id="presWorkoutTitle">New Workout</p>
             <span class="pres-head-time" id="presTime" aria-live="polite">0.0s / 0.0s</span>
@@ -2179,6 +2277,22 @@
             <option value="fade_in_out">Fade in &amp; out</option>
           </select>
         </div>
+        <div id="vfxFireworksOptionsWrap" hidden>
+          <div class="field">
+            <label for="editVfxFireworksPlacement">Fireworks location</label>
+            <select id="editVfxFireworksPlacement">
+              <option value="random">Random</option>
+              <option value="centered">Centered</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="editVfxFireworksColor">Fireworks color</label>
+            <select id="editVfxFireworksColor">
+              <option value="random">Random</option>
+              <option value="theme">Theme</option>
+            </select>
+          </div>
+        </div>
         <div class="field">
           <label
             for="editVfxRepeat"
@@ -2280,6 +2394,13 @@
           />
           <button type="button" class="num-stepper-btn" data-stepper-up aria-label="Increase interval">+</button>
         </div>
+      </div>
+      <div class="field">
+        <label for="repTransitionSelect">Transition</label>
+        <select id="repTransitionSelect" class="rep-transition-select">
+          <option value="automatic">Automatic</option>
+          <option value="manual">Manual</option>
+        </select>
       </div>
       <div class="actions">
         <button type="button" class="danger" id="repNameModalRemove" style="margin-right:auto;border-color:#7f1d1d;color:#fecaca">Remove</button>
@@ -2550,6 +2671,25 @@
         if (m === "flash" || m === "fade_in" || m === "fade_in_out") return m;
         if (e && e.vfxFadeInOnly === true) return "fade_in";
         return "fade_in_out";
+      }
+
+      /**
+       * Copy optional fireworks placement/color from `src` onto `o` (lane vfx).
+       * Clears both when `o` is not a fireworks cue.
+       */
+      function mergeFireworksVfxPlacementColor(o, src) {
+        if (!o || o.lane !== "vfx" || !src) return;
+        if (normalizeVfxEffectType(o) !== "fireworks") {
+          delete o.vfxFireworksPlacement;
+          delete o.vfxFireworksColor;
+          return;
+        }
+        const pl = src.vfxFireworksPlacement != null ? String(src.vfxFireworksPlacement).trim().toLowerCase() : "";
+        if (pl === "centered" || pl === "centre") o.vfxFireworksPlacement = "centered";
+        else delete o.vfxFireworksPlacement;
+        const fc = src.vfxFireworksColor != null ? String(src.vfxFireworksColor).trim().toLowerCase() : "";
+        if (fc === "theme" || fc === "scheme") o.vfxFireworksColor = "theme";
+        else delete o.vfxFireworksColor;
       }
 
       const TIME_SNAP_SEC = 0.1;
@@ -2825,6 +2965,7 @@
       const unsavedWorkoutModal = document.getElementById("unsavedWorkoutModal");
       const repNameInput = document.getElementById("repNameInput");
       const repIntervalInput = document.getElementById("repIntervalInput");
+      const repTransitionSelect = document.getElementById("repTransitionSelect");
       const editCueName = document.getElementById("editCueName");
       const clipTextHeadingBodyWrap = document.getElementById("clipTextHeadingBodyWrap");
       const editCueHeading = document.getElementById("editCueHeading");
@@ -2840,6 +2981,9 @@
       const ttsSpeechWrap = document.getElementById("ttsSpeechWrap");
       const editTtsSpeech = document.getElementById("editTtsSpeech");
       const vfxEditorWrap = document.getElementById("vfxEditorWrap");
+      const vfxFireworksOptionsWrap = document.getElementById("vfxFireworksOptionsWrap");
+      const editVfxFireworksPlacement = document.getElementById("editVfxFireworksPlacement");
+      const editVfxFireworksColor = document.getElementById("editVfxFireworksColor");
       const editVfxEffectType = document.getElementById("editVfxEffectType");
       /** Last synced VFX effect type in the clip modal (for detecting background → particle FX). */
       let vfxEffectTypeEditorBaseline = "background";
@@ -3091,6 +3235,12 @@
         repNameInput.value = stored;
         repIntervalInput.value = formatSnapSecForInput(repDurationSec(rIndex));
         repIntervalInput.dispatchEvent(new Event("input", { bubbles: true }));
+        if (repTransitionSelect) {
+          const WP = typeof WorkoutPresentation !== "undefined" ? WorkoutPresentation : null;
+          const isMan =
+            WP && typeof WP.repTransitionIsManual === "function" && WP.repTransitionIsManual(reps[rIndex]);
+          repTransitionSelect.value = isMan ? "manual" : "automatic";
+        }
         repNameModal.classList.add("open");
         repNameModal.setAttribute("aria-hidden", "false");
         const repRm = document.getElementById("repNameModalRemove");
@@ -3180,6 +3330,7 @@
           if (out.vfxColorMode === "custom") {
             out.vfxColor = normalizeVfxHex(e.vfxColor != null ? e.vfxColor : "#ef4444");
           }
+          mergeFireworksVfxPlacementColor(out, e);
         }
         if (e.elementId != null && String(e.elementId).trim()) {
           out.elementId = String(e.elementId).trim().slice(0, 80);
@@ -3241,6 +3392,8 @@
         if (raw.elementId != null && String(raw.elementId).trim()) {
           o.elementId = String(raw.elementId).trim().slice(0, 80);
         }
+        const tr = raw.transition != null ? String(raw.transition).trim().toLowerCase() : "";
+        if (tr === "manual") o.transition = "manual";
         return o;
       }
 
@@ -5586,6 +5739,7 @@
                 o.vfxBgMode = normalizeVfxBgModeFromRaw(e);
                 o.vfxColorMode = e.vfxColorMode === "custom" ? "custom" : "scheme";
                 if (o.vfxColorMode === "custom") o.vfxColor = normalizeVfxHex(e.vfxColor != null ? e.vfxColor : "#ef4444");
+                mergeFireworksVfxPlacementColor(o, e);
               }
               if (e.name != null && String(e.name).trim()) o.name = String(e.name).trim().slice(0, 48);
               if (cat === "text") {
@@ -5905,6 +6059,11 @@
         const curDur = repDurationForDefault(r, defaultIntervalSec);
         repIntervalInput.value = formatSnapSecForInput(curDur);
         repIntervalInput.dispatchEvent(new Event("input", { bubbles: true }));
+        if (repTransitionSelect) {
+          const WP = typeof WorkoutPresentation !== "undefined" ? WorkoutPresentation : null;
+          const isMan = WP && typeof WP.repTransitionIsManual === "function" && WP.repTransitionIsManual(r);
+          repTransitionSelect.value = isMan ? "manual" : "automatic";
+        }
         const repRm = document.getElementById("repNameModalRemove");
         if (repRm) {
           repRm.style.display = "none";
@@ -6225,6 +6384,7 @@
                   o.vfxBgMode = normalizeVfxBgModeFromRaw(e);
                   o.vfxColorMode = e.vfxColorMode === "custom" ? "custom" : "scheme";
                   if (o.vfxColorMode === "custom") o.vfxColor = normalizeVfxHex(e.vfxColor != null ? e.vfxColor : "#ef4444");
+                  mergeFireworksVfxPlacementColor(o, e);
                 }
                 if (cat === "text") {
                   const hb = normalizeTextCuePresentationFields(e.heading, e.body);
@@ -6397,6 +6557,7 @@
             o.vfxBgMode = normalizeVfxBgModeFromRaw(ev);
             o.vfxColorMode = ev.vfxColorMode === "custom" ? "custom" : "scheme";
             if (o.vfxColorMode === "custom" && ev.vfxColor) o.vfxColor = normalizeVfxHex(ev.vfxColor);
+            mergeFireworksVfxPlacementColor(o, ev);
           }
           if (ev.milestone === true || ev.milestone === false) o.milestone = ev.milestone;
           return o;
@@ -6617,6 +6778,7 @@
               o.vfxBgMode = normalizeVfxBgModeFromRaw(item);
               o.vfxColorMode = item.vfxColorMode === "custom" ? "custom" : "scheme";
               if (o.vfxColorMode === "custom" && item.vfxColor) o.vfxColor = normalizeVfxHex(item.vfxColor);
+              mergeFireworksVfxPlacementColor(o, item);
             }
             if (item.milestone === true || item.milestone === false) o.milestone = item.milestone;
             return o;
@@ -8205,7 +8367,9 @@
         const isBg = et === "background";
         const particleFx = editVfxParticleBurstEffectSelected();
         const fb = et === "fireballs" || et === "trail";
+        const fw = et === "fireworks" || et === "sparks";
         if (vfxBackgroundSubmodesWrap) vfxBackgroundSubmodesWrap.hidden = !isBg;
+        if (vfxFireworksOptionsWrap) vfxFireworksOptionsWrap.hidden = !fw;
         if (vfxTintColorFieldsWrap) vfxTintColorFieldsWrap.hidden = !!particleFx;
         if (labelEditVfxRepeat) {
           labelEditVfxRepeat.textContent = particleFx ? "Bursts" : "Cycles (repeats)";
@@ -8257,6 +8421,12 @@
         editVfxColorMode.value = ev.vfxColorMode === "custom" ? "custom" : "scheme";
         if (editVfxColor) editVfxColor.value = normalizeVfxHex(ev.vfxColor || "#ef4444");
         if (editVfxCustomColorWrap) editVfxCustomColorWrap.hidden = editVfxColorMode.value !== "custom";
+        if (editVfxFireworksPlacement) {
+          editVfxFireworksPlacement.value = ev.vfxFireworksPlacement === "centered" ? "centered" : "random";
+        }
+        if (editVfxFireworksColor) {
+          editVfxFireworksColor.value = ev.vfxFireworksColor === "theme" ? "theme" : "random";
+        }
         updateVfxEffectTypeUi();
         vfxEffectTypeEditorBaseline = vfxNorm;
         syncEditDurationNumStepperAttrs();
@@ -8272,8 +8442,21 @@
           delete ev.vfxBgMode;
           ev.vfxColorMode = "scheme";
           delete ev.vfxColor;
-          if (ev.vfxEffectType === "fireballs") ev.vfxRepeatCount = 1;
+          if (ev.vfxEffectType === "fireballs") {
+            ev.vfxRepeatCount = 1;
+            delete ev.vfxFireworksPlacement;
+            delete ev.vfxFireworksColor;
+          } else {
+            if (editVfxFireworksPlacement && editVfxFireworksPlacement.value === "centered") {
+              ev.vfxFireworksPlacement = "centered";
+            } else delete ev.vfxFireworksPlacement;
+            if (editVfxFireworksColor && editVfxFireworksColor.value === "theme") {
+              ev.vfxFireworksColor = "theme";
+            } else delete ev.vfxFireworksColor;
+          }
         } else {
+          delete ev.vfxFireworksPlacement;
+          delete ev.vfxFireworksColor;
           let rc = editVfxRepeat ? parseInt(editVfxRepeat.value, 10) : 1;
           if (!Number.isFinite(rc) || rc < 1) rc = 1;
           ev.vfxRepeatCount = Math.min(99, rc);
@@ -8512,7 +8695,7 @@
           if (e.target === unsavedWorkoutModal) cancelUnsavedWorkoutDialog();
         });
       }
-      bindEnterKeyAppliesPrimary("repNameModalSave", repNameInput, repIntervalInput);
+      bindEnterKeyAppliesPrimary("repNameModalSave", repNameInput, repIntervalInput, repTransitionSelect);
 
       bindEnterKeyAppliesPrimary("clipModalSave", editCueName, editStart, editDuration, editVfxRepeat);
 
@@ -8767,6 +8950,10 @@
           tr.name = trimmed || "Rep " + (repIndex + 1);
           if (Math.abs(newInt - defaultIntervalSec) < 0.001) delete tr.intervalSec;
           else tr.intervalSec = newInt;
+          if (repTransitionSelect) {
+            if (repTransitionSelect.value === "manual") tr.transition = "manual";
+            else delete tr.transition;
+          }
           let validated;
           try {
             validated = validateLibraryPayload("rep", trial);
@@ -8814,6 +9001,10 @@
         }
         const trimmed = String(repNameInput.value).trim().slice(0, 48);
         reps[r].name = trimmed || "Rep " + (r + 1);
+        if (repTransitionSelect) {
+          if (repTransitionSelect.value === "manual") reps[r].transition = "manual";
+          else delete reps[r].transition;
+        }
         closeRepRenameModal();
         refreshAll();
         showToast("Updated rep " + (r + 1) + ".");
@@ -9595,6 +9786,32 @@
       let presTimeSec = 0;
       let presRafId = 0;
       let presWallLast = 0;
+      let presManualRepGateAwaiting = false;
+      let presManualRepGateMeta = null;
+
+      function presClearManualRepGate() {
+        presManualRepGateAwaiting = false;
+        presManualRepGateMeta = null;
+      }
+
+      function presDismissManualRepGate() {
+        if (!presManualRepGateAwaiting) return;
+        presManualRepGateAwaiting = false;
+        presManualRepGateMeta = null;
+        presWallLast = performance.now();
+        const WP = WorkoutPresentation;
+        if (WP && Array.isArray(segments) && segments.length) {
+          const maxT = WP.totalWorkoutDuration(segments);
+          const t0 = WP.snapTime(presTimeSec);
+          presTimeSec = Math.min(t0 + WP.TIME_SNAP_SEC, maxT);
+        }
+        syncPresPlaybackEngineAfterSeek();
+        presentationRender();
+        if (presPlaying && !presRafId) {
+          presRafId = requestAnimationFrame(presTick);
+        }
+      }
+
       let presSyncingTimeline = false;
       let playheadSelected = false;
       /** Hold-to-scrub: −1 rewind, +1 fast-forward (workout seconds per wall second = multiplier × 1s). */
@@ -9645,6 +9862,7 @@
 
       function pausePreviewForSeek() {
         presPlaying = false;
+        presClearManualRepGate();
         presStopRaf();
         presSyncPlayButton();
         syncPresPlaybackEngineAfterSeek();
@@ -9784,6 +10002,7 @@
           const WP = WorkoutPresentation;
           const g0 = WP.cumulativeSegmentStart(segments, activeSegmentIndex);
           const maxG = WP.totalWorkoutDuration(segments);
+          presClearManualRepGate();
           presTimeSec = Math.max(0, Math.min(g0 + rawLocal, maxG));
 
           const loc = WP.locateGlobalTime(segments, presTimeSec);
@@ -9898,19 +10117,29 @@
         const WP = typeof WorkoutPresentation !== "undefined" ? WorkoutPresentation : null;
         if (!WP) return;
 
-        const loc = WP.locateGlobalTime(segments, presTimeSec);
-        const seg = loc.segment;
+        let seg;
+        let segIndex;
+        let rIdx;
+        if (presManualRepGateAwaiting && presManualRepGateMeta) {
+          segIndex = presManualRepGateMeta.segmentIndex | 0;
+          rIdx = presManualRepGateMeta.repIndex | 0;
+          seg = segments[segIndex];
+        } else {
+          const loc = WP.locateGlobalTime(segments, presTimeSec);
+          seg = loc.segment;
+          segIndex = loc.segmentIndex;
+          rIdx = WP.repIndexAtLocalSec(seg, loc.localSec);
+        }
         if (!seg || !Array.isArray(seg.reps)) {
           ticksEl.innerHTML = "";
           return;
         }
-        const rIdx = WP.repIndexAtLocalSec(seg, loc.localSec);
-        const repKey = loc.segmentIndex + "-" + rIdx;
+        const repKey = segIndex + "-" + rIdx;
 
         if (repKey === lastTicksRepKey) return;
         lastTicksRepKey = repKey;
 
-        const segStart = WP.cumulativeSegmentStart(segments, loc.segmentIndex);
+        const segStart = WP.cumulativeSegmentStart(segments, segIndex);
         const g0 = WP.cumulativeRepStartInSegment(seg, rIdx);
         const repStartGlobal = segStart + g0;
         const repDur = WP.repDurationForDefault(seg.reps[rIdx], seg.defaultIntervalSec);
@@ -9923,7 +10152,10 @@
         const milestones = presPlaybackEngine && typeof presPlaybackEngine.getTtsMilestones === "function"
           ? presPlaybackEngine.getTtsMilestones() : [];
 
-        const repEndGlobal = repStartGlobal + repDur;
+        const repEndGlobal =
+          typeof WP.globalSecAtRepEnd === "function"
+            ? WP.globalSecAtRepEnd(segments, segIndex, rIdx)
+            : repStartGlobal + repDur;
         const ticksInRep = milestones.filter(function(ts) {
           return ts >= repStartGlobal - 0.001 && ts < repEndGlobal + 0.001;
         });
@@ -9948,6 +10180,14 @@
           workoutName,
           defaultWorkoutName: DEFAULT_WORKOUT_NAME,
           timeSec: presTimeSec,
+          manualRepTransitionAwaiting: presManualRepGateAwaiting,
+          holdManualRep:
+            presManualRepGateAwaiting && presManualRepGateMeta
+              ? {
+                  segmentIndex: presManualRepGateMeta.segmentIndex,
+                  repIndex: presManualRepGateMeta.repIndex,
+                }
+              : null,
         });
         renderTtsTicks();
       }
@@ -9962,13 +10202,47 @@
         }
         const WP = WorkoutPresentation;
         flushActiveSegmentMeta();
+        const maxT = WP.totalWorkoutDuration(segments);
+        if (presManualRepGateAwaiting) {
+          const loc = WP.locateGlobalTime(segments, presTimeSec);
+          if (loc.segmentIndex !== activeSegmentIndex) {
+            if (presPlaying) skipPresPreviewAudioCancelOnce = true;
+            presSyncingTimeline = true;
+            try {
+              activateSegment(loc.segmentIndex, false);
+            } finally {
+              presSyncingTimeline = false;
+              skipPresPreviewAudioCancelOnce = false;
+            }
+            layoutPlaybackPlayhead();
+            presentationRender();
+          } else {
+            layoutPlaybackPlayhead();
+            autoScrollPlaybackTimeline();
+            presentationRender();
+          }
+          if (presTimeSec >= maxT - 1e-6) {
+            presPlaying = false;
+            presClearManualRepGate();
+            presSyncPlayButton();
+            presentationRender();
+            syncPlaybackWithTimeline();
+            return;
+          }
+          presRafId = requestAnimationFrame(presTick);
+          return;
+        }
         const prevT = presTimeSec;
         const dt = (now - presWallLast) / 1000;
         presWallLast = now;
-        const maxT = WP.totalWorkoutDuration(segments);
-        presTimeSec = Math.min(presTimeSec + dt, maxT);
+        let candidate = Math.min(presTimeSec + dt, maxT);
+        const hit = WP.firstManualRepBoundaryBetween(segments, prevT, candidate);
+        if (hit) candidate = hit.globalSec;
+        presTimeSec = candidate;
         if (presPlaybackEngine) {
-          const { fired, audioCommands } = presPlaybackEngine.advancePlayback(prevT, presTimeSec);
+          const advOpts =
+            hit && Number.isFinite(hit.globalSec) ? { strictlyBeforeGlobalSec: hit.globalSec } : undefined;
+          const { fired, audioCommands } = presPlaybackEngine.advancePlayback(prevT, presTimeSec, advOpts);
           if (debugPlaybackEngine && fired.length) console.debug("[WorkoutPlaybackEngine] fired:", fired);
           if (debugPlaybackEngine && audioCommands.length) console.debug("[WorkoutPlaybackEngine] audioCommands:", audioCommands);
           if (readPresPreviewAudioEnabled() && presPreviewAudio && audioCommands.length) {
@@ -9977,6 +10251,10 @@
           } else if (debugPlaybackEngine && audioCommands.length) {
             console.debug("[Editor] NOT calling executeCommands: previewAudioEnabled =", readPresPreviewAudioEnabled(), "presPreviewAudio =", !!presPreviewAudio);
           }
+        }
+        if (hit) {
+          presManualRepGateAwaiting = true;
+          presManualRepGateMeta = { segmentIndex: hit.segmentIndex, repIndex: hit.repIndex };
         }
         const loc = WP.locateGlobalTime(segments, presTimeSec);
         if (loc.segmentIndex !== activeSegmentIndex) {
@@ -9995,6 +10273,7 @@
         }
         if (presTimeSec >= maxT - 1e-6) {
           presPlaying = false;
+          presClearManualRepGate();
           presSyncPlayButton();
           presentationRender();
           syncPlaybackWithTimeline();
@@ -10035,6 +10314,7 @@
 
       function presPause() {
         presPlaying = false;
+        presClearManualRepGate();
         presStopRaf();
         presSyncPlayButton();
         presentationRender();
@@ -10068,6 +10348,7 @@
       let presScrubWasPlaying = false;
 
       function presStopScrubAndSync() {
+        presClearManualRepGate();
         presScrubInternalStop();
         const WPE = typeof WorkoutPlaybackEngine !== "undefined" ? WorkoutPlaybackEngine : null;
         if (WPE && typeof WPE.resetTtsStickyState === "function") {
@@ -10119,6 +10400,7 @@
           WPE.checkTtsMilestonesCrossed(prevTime, rawTarget, milestones);
         }
 
+        presClearManualRepGate();
         presTimeSec = rawTarget;
         const loc = WP.locateGlobalTime(segments, presTimeSec);
         if (loc.segmentIndex !== activeSegmentIndex) {
@@ -10218,6 +10500,7 @@
       /** |< — start of current rep; if within 1 s of rep start, go to previous rep (may cross parts). */
       function presWorkoutStart() {
         if (typeof WorkoutPresentation === "undefined") return;
+        presClearManualRepGate();
         presScrubInternalStop();
         const wasPlaying = presPlaying;
         if (!wasPlaying) pausePreviewForSeek();
@@ -10269,6 +10552,7 @@
       /** >| — next rep start; on the workout’s last rep, last snap in this rep (workout end). */
       function presWorkoutEnd() {
         if (typeof WorkoutPresentation === "undefined") return;
+        presClearManualRepGate();
         presScrubInternalStop();
         const wasPlaying = presPlaying;
         if (!wasPlaying) pausePreviewForSeek();
@@ -10464,6 +10748,19 @@
         if (bSkip1) bSkip1.addEventListener("click", () => presWorkoutEnd());
         presSyncPlayButton();
 
+        const presManualRepGateBtn = document.getElementById("presManualRepGateBtn");
+        if (presManualRepGateBtn) {
+          presManualRepGateBtn.addEventListener(
+            "click",
+            (e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              presDismissManualRepGate();
+            },
+            true
+          );
+        }
+
         const presProgressBar = document.getElementById("presProgressBar");
         if (presProgressBar) {
           let progressDragging = false;
@@ -10528,6 +10825,7 @@
               }
             }
 
+            presClearManualRepGate();
             presTimeSec = stickyApplied ? targetGlobal : snapTime(targetGlobal);
             presClampTimeToWorkout();
             presentationRender();

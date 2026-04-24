@@ -76,6 +76,24 @@
     return null;
   }
 
+  /** RGB 0–255 → hue degrees [0,360) for fireworks “theme” tint. */
+  function rgbToHueDeg(r, g, b) {
+    const rn = Math.max(0, Math.min(255, r | 0)) / 255;
+    const gn = Math.max(0, Math.min(255, g | 0)) / 255;
+    const bn = Math.max(0, Math.min(255, b | 0)) / 255;
+    const max = Math.max(rn, gn, bn);
+    const min = Math.min(rn, gn, bn);
+    const d = max - min;
+    if (d < 1e-8) return 0;
+    let h = 0;
+    if (max === rn) h = ((gn - bn) / d) % 6;
+    else if (max === gn) h = (bn - rn) / d + 2;
+    else h = (rn - gn) / d + 4;
+    h *= 60;
+    if (h < 0) h += 360;
+    return h;
+  }
+
   /** Resolve theme string (#hex or rgb/rgba) to RGB for overlay tint. */
   function parseCssColorToRgb(s) {
     const fromHex = parseHexColorToRgb(s);
@@ -223,6 +241,12 @@
       ww = (ww + 8) >> 4 << 4;
       hh = (hh + 8) >> 4 << 4;
     }
+    const fwHueKey =
+      kind === "fireworks" && String(st.fireworksColorMode) === "theme"
+        ? "Th"
+        : kind === "fireworks"
+          ? "Rf"
+          : "";
     return [
       kind,
       st.seed >>> 0,
@@ -236,6 +260,7 @@
       Math.round(ay * 1e4),
       ww,
       hh,
+      fwHueKey,
     ].join(":");
   }
 
@@ -488,7 +513,12 @@
     const gravMul = Number(st.gravityMul) || 2;
     const gStep = 0.1 * dpr * gravMul;
     const spread = Number(st.hueSpread) || 40;
-    const hue0 = Number(st.hueCenter) || 0;
+    let hue0 = Number(st.hueCenter) || 0;
+    const fwCol = String(st.fireworksColorMode) === "theme" ? "theme" : "random";
+    if (fwCol === "theme" && paintOpts && paintOpts.doc) {
+      const rgb = resolveVfxTintRgb(paintOpts.doc, { active: true, colorMode: "scheme", customHex: "" });
+      hue0 = rgbToHueDeg(rgb.r, rgb.g, rgb.b);
+    }
     const burstFade = Math.max(0, 1 - t * 0.98);
 
     const doc = paintOpts && paintOpts.doc;
@@ -651,6 +681,8 @@
    * @param {number} opts.timeSec — global workout second (caller clamps if needed)
    * @param {boolean} [opts.statefulSparks] — when not `false`, carry spark particle velocity across frames (smoother; default on).
    * @param {number} [opts.vfxVisualSalt] — optional 32-bit salt for fireworks RNG (shell manages salt if omitted).
+   * @param {boolean} [opts.manualRepTransitionAwaiting] — show full-screen “tap to continue” gate at a manual rep’s **end** (player / editor preview).
+   * @param {{ segmentIndex: number, repIndex: number } | null} [opts.holdManualRep] — keep cues/rep UI on the finishing rep until the gate clears.
    */
   function renderPresentationIntoDocument(doc, opts) {
     const WP = global.WorkoutPresentation;
@@ -660,11 +692,16 @@
     const maxT = WP.totalWorkoutDuration(segments);
     const t = Math.max(0, Math.min(Number(opts.timeSec) || 0, maxT));
     const vfxSalt = resolvePresentationVfxVisualSalt(doc, t, opts, WP, segments);
-    const frame = WP.presentationFrame(segments, t, { vfxVisualSalt: vfxSalt });
+    const frameOpts = { vfxVisualSalt: vfxSalt };
+    if (opts.holdManualRep && typeof opts.holdManualRep === "object") {
+      frameOpts.holdManualRep = opts.holdManualRep;
+    }
+    const frame = WP.presentationFrame(segments, t, frameOpts);
+    const gateActive = !!opts.manualRepTransitionAwaiting;
     const vfxEl = doc.getElementById("presVfxOverlay");
     if (vfxEl) {
       const vx = frame.vfxOverlay;
-      if (vx && vx.active && vx.opacity > 1e-6) {
+      if (!gateActive && vx && vx.active && vx.opacity > 1e-6) {
         const rgb = resolveVfxTintRgb(doc, vx);
         vfxEl.hidden = false;
         vfxEl.style.backgroundColor =
@@ -687,7 +724,7 @@
       }
       const sctx = sparksCanvas.getContext("2d");
       const vs = frame.vfxSparks;
-      if (sctx && vs && vs.active) {
+      if (!gateActive && sctx && vs && vs.active) {
         sparksCanvas.hidden = false;
         sparksCanvas.setAttribute("aria-hidden", "true");
         drawPresentationVfxSparks(sctx, bw, bh, vs, {
@@ -717,16 +754,19 @@
     }
     const cueHeadEl = doc.getElementById("presCueHeading");
     const cueBodyEl = doc.getElementById("presCueBody");
-    const cueActive = !!frame.cuePresentationActive;
+    const cueActive = !gateActive && !!frame.cuePresentationActive;
     const ch = frame.cueHeading != null ? String(frame.cueHeading) : "";
     const cb = frame.cueBody != null ? String(frame.cueBody) : "";
     if (cueHeadEl) {
-      cueHeadEl.textContent = ch;
-      cueHeadEl.hidden = !cueActive || !ch;
+      cueHeadEl.textContent = gateActive ? "" : ch;
+      cueHeadEl.hidden = gateActive || !cueActive || !ch;
     }
     if (cueBodyEl) {
       cueBodyEl.classList.remove("presentation-cue-placeholder");
-      if (!cueActive) {
+      if (gateActive) {
+        cueBodyEl.textContent = "";
+        cueBodyEl.hidden = true;
+      } else if (!cueActive) {
         cueBodyEl.textContent = "—";
         cueBodyEl.hidden = false;
         cueBodyEl.classList.add("presentation-cue-placeholder");
@@ -759,6 +799,12 @@
       metaRow.classList.toggle("presentation-meta-row--part-only", !hidePart && hideRep);
     }
     if (barEl) barEl.style.width = (frame.repProgress01 * 100).toFixed(2) + "%";
+    const gateRoot = doc.getElementById("presManualRepGate");
+    if (gateRoot) {
+      const on = !!opts.manualRepTransitionAwaiting;
+      gateRoot.hidden = !on;
+      gateRoot.setAttribute("aria-hidden", on ? "false" : "true");
+    }
   }
 
   function clearPresentationSparksSim(doc) {

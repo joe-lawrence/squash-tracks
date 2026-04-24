@@ -150,26 +150,33 @@
 
     /**
      * Forward-only step along the workout clock (typical play tick).
+     * @param {object} [opts]
+     * @param {number} [opts.strictlyBeforeGlobalSec] — when set, do not fire events with `globalStart` at or after this instant (manual rep gate at rep end).
      * @returns {{ fired: object[], audioCommands: object[] }}
      */
-    advancePlayback(fromSec, toSec) {
+    advancePlayback(fromSec, toSec, opts) {
       const fired = [];
       const audioCommands = [];
       const lo = this._WP.snapTime(Math.min(fromSec, toSec));
       const hi = this._WP.snapTime(Math.max(fromSec, toSec));
       if (hi <= lo + 1e-12) return { fired, audioCommands };
+      const cap =
+        opts && typeof opts === "object" && Number.isFinite(Number(opts.strictlyBeforeGlobalSec))
+          ? Number(opts.strictlyBeforeGlobalSec)
+          : null;
 
       for (let i = 0; i < this.timeline.length; i++) {
         const ev = this.timeline[i];
         /* Inclusive of `lo` so cues exactly at the playhead edge fire; `playedKeys` prevents double-fire. */
-        if (ev.globalStart >= lo - 1e-9 && ev.globalStart <= hi + 1e-9) {
-          if (!this.playedKeys.has(ev.id)) {
-            this.playedKeys.add(ev.id);
-            fired.push(ev);
-            const ac = audioCommandForEvent(ev, this.audioEnabled);
-            if (ac) {
-              audioCommands.push(ac);
-            }
+        if (ev.globalStart < lo - 1e-9) continue;
+        if (ev.globalStart > hi + 1e-9) continue;
+        if (cap != null && ev.globalStart >= cap - 1e-12) continue;
+        if (!this.playedKeys.has(ev.id)) {
+          this.playedKeys.add(ev.id);
+          fired.push(ev);
+          const ac = audioCommandForEvent(ev, this.audioEnabled);
+          if (ac) {
+            audioCommands.push(ac);
           }
         }
       }

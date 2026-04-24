@@ -392,6 +392,34 @@
   let presScrubCaptureEl = null;
   let presScrubCapturePid = -1;
 
+  /** Manual rep `transition`: freeze at that rep’s **end** until user taps circle-check (FF/rew/skip still move time). */
+  let presManualRepGateAwaiting = false;
+  /** While gate is up, presentation/audio stay on this rep until continue (segmentIndex / repIndex of the manual rep). */
+  let presManualRepGateMeta = null;
+
+  function presClearManualRepGate() {
+    presManualRepGateAwaiting = false;
+    presManualRepGateMeta = null;
+  }
+
+  function presDismissManualRepGate() {
+    if (!presManualRepGateAwaiting) return;
+    presManualRepGateAwaiting = false;
+    presManualRepGateMeta = null;
+    presWallLast = performance.now();
+    const w = WP();
+    if (w && Array.isArray(segments) && segments.length) {
+      const maxT = w.totalWorkoutDuration(segments);
+      const t0 = w.snapTime(presTimeSec);
+      presTimeSec = Math.min(t0 + w.TIME_SNAP_SEC, maxT);
+    }
+    if (playbackEngine) playbackEngine.syncAfterSeek(presTimeSec);
+    presentationRender();
+    if (presPlaying && !presRafId) {
+      presRafId = requestAnimationFrame(presTick);
+    }
+  }
+
   const Sh = () => window.WorkoutPresentationShared;
   const WP = () => window.WorkoutPresentation;
   const urlParams =
@@ -788,21 +816,31 @@
     const w = WP();
     if (!w) return;
 
-    // Get current rep info
-    const loc = w.locateGlobalTime(segments, presTimeSec);
-    const seg = loc.segment;
+    // Get current rep info (during manual gate, stay on the finishing rep, not the next)
+    let seg;
+    let segIndex;
+    let rIdx;
+    if (presManualRepGateAwaiting && presManualRepGateMeta) {
+      segIndex = presManualRepGateMeta.segmentIndex | 0;
+      rIdx = presManualRepGateMeta.repIndex | 0;
+      seg = segments[segIndex];
+    } else {
+      const loc = w.locateGlobalTime(segments, presTimeSec);
+      seg = loc.segment;
+      segIndex = loc.segmentIndex;
+      rIdx = w.repIndexAtLocalSec(seg, loc.localSec);
+    }
     if (!seg || !Array.isArray(seg.reps)) {
       ticksEl.innerHTML = "";
       return;
     }
-    const rIdx = w.repIndexAtLocalSec(seg, loc.localSec);
-    const repKey = loc.segmentIndex + "-" + rIdx;
+    const repKey = segIndex + "-" + rIdx;
 
     // Only update if rep changed
     if (repKey === lastTicksRepKey) return;
     lastTicksRepKey = repKey;
 
-    const segStart = w.cumulativeSegmentStart(segments, loc.segmentIndex);
+    const segStart = w.cumulativeSegmentStart(segments, segIndex);
     const g0 = w.cumulativeRepStartInSegment(seg, rIdx);
     const repStartGlobal = segStart + g0;
     const repDur = w.repDurationForDefault(seg.reps[rIdx], seg.defaultIntervalSec);
@@ -816,7 +854,10 @@
     const milestones = playbackEngine && typeof playbackEngine.getTtsMilestones === "function"
       ? playbackEngine.getTtsMilestones() : [];
     
-    const repEndGlobal = repStartGlobal + repDur;
+    const repEndGlobal =
+      typeof w.globalSecAtRepEnd === "function"
+        ? w.globalSecAtRepEnd(segments, segIndex, rIdx)
+        : repStartGlobal + repDur;
     const ticksInRep = milestones.filter(function(ts) {
       return ts >= repStartGlobal - 0.001 && ts < repEndGlobal + 0.001;
     });
@@ -839,6 +880,14 @@
       workoutName,
       defaultWorkoutName: DEFAULT_WORKOUT_NAME,
       timeSec: presTimeSec,
+      manualRepTransitionAwaiting: presManualRepGateAwaiting,
+      holdManualRep:
+        presManualRepGateAwaiting && presManualRepGateMeta
+          ? {
+              segmentIndex: presManualRepGateMeta.segmentIndex,
+              repIndex: presManualRepGateMeta.repIndex,
+            }
+          : null,
     });
     renderTtsTicks();
   }
@@ -867,6 +916,7 @@
 
   function pausePreviewForSeek() {
     presPlaying = false;
+    presClearManualRepGate();
     presStopRaf();
     presSyncPlayButton();
     setPlayerPlayingUi(false);
@@ -880,6 +930,7 @@
 
   function presPause() {
     presPlaying = false;
+    presClearManualRepGate();
     presStopRaf();
     presSyncPlayButton();
     setPlayerPlayingUi(false);
@@ -897,21 +948,45 @@
       setPlayerPlayingUi(false);
       return;
     }
+    const maxT = w.totalWorkoutDuration(segments);
+    if (presManualRepGateAwaiting) {
+      presentationRender();
+      if (presTimeSec >= maxT - 1e-6) {
+        presPlaying = false;
+        presClearManualRepGate();
+        presSyncPlayButton();
+        setPlayerPlayingUi(false);
+        if (playerAudio) playerAudio.cancelAll();
+        presentationRender();
+        return;
+      }
+      presRafId = requestAnimationFrame(presTick);
+      return;
+    }
     const prevT = presTimeSec;
     const dt = (now - presWallLast) / 1000;
     presWallLast = now;
-    const maxT = w.totalWorkoutDuration(segments);
-    presTimeSec = Math.min(presTimeSec + dt, maxT);
+    let candidate = Math.min(presTimeSec + dt, maxT);
+    const hit = w.firstManualRepBoundaryBetween(segments, prevT, candidate);
+    if (hit) candidate = hit.globalSec;
+    presTimeSec = candidate;
     if (playbackEngine) {
-      const { fired, audioCommands } = playbackEngine.advancePlayback(prevT, presTimeSec);
+      const advOpts =
+        hit && Number.isFinite(hit.globalSec) ? { strictlyBeforeGlobalSec: hit.globalSec } : undefined;
+      const { fired, audioCommands } = playbackEngine.advancePlayback(prevT, presTimeSec, advOpts);
       if (debugEngine && fired.length) console.debug("[WorkoutPlaybackEngine] fired:", fired);
       if (!muteAudio && playerAudio && audioCommands.length) {
         playerAudio.executeCommands(audioCommands, { workoutTimeSec: presTimeSec });
       }
     }
+    if (hit) {
+      presManualRepGateAwaiting = true;
+      presManualRepGateMeta = { segmentIndex: hit.segmentIndex, repIndex: hit.repIndex };
+    }
     presentationRender();
     if (presTimeSec >= maxT - 1e-6) {
       presPlaying = false;
+      presClearManualRepGate();
       presSyncPlayButton();
       setPlayerPlayingUi(false);
       if (playerAudio) playerAudio.cancelAll();
@@ -971,6 +1046,7 @@
   let presScrubWasPlaying = false;
 
   function presStopScrubAndSync() {
+    presClearManualRepGate();
     presScrubInternalStop();
     const WPE = typeof WorkoutPlaybackEngine !== "undefined" ? WorkoutPlaybackEngine : null;
     if (WPE && typeof WPE.resetTtsStickyState === "function") {
@@ -1018,6 +1094,7 @@
       WPE.checkTtsMilestonesCrossed(prevTime, rawTarget, milestones);
     }
 
+    presClearManualRepGate();
     presTimeSec = rawTarget;
     presentationRender();
     if (presTimeSec <= 1e-9 && presScrubDir < 0) {
@@ -1100,6 +1177,7 @@
   function presWorkoutStart() {
     const w = WP();
     if (!w) return;
+    presClearManualRepGate();
     presScrubInternalStop();
     const wasPlaying = presPlaying;
     if (!wasPlaying) pausePreviewForSeek();
@@ -1143,6 +1221,7 @@
   function presWorkoutEnd() {
     const w = WP();
     if (!w) return;
+    presClearManualRepGate();
     presScrubInternalStop();
     const wasPlaying = presPlaying;
     if (!wasPlaying) pausePreviewForSeek();
@@ -1193,6 +1272,19 @@
     presBindScrubButton(bFF, 1);
     if (bSkip1) bSkip1.addEventListener("click", () => presWorkoutEnd());
     presSyncPlayButton();
+
+    const gateBtn = document.getElementById("presManualRepGateBtn");
+    if (gateBtn) {
+      gateBtn.addEventListener(
+        "click",
+        function (e) {
+          e.preventDefault();
+          e.stopPropagation();
+          presDismissManualRepGate();
+        },
+        true
+      );
+    }
 
     const presProgressBar = document.getElementById("presProgressBar");
     if (presProgressBar) {
@@ -1258,6 +1350,7 @@
           }
         }
 
+        presClearManualRepGate();
         presTimeSec = stickyApplied ? targetGlobal : w.snapTime(targetGlobal);
         presClampTimeToWorkout();
         presentationRender();
@@ -1477,6 +1570,7 @@
     setPlayerPlayingUi(false);
     workoutName = wn;
     segments = segs;
+    presClearManualRepGate();
     presTimeSec = 0;
     presClampTimeToWorkout();
     rebuildPlaybackEngine();
