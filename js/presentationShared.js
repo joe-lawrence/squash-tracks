@@ -100,25 +100,120 @@
     };
   }
 
+  const SPARKS_PHYS_VEL_SCALE = 1.42;
+  const SPARKS_PHYS_DRAG = 0.985;
+  const SPARKS_PHYS_MAX_STEPS = 48;
+  /** Cap inner integration steps per frame (perf when tab stutters). */
+  const SPARKS_STATEFUL_MAX_STEPS_PER_FRAME = 28;
+  /** If global time jumps farther than this (s), re-sync particle state from analytic integration. */
+  const SPARKS_STATEFUL_SEEK_RESET_SEC = 0.22;
+  /** If `relInBurst01` jumps backward or far scrub within one burst, reset state. */
+  const SPARKS_STATEFUL_REL_JUMP = 0.12;
+
   /**
-   * Deterministic particle integration — many small steps so scrubbing still matches a short “burst” sim.
+   * One deterministic physics step (same semantics as one substep inside integrateSparkParticle).
+   */
+  function sparkPhysicsMicroStep(x, y, vx, vy, g, frac) {
+    const vs = SPARKS_PHYS_VEL_SCALE * frac;
+    const drag = SPARKS_PHYS_DRAG;
+    x += vx * vs;
+    y += vy * vs;
+    vy += g * frac;
+    vx *= Math.pow(drag, frac);
+    return { x, y, vx, vy };
+  }
+
+  /**
+   * Deterministic particle integration — fixed-rate substeps scaled by burst progress.
+   * Uses a fractional final substep so positions move smoothly with `burstT` (no stair-steps from round(t×N)).
    * @param {number} burstT 0..1 within burst
    */
   function integrateSparkParticle(ox, oy, vx0, vy0, g, burstT) {
+    const r = integrateSparkParticleWithVel(ox, oy, vx0, vy0, g, burstT);
+    return { x: r.x, y: r.y };
+  }
+
+  function integrateSparkParticleWithVel(ox, oy, vx0, vy0, g, burstT) {
     let x = ox;
     let y = oy;
     let vx = vx0;
     let vy = vy0;
-    const maxSteps = 48;
-    const steps = Math.max(1, Math.round(burstT * maxSteps));
-    const velScale = 1.85;
-    for (let k = 0; k < steps; k++) {
-      x += vx * velScale;
-      y += vy * velScale;
-      vy += g;
-      vx *= 0.985;
+    if (burstT <= 0) return { x: ox, y: oy, vx: vx0, vy: vy0 };
+    const maxSteps = SPARKS_PHYS_MAX_STEPS;
+    const edge = burstT * maxSteps;
+    const full = Math.min(maxSteps, Math.max(0, Math.floor(edge + 1e-12)));
+    const frac = Math.max(0, edge - full);
+    for (let k = 0; k < full; k++) {
+      const u = sparkPhysicsMicroStep(x, y, vx, vy, g, 1);
+      x = u.x;
+      y = u.y;
+      vx = u.vx;
+      vy = u.vy;
     }
-    return { x, y };
+    if (frac > 1e-10) {
+      const u = sparkPhysicsMicroStep(x, y, vx, vy, g, frac);
+      x = u.x;
+      y = u.y;
+      vx = u.vx;
+      vy = u.vy;
+    }
+    return { x, y, vx, vy };
+  }
+
+  /** @type {WeakMap<Document, object>} */
+  const presSparksSimByDoc = new WeakMap();
+
+  function presSparksBurstKey(st, w, h) {
+    const n = Math.max(1, Math.min(256, Math.floor(Number(st.particleCount)) || 120));
+    const ax = Number(st.anchorX01);
+    const ay = Number(st.anchorY01);
+    return [
+      st.seed >>> 0,
+      st.burstIndex | 0,
+      n,
+      Number(st.speedMul) || 1,
+      Number(st.gravityMul) || 2,
+      Number(st.hueSpread) || 40,
+      Math.round((Number(st.hueCenter) || 0) * 100),
+      Math.round(ax * 1e4),
+      Math.round(ay * 1e4),
+      w | 0,
+      h | 0,
+    ].join(":");
+  }
+
+  /**
+   * Build or reset per-burst particle list; `rnd` must be the same stream order as the draw loop.
+   */
+  function presSparksBuildParticles(ox, oy, dpr, speed, gravMul, hue0, spread, n, rnd) {
+    const parts = [];
+    for (let i = 0; i < n; i++) {
+      const ang = (Math.PI * 2 * i) / n + rnd() * 0.55;
+      const sp = (3.1 + rnd() * 4.6) * dpr * speed;
+      const vx0 = Math.cos(ang) * sp * (0.6 + rnd());
+      const vy0 = Math.sin(ang) * sp * (0.6 + rnd()) - 0.65 * dpr * gravMul;
+      const jx = (rnd() - 0.5) * 2.5 * dpr;
+      const jy = (rnd() - 0.5) * 2.5 * dpr;
+      const life = Math.max(0.08, 0.35 + rnd() * 0.35);
+      const aMul = Math.min(1, 0.4 + rnd() * 0.6);
+      const hue = hue0 + (rnd() - 0.5) * 2 * spread;
+      const pr = (1.2 + rnd() * 2) * dpr;
+      parts.push({
+        x: ox,
+        y: oy,
+        vx: vx0,
+        vy: vy0,
+        vx0,
+        vy0,
+        jx,
+        jy,
+        life,
+        aMul,
+        hue,
+        pr,
+      });
+    }
+    return parts;
   }
 
   /**
@@ -129,23 +224,31 @@
    * @param {number} w buffer width (px)
    * @param {number} h buffer height (px)
    * @param {object} st from WorkoutPresentation.activeVfxSparksState / frame.vfxSparks
+   * @param {{ doc?: Document, globalSec?: number, statefulSparks?: boolean }} [paintOpts]
    */
-  function drawPresentationVfxSparks(ctx, w, h, st) {
+  function drawPresentationVfxSparks(ctx, w, h, st, paintOpts) {
     ctx.clearRect(0, 0, w, h);
     if (!st || !st.active) return;
     const cw = Math.max(1, ctx.canvas.clientWidth || 1);
     const dpr = w / cw;
-    const rnd = makePresRng((st.seed >>> 0) ^ ((st.burstIndex | 0) * 0x2b893049));
     const ox = st.anchorX01 * w;
     const oy = st.anchorY01 * h;
     const t = Math.max(0, Math.min(1, st.relInBurst01));
     const n = Math.max(1, Math.min(256, Math.floor(Number(st.particleCount)) || 120));
     const speed = Number(st.speedMul) || 1;
     const gravMul = Number(st.gravityMul) || 2;
-    const gStep = 0.12 * dpr * gravMul;
+    const gStep = 0.1 * dpr * gravMul;
     const spread = Number(st.hueSpread) || 40;
     const hue0 = Number(st.hueCenter) || 0;
     const burstFade = Math.max(0, 1 - t * 0.98);
+
+    const doc = paintOpts && paintOpts.doc;
+    const globalSec = paintOpts && Number(paintOpts.globalSec);
+    const useStateful =
+      !!doc &&
+      paintOpts &&
+      paintOpts.statefulSparks !== false &&
+      Number.isFinite(globalSec);
 
     ctx.save();
     ctx.globalCompositeOperation = "lighter";
@@ -166,29 +269,106 @@
       ctx.fill();
     }
 
-    for (let i = 0; i < n; i++) {
-      const ang = (Math.PI * 2 * i) / n + rnd() * 0.55;
-      const sp = (4 + rnd() * 6) * dpr * speed;
-      const vx0 = Math.cos(ang) * sp * (0.6 + rnd());
-      const vy0 = Math.sin(ang) * sp * (0.6 + rnd()) - 0.8 * dpr * gravMul;
-      const pos = integrateSparkParticle(ox, oy, vx0, vy0, gStep, t);
-      const x = pos.x + (rnd() - 0.5) * 2.5 * dpr;
-      const y = pos.y + (rnd() - 0.5) * 2.5 * dpr;
-      const life = Math.max(0.08, 0.35 + rnd() * 0.35);
-      const aLife = burstFade * Math.min(1, (t + 0.08) / life) * Math.min(1, 0.4 + rnd() * 0.6);
-      const hue = hue0 + (rnd() - 0.5) * 2 * spread;
-      const pr = (1.2 + rnd() * 2) * dpr;
-      const a = Math.min(0.95, aLife * 1.25);
+    if (useStateful) {
+      const burstWallSec =
+        global.WorkoutPresentation && Number(global.WorkoutPresentation.SPARKS_BURST_DURATION_SEC) > 0
+          ? global.WorkoutPresentation.SPARKS_BURST_DURATION_SEC
+          : 0.6;
+      const physStepsPerWallSec = SPARKS_PHYS_MAX_STEPS / burstWallSec;
+      const burstKey = presSparksBurstKey(st, w, h);
+      let sim = presSparksSimByDoc.get(doc);
+      const dtWall = sim && Number.isFinite(sim.lastGlobalSec) ? globalSec - sim.lastGlobalSec : 0;
+      let reset =
+        !sim ||
+        sim.burstKey !== burstKey ||
+        !Array.isArray(sim.particles) ||
+        sim.particleCount !== n ||
+        dtWall < -1e-6 ||
+        dtWall > SPARKS_STATEFUL_SEEK_RESET_SEC ||
+        (sim.lastRel01 != null && t + 1e-9 < sim.lastRel01) ||
+        (sim.lastRel01 != null && Math.abs(t - sim.lastRel01) > SPARKS_STATEFUL_REL_JUMP);
 
-      const grd = ctx.createRadialGradient(x, y, 0, x, y, pr * 3);
-      grd.addColorStop(0, "hsla(" + hue + ",100%,70%," + a + ")");
-      grd.addColorStop(0.4, "hsla(" + hue + ",90%,50%," + a * 0.6 + ")");
-      grd.addColorStop(1, "hsla(" + hue + ",80%,40%,0)");
-      ctx.fillStyle = grd;
-      ctx.globalAlpha = 1;
-      ctx.beginPath();
-      ctx.arc(x, y, pr * 2.2, 0, Math.PI * 2);
-      ctx.fill();
+      if (reset) {
+        const rnd0 = makePresRng((st.seed >>> 0) ^ ((st.burstIndex | 0) * 0x2b893049));
+        const particles = presSparksBuildParticles(ox, oy, dpr, speed, gravMul, hue0, spread, n, rnd0);
+        for (let pi = 0; pi < particles.length; pi++) {
+          const p = particles[pi];
+          const fin = integrateSparkParticleWithVel(ox, oy, p.vx0, p.vy0, gStep, t);
+          p.x = fin.x;
+          p.y = fin.y;
+          p.vx = fin.vx;
+          p.vy = fin.vy;
+        }
+        sim = {
+          burstKey,
+          lastGlobalSec: globalSec,
+          lastRel01: t,
+          particles,
+          particleCount: n,
+        };
+        presSparksSimByDoc.set(doc, sim);
+      } else {
+        let steps = 0;
+        if (dtWall > 1e-9) {
+          steps = Math.round(dtWall * physStepsPerWallSec);
+          steps = Math.min(SPARKS_STATEFUL_MAX_STEPS_PER_FRAME, Math.max(1, steps));
+        }
+        for (let s = 0; s < steps; s++) {
+          for (let pi = 0; pi < sim.particles.length; pi++) {
+            const p = sim.particles[pi];
+            const u = sparkPhysicsMicroStep(p.x, p.y, p.vx, p.vy, gStep, 1);
+            p.x = u.x;
+            p.y = u.y;
+            p.vx = u.vx;
+            p.vy = u.vy;
+          }
+        }
+        sim.lastGlobalSec = globalSec;
+        sim.lastRel01 = t;
+      }
+
+      for (let pi = 0; pi < sim.particles.length; pi++) {
+        const p = sim.particles[pi];
+        const px = p.x + p.jx;
+        const py = p.y + p.jy;
+        const aLife = burstFade * Math.min(1, (t + 0.08) / p.life) * p.aMul;
+        const a = Math.min(0.95, aLife * 1.25);
+        const grd = ctx.createRadialGradient(px, py, 0, px, py, p.pr * 3);
+        grd.addColorStop(0, "hsla(" + p.hue + ",100%,70%," + a + ")");
+        grd.addColorStop(0.4, "hsla(" + p.hue + ",90%,50%," + a * 0.6 + ")");
+        grd.addColorStop(1, "hsla(" + p.hue + ",80%,40%,0)");
+        ctx.fillStyle = grd;
+        ctx.globalAlpha = 1;
+        ctx.beginPath();
+        ctx.arc(px, py, p.pr * 2.2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    } else {
+      const rnd = makePresRng((st.seed >>> 0) ^ ((st.burstIndex | 0) * 0x2b893049));
+      for (let i = 0; i < n; i++) {
+        const ang = (Math.PI * 2 * i) / n + rnd() * 0.55;
+        const sp = (3.1 + rnd() * 4.6) * dpr * speed;
+        const vx0 = Math.cos(ang) * sp * (0.6 + rnd());
+        const vy0 = Math.sin(ang) * sp * (0.6 + rnd()) - 0.65 * dpr * gravMul;
+        const pos = integrateSparkParticle(ox, oy, vx0, vy0, gStep, t);
+        const x = pos.x + (rnd() - 0.5) * 2.5 * dpr;
+        const y = pos.y + (rnd() - 0.5) * 2.5 * dpr;
+        const life = Math.max(0.08, 0.35 + rnd() * 0.35);
+        const aLife = burstFade * Math.min(1, (t + 0.08) / life) * Math.min(1, 0.4 + rnd() * 0.6);
+        const hue = hue0 + (rnd() - 0.5) * 2 * spread;
+        const pr = (1.2 + rnd() * 2) * dpr;
+        const a = Math.min(0.95, aLife * 1.25);
+
+        const grd = ctx.createRadialGradient(x, y, 0, x, y, pr * 3);
+        grd.addColorStop(0, "hsla(" + hue + ",100%,70%," + a + ")");
+        grd.addColorStop(0.4, "hsla(" + hue + ",90%,50%," + a * 0.6 + ")");
+        grd.addColorStop(1, "hsla(" + hue + ",80%,40%,0)");
+        ctx.fillStyle = grd;
+        ctx.globalAlpha = 1;
+        ctx.beginPath();
+        ctx.arc(x, y, pr * 2.2, 0, Math.PI * 2);
+        ctx.fill();
+      }
     }
 
     ctx.restore();
@@ -220,6 +400,7 @@
    * @param {string} [opts.workoutName]
    * @param {string} opts.defaultWorkoutName
    * @param {number} opts.timeSec — global workout second (caller clamps if needed)
+   * @param {boolean} [opts.statefulSparks] — when not `false`, carry spark particle velocity across frames (smoother; default on).
    */
   function renderPresentationIntoDocument(doc, opts) {
     const WP = global.WorkoutPresentation;
@@ -258,10 +439,15 @@
       if (sctx && vs && vs.active) {
         sparksCanvas.hidden = false;
         sparksCanvas.setAttribute("aria-hidden", "true");
-        drawPresentationVfxSparks(sctx, bw, bh, vs);
+        drawPresentationVfxSparks(sctx, bw, bh, vs, {
+          doc,
+          globalSec: t,
+          statefulSparks: opts.statefulSparks,
+        });
       } else {
         if (sctx) sctx.clearRect(0, 0, sparksCanvas.width, sparksCanvas.height);
         sparksCanvas.hidden = true;
+        presSparksSimByDoc.delete(doc);
       }
     }
     const titleEl = doc.getElementById("presWorkoutTitle");
@@ -324,6 +510,10 @@
     if (barEl) barEl.style.width = (frame.repProgress01 * 100).toFixed(2) + "%";
   }
 
+  function clearPresentationSparksSim(doc) {
+    if (doc) presSparksSimByDoc.delete(doc);
+  }
+
   global.WorkoutPresentationShared = {
     PRES_SVG_PLAY,
     PRES_SVG_PAUSE,
@@ -333,5 +523,6 @@
     parseHexColorToRgb,
     parseCssColorToRgb,
     renderPresentationIntoDocument,
+    clearPresentationSparksSim,
   };
 })(typeof window !== "undefined" ? window : globalThis);

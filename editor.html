@@ -2186,7 +2186,6 @@
             >Cycles (repeats)</label
           >
           <input type="number" id="editVfxRepeat" min="1" max="99" step="1" class="num-stepper-val" style="max-width: 6rem" />
-          <p id="editVfxSparksBurstHelp" class="field-hint" hidden style="margin: 0.35rem 0 0; max-width: 28rem; line-height: 1.35"></p>
         </div>
         <div id="vfxTintColorFieldsWrap">
           <div class="field">
@@ -2634,21 +2633,6 @@
           return WP.sparksBurstCountFromCueDurationSec(durSec);
         }
         return sparksEditorBurstCountFromFormDuration(durSec);
-      }
-
-      function updateEditVfxSparksBurstHelp() {
-        const el = document.getElementById("editVfxSparksBurstHelp");
-        if (!el || !editVfxEffectType) return;
-        const isSparks = editVfxEffectType.value === "sparks";
-        el.hidden = !isSparks;
-        if (!isSparks) return;
-        const B = sparksBurstDurationSec();
-        el.textContent =
-          "Each spark burst plays for " +
-          B +
-          " s. Burst count is derived from duration (or change bursts to set duration to bursts × " +
-          B +
-          " s). Max 99 bursts.";
       }
 
       const CUE_DEFAULT_DURATIONS_STORAGE_KEY = "repEditorCueDefaultDurations";
@@ -8112,10 +8096,9 @@
         if (labelEditVfxRepeat) {
           labelEditVfxRepeat.textContent = isSparks ? "Bursts" : "Cycles (repeats)";
           labelEditVfxRepeat.title = isSparks
-            ? "Each burst is a fixed length; total cue duration is bursts × that length (see hint below)."
+            ? "Changing bursts updates cue length."
             : "How many cycles fit in this cue’s duration — many cycles with a short duration reads as a strobe.";
         }
-        updateEditVfxSparksBurstHelp();
       }
 
       function syncSparksBurstFromRepeatField() {
