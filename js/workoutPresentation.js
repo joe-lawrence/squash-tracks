@@ -199,7 +199,9 @@
 
   function vfxEffectTypeOf(ev) {
     const eff = ev && ev.vfxEffectType != null ? String(ev.vfxEffectType).trim().toLowerCase() : "background";
-    return eff === "sparks" ? "sparks" : "background";
+    if (eff === "sparks") return "sparks";
+    if (eff === "trail") return "trail";
+    return "background";
   }
 
   /** Deterministic 32-bit mix for seeds (no Math.random in presentation math). */
@@ -216,6 +218,12 @@
   const SPARKS_SPEED_MUL = 1;
   const SPARKS_HUE_SPREAD = 40;
   const SPARKS_GRAVITY_MUL = 2;
+
+  const TRAIL_PARTICLE_COUNT = 120;
+  const TRAIL_SPEED_MUL = 1;
+  const TRAIL_HUE_CENTER = 10;
+  const TRAIL_HUE_SPREAD = 30;
+  const TRAIL_GRAVITY_MUL = 1;
   /** Wall-clock length of one full spark burst (matches 0.1 s snap grid: 6 × TIME_SNAP_SEC). */
   const SPARKS_BURST_DURATION_SEC = 0.6;
 
@@ -300,6 +308,67 @@
     };
   }
 
+  /**
+   * Trail spark overlay: fixed hue (10 / 30°), 120 emitters on a near-horizontal path just above the progress bar.
+   * Same burst timing as sparks (`SPARKS_BURST_DURATION_SEC` slices from cue duration).
+   */
+  function activeVfxTrailState(segment, localSec) {
+    const inactive = {
+      active: false,
+      relInBurst01: 0,
+      burstIndex: 0,
+      burstCount: 1,
+      seed: 0,
+      anchorX01: 0.5,
+      anchorY01: 0.8,
+      hueCenter: TRAIL_HUE_CENTER,
+      particleCount: TRAIL_PARTICLE_COUNT,
+      speedMul: TRAIL_SPEED_MUL,
+      hueSpread: TRAIL_HUE_SPREAD,
+      gravityMul: TRAIL_GRAVITY_MUL,
+    };
+    const win = findWinningVfxEvent(segment, localSec);
+    if (!win) return inactive;
+    const best = win.ev;
+    if (vfxEffectTypeOf(best) !== "trail") return inactive;
+    const dur = Math.max(TIME_SNAP_SEC, snapTime(best.duration));
+    const burstCount = sparksBurstCountFromCueDurationSec(dur);
+    const burstSpan = snapTime(burstCount * SPARKS_BURST_DURATION_SEC);
+    const t0 = snapTime(localSec - snapTime(best.start));
+    if (t0 < 0 || t0 >= dur || t0 >= burstSpan - 1e-9) return inactive;
+    const burstIndex = Math.min(
+      burstCount - 1,
+      Math.max(0, Math.floor(t0 / SPARKS_BURST_DURATION_SEC + 1e-12))
+    );
+    const relInBurst01 = Math.max(
+      0,
+      Math.min(1, (t0 - burstIndex * SPARKS_BURST_DURATION_SEC) / SPARKS_BURST_DURATION_SEC)
+    );
+    let idHash = 0;
+    const idStr = best.elementId != null ? String(best.elementId) : "";
+    for (let i = 0; i < idStr.length; i++) {
+      idHash = (Math.imul(idHash, 31) + idStr.charCodeAt(i)) >>> 0;
+    }
+    const seedBase = vfxMix32(
+      vfxMix32(Math.floor(snapTime(best.start) * 1000), Math.floor(dur * 1000)),
+      vfxMix32(idHash, burstIndex * 0x9e3779b9)
+    );
+    return {
+      active: true,
+      relInBurst01,
+      burstIndex,
+      burstCount,
+      seed: seedBase,
+      anchorX01: 0.5,
+      anchorY01: 0.8,
+      hueCenter: TRAIL_HUE_CENTER,
+      particleCount: TRAIL_PARTICLE_COUNT,
+      speedMul: TRAIL_SPEED_MUL,
+      hueSpread: TRAIL_HUE_SPREAD,
+      gravityMul: TRAIL_GRAVITY_MUL,
+    };
+  }
+
   /** Which VFX event wins when several overlap (latest start wins, same as text lane). */
   function activeVfxOverlayState(segment, localSec) {
     const empty = { active: false, opacity: 0, colorMode: "scheme", customHex: "" };
@@ -378,6 +447,7 @@
         vfxOverlay: { active: false, opacity: 0, colorMode: "scheme", customHex: "" },
         vfxSparks: {
           active: false,
+          effectKind: "sparks",
           relInBurst01: 0,
           burstIndex: 0,
           burstCount: 1,
@@ -408,7 +478,30 @@
     const repName = presentationHideRepInfo ? "" : repDisplayName(segment, rIdx);
     const cuePres = activeTextCuePresentation(segment, localSec);
     const vfx = activeVfxOverlayState(segment, localSec);
-    const vfxSparks = activeVfxSparksState(segment, localSec);
+    const trailSt = activeVfxTrailState(segment, localSec);
+    const sparksSt = activeVfxSparksState(segment, localSec);
+    let vfxSparks;
+    if (trailSt.active) {
+      vfxSparks = Object.assign({ effectKind: "trail" }, trailSt);
+    } else if (sparksSt.active) {
+      vfxSparks = Object.assign({ effectKind: "sparks" }, sparksSt);
+    } else {
+      vfxSparks = {
+        active: false,
+        effectKind: "sparks",
+        relInBurst01: 0,
+        burstIndex: 0,
+        burstCount: 1,
+        seed: 0,
+        anchorX01: 0.5,
+        anchorY01: 0.5,
+        hueCenter: 0,
+        particleCount: 120,
+        speedMul: 1,
+        hueSpread: 40,
+        gravityMul: 2,
+      };
+    }
     return {
       workoutTotal,
       globalSec: Math.min(Math.max(0, globalSec), workoutTotal),
@@ -457,6 +550,7 @@
     repDisplayName,
     activeVfxOverlayState,
     activeVfxSparksState,
+    activeVfxTrailState,
     findWinningVfxEvent,
   };
 })(typeof window !== "undefined" ? window : globalThis);

@@ -2168,6 +2168,7 @@
           <select id="editVfxEffectType">
             <option value="background">Background</option>
             <option value="sparks">Sparks</option>
+            <option value="trail">Trail</option>
           </select>
         </div>
         <div class="field" id="vfxBackgroundSubmodesWrap">
@@ -2539,6 +2540,7 @@
       function normalizeVfxEffectType(e) {
         const t = e && e.vfxEffectType != null ? String(e.vfxEffectType).trim().toLowerCase() : "";
         if (t === "sparks") return "sparks";
+        if (t === "trail") return "trail";
         if (t === "background") return "background";
         return "background";
       }
@@ -2837,6 +2839,12 @@
       const settingsDefaultSfxDur = document.getElementById("settingsDefaultSfxDur");
       const btnZoomIn = document.getElementById("btnZoomIn");
       const btnZoomOut = document.getElementById("btnZoomOut");
+
+      function editVfxParticleBurstEffectSelected() {
+        const v = editVfxEffectType && editVfxEffectType.value;
+        const t = v != null ? String(v).trim().toLowerCase() : "";
+        return t === "sparks" || t === "trail";
+      }
 
       let clipEditContext = null;
       /** `{ i }` — segment index being edited in the part modal. */
@@ -8090,19 +8098,19 @@
       function updateVfxEffectTypeUi() {
         const et = editVfxEffectType && editVfxEffectType.value;
         const isBg = et === "background";
-        const isSparks = et === "sparks";
+        const particleFx = editVfxParticleBurstEffectSelected();
         if (vfxBackgroundSubmodesWrap) vfxBackgroundSubmodesWrap.hidden = !isBg;
-        if (vfxTintColorFieldsWrap) vfxTintColorFieldsWrap.hidden = !!isSparks;
+        if (vfxTintColorFieldsWrap) vfxTintColorFieldsWrap.hidden = !!particleFx;
         if (labelEditVfxRepeat) {
-          labelEditVfxRepeat.textContent = isSparks ? "Bursts" : "Cycles (repeats)";
-          labelEditVfxRepeat.title = isSparks
+          labelEditVfxRepeat.textContent = particleFx ? "Bursts" : "Cycles (repeats)";
+          labelEditVfxRepeat.title = particleFx
             ? "Changing bursts updates cue length."
             : "How many cycles fit in this cue’s duration — many cycles with a short duration reads as a strobe.";
         }
       }
 
       function syncSparksBurstFromRepeatField() {
-        if (!editVfxEffectType || editVfxEffectType.value !== "sparks" || !editDuration || !editVfxRepeat) return;
+        if (!editVfxParticleBurstEffectSelected() || !editDuration || !editVfxRepeat) return;
         let n = parseInt(editVfxRepeat.value, 10);
         if (!Number.isFinite(n) || n < 1) n = 1;
         n = Math.min(99, n);
@@ -8110,7 +8118,7 @@
       }
 
       function syncSparksRepeatFromDurationField() {
-        if (!editVfxEffectType || editVfxEffectType.value !== "sparks" || !editVfxRepeat || !editDuration) return;
+        if (!editVfxParticleBurstEffectSelected() || !editVfxRepeat || !editDuration) return;
         const raw = normalizeNumStepperInput(editDuration);
         if (!Number.isFinite(raw)) return;
         const d = snapTime(Math.max(TIME_SNAP_SEC, raw));
@@ -8123,7 +8131,8 @@
         if (editVfxEffectType) editVfxEffectType.value = normalizeVfxEffectType(ev);
         if (editVfxBgMode) editVfxBgMode.value = normalizeVfxBgModeFromRaw(ev);
         let rc;
-        if (normalizeVfxEffectType(ev) === "sparks") {
+        const vfxNorm = normalizeVfxEffectType(ev);
+        if (vfxNorm === "sparks" || vfxNorm === "trail") {
           const d0 = ev.duration != null ? Number(ev.duration) : sparksBurstDurationSec();
           rc = sparksBurstCountForStoredDuration(d0);
         } else {
@@ -8141,7 +8150,7 @@
         if (!ev || ev.lane !== "vfx") return;
         ev.vfxKind = "bg_fade";
         ev.vfxEffectType = editVfxEffectType && editVfxEffectType.value ? editVfxEffectType.value : "background";
-        if (ev.vfxEffectType === "sparks") {
+        if (ev.vfxEffectType === "sparks" || ev.vfxEffectType === "trail") {
           delete ev.vfxBgMode;
           ev.vfxColorMode = "scheme";
           delete ev.vfxColor;
@@ -8390,7 +8399,7 @@
         editVfxEffectType.addEventListener("change", function () {
           updateVfxEffectTypeUi();
           if (
-            editVfxEffectType.value === "sparks" &&
+            editVfxParticleBurstEffectSelected() &&
             editDuration &&
             vfxEditorWrap &&
             !vfxEditorWrap.hidden
@@ -8410,7 +8419,7 @@
       }
       if (editDuration) {
         editDuration.addEventListener("input", function () {
-          if (editVfxEffectType && editVfxEffectType.value === "sparks") syncSparksRepeatFromDurationField();
+          if (editVfxParticleBurstEffectSelected()) syncSparksRepeatFromDurationField();
         });
       }
 
@@ -8683,7 +8692,7 @@
             dur = defaultCueDurations[cat] || CUE_DEFAULT_DURATIONS_FALLBACK[cat] || CUE_DEFAULT_DURATIONS_FALLBACK.text;
           }
           dur = snapTime(Math.max(TIME_SNAP_SEC, dur));
-          if (cat === "vfx" && editVfxEffectType && editVfxEffectType.value === "sparks") {
+          if (cat === "vfx" && editVfxParticleBurstEffectSelected()) {
             const nSp = sparksEditorBurstCountFromFormDuration(dur);
             dur = sparksFormDurationFromBurstCount(nSp);
           }
@@ -8717,8 +8726,11 @@
             else delete ev.body;
           }
           if (cat === "vfx") applyVfxEditorToEvent(ev);
-          if (cat === "vfx" && normalizeVfxEffectType(ev) === "sparks") {
-            ev.vfxRepeatCount = sparksEditorBurstCountFromFormDuration(dur);
+          if (cat === "vfx") {
+            const vfxN = normalizeVfxEffectType(ev);
+            if (vfxN === "sparks" || vfxN === "trail") {
+              ev.vfxRepeatCount = sparksEditorBurstCountFromFormDuration(dur);
+            }
           }
           // Milestone: only store if different from default (TTS=true, others=false)
           if (editMilestone) {
@@ -8772,7 +8784,7 @@
         }
         st = snapTime(st);
         dur = snapTime(Math.max(TIME_SNAP_SEC, dur));
-        if (ev.lane === "vfx" && editVfxEffectType && editVfxEffectType.value === "sparks") {
+        if (ev.lane === "vfx" && editVfxParticleBurstEffectSelected()) {
           const nSp = sparksEditorBurstCountFromFormDuration(dur);
           dur = sparksFormDurationFromBurstCount(nSp);
         }
@@ -8798,8 +8810,11 @@
           else delete ev.speech;
         }
         if (ev.lane === "vfx") applyVfxEditorToEvent(ev);
-        if (ev.lane === "vfx" && normalizeVfxEffectType(ev) === "sparks") {
-          ev.vfxRepeatCount = sparksEditorBurstCountFromFormDuration(dur);
+        if (ev.lane === "vfx") {
+          const vfxN = normalizeVfxEffectType(ev);
+          if (vfxN === "sparks" || vfxN === "trail") {
+            ev.vfxRepeatCount = sparksEditorBurstCountFromFormDuration(dur);
+          }
         }
 
         const nm = editCueName ? String(editCueName.value || "").trim().slice(0, 48) : "";

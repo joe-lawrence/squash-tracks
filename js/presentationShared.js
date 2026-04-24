@@ -164,10 +164,12 @@
   const presSparksSimByDoc = new WeakMap();
 
   function presSparksBurstKey(st, w, h) {
+    const kind = st.effectKind != null ? String(st.effectKind) : "sparks";
     const n = Math.max(1, Math.min(256, Math.floor(Number(st.particleCount)) || 120));
     const ax = Number(st.anchorX01);
     const ay = Number(st.anchorY01);
     return [
+      kind,
       st.seed >>> 0,
       st.burstIndex | 0,
       n,
@@ -217,6 +219,181 @@
   }
 
   /**
+   * Trail emitters: near-horizontal path across the canvas, slightly above the rep progress bar band.
+   * Matches demo `trailSparks` speeds; hue from fixed presentation constants.
+   */
+  function presTrailBuildParticles(w, h, dpr, speed, gravMul, hue0, spread, steps, rnd) {
+    const parts = [];
+    const denom = Math.max(1, steps - 1);
+    for (let i = 0; i < steps; i++) {
+      const u = i / denom;
+      const ox = w * (0.02 + u * 0.96) + (rnd() - 0.5) * 14 * dpr * speed;
+      const oy = h * (0.792 + Math.sin(u * Math.PI) * 0.02) + (rnd() - 0.5) * 10 * dpr;
+      const angle = -Math.PI / 2 + (rnd() - 0.5) * 0.85;
+      const sp = (2 + rnd() * 3) * dpr * speed;
+      const vx0 = Math.cos(angle) * sp * (0.6 + rnd());
+      const vy0 = Math.sin(angle) * sp * (0.6 + rnd()) - 0.65 * dpr * gravMul;
+      const jx = (rnd() - 0.5) * 2 * dpr;
+      const jy = (rnd() - 0.5) * 2 * dpr;
+      const life = Math.max(0.08, 0.35 + rnd() * 0.35) * 0.95;
+      const aMul = Math.min(1, 0.4 + rnd() * 0.6);
+      const hue = hue0 + (rnd() - 0.5) * 2 * spread;
+      const pr = (1.05 + rnd() * 1.75) * dpr;
+      parts.push({
+        x: ox,
+        y: oy,
+        vx: vx0,
+        vy: vy0,
+        vx0,
+        vy0,
+        jx,
+        jy,
+        life,
+        aMul,
+        hue,
+        pr,
+      });
+    }
+    return parts;
+  }
+
+  /**
+   * Trail spark FX (fixed 120 steps, hue 10±30°, gravity 100%).
+   * @param {object} st — `frame.vfxSparks` with `effectKind: "trail"`
+   */
+  function drawPresentationVfxTrail(ctx, w, h, st, paintOpts) {
+    const cw = Math.max(1, ctx.canvas.clientWidth || 1);
+    const dpr = w / cw;
+    const t = Math.max(0, Math.min(1, st.relInBurst01));
+    const n = Math.max(1, Math.min(256, Math.floor(Number(st.particleCount)) || 120));
+    const speed = Number(st.speedMul) || 1;
+    const gravMul = Number(st.gravityMul) || 1;
+    const gStep = 0.1 * dpr * gravMul;
+    const spread = Number(st.hueSpread) || 30;
+    const hue0 = Number(st.hueCenter) || 10;
+    const burstFade = Math.max(0, 1 - t * 0.98);
+
+    const doc = paintOpts && paintOpts.doc;
+    const globalSec = paintOpts && Number(paintOpts.globalSec);
+    const useStateful =
+      !!doc &&
+      paintOpts &&
+      paintOpts.statefulSparks !== false &&
+      Number.isFinite(globalSec);
+
+    ctx.save();
+    ctx.globalCompositeOperation = "lighter";
+
+    if (useStateful) {
+      const burstWallSec =
+        global.WorkoutPresentation && Number(global.WorkoutPresentation.SPARKS_BURST_DURATION_SEC) > 0
+          ? global.WorkoutPresentation.SPARKS_BURST_DURATION_SEC
+          : 0.6;
+      const physStepsPerWallSec = SPARKS_PHYS_MAX_STEPS / burstWallSec;
+      const burstKey = presSparksBurstKey(st, w, h);
+      let sim = presSparksSimByDoc.get(doc);
+      const dtWall = sim && Number.isFinite(sim.lastGlobalSec) ? globalSec - sim.lastGlobalSec : 0;
+      let reset =
+        !sim ||
+        sim.burstKey !== burstKey ||
+        !Array.isArray(sim.particles) ||
+        sim.particleCount !== n ||
+        dtWall < -1e-6 ||
+        dtWall > SPARKS_STATEFUL_SEEK_RESET_SEC ||
+        (sim.lastRel01 != null && t + 1e-9 < sim.lastRel01) ||
+        (sim.lastRel01 != null && Math.abs(t - sim.lastRel01) > SPARKS_STATEFUL_REL_JUMP);
+
+      if (reset) {
+        const rnd0 = makePresRng((st.seed >>> 0) ^ ((st.burstIndex | 0) * 0x2b893049));
+        const particles = presTrailBuildParticles(w, h, dpr, speed, gravMul, hue0, spread, n, rnd0);
+        for (let pi = 0; pi < particles.length; pi++) {
+          const p = particles[pi];
+          const fin = integrateSparkParticleWithVel(p.x, p.y, p.vx0, p.vy0, gStep, t);
+          p.x = fin.x;
+          p.y = fin.y;
+          p.vx = fin.vx;
+          p.vy = fin.vy;
+        }
+        sim = {
+          burstKey,
+          lastGlobalSec: globalSec,
+          lastRel01: t,
+          particles,
+          particleCount: n,
+        };
+        presSparksSimByDoc.set(doc, sim);
+      } else {
+        let steps = 0;
+        if (dtWall > 1e-9) {
+          steps = Math.round(dtWall * physStepsPerWallSec);
+          steps = Math.min(SPARKS_STATEFUL_MAX_STEPS_PER_FRAME, Math.max(1, steps));
+        }
+        for (let s = 0; s < steps; s++) {
+          for (let pi = 0; pi < sim.particles.length; pi++) {
+            const p = sim.particles[pi];
+            const u = sparkPhysicsMicroStep(p.x, p.y, p.vx, p.vy, gStep, 1);
+            p.x = u.x;
+            p.y = u.y;
+            p.vx = u.vx;
+            p.vy = u.vy;
+          }
+        }
+        sim.lastGlobalSec = globalSec;
+        sim.lastRel01 = t;
+      }
+
+      for (let pi = 0; pi < sim.particles.length; pi++) {
+        const p = sim.particles[pi];
+        const px = p.x + p.jx;
+        const py = p.y + p.jy;
+        const aLife = burstFade * Math.min(1, (t + 0.08) / p.life) * p.aMul;
+        const a = Math.min(0.95, aLife * 1.25);
+        const grd = ctx.createRadialGradient(px, py, 0, px, py, p.pr * 3);
+        grd.addColorStop(0, "hsla(" + p.hue + ",100%,70%," + a + ")");
+        grd.addColorStop(0.4, "hsla(" + p.hue + ",90%,50%," + a * 0.6 + ")");
+        grd.addColorStop(1, "hsla(" + p.hue + ",80%,40%,0)");
+        ctx.fillStyle = grd;
+        ctx.globalAlpha = 1;
+        ctx.beginPath();
+        ctx.arc(px, py, p.pr * 2.2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    } else {
+      const rnd = makePresRng((st.seed >>> 0) ^ ((st.burstIndex | 0) * 0x2b893049));
+      const denom = Math.max(1, n - 1);
+      for (let i = 0; i < n; i++) {
+        const u = i / denom;
+        const ox = w * (0.02 + u * 0.96) + (rnd() - 0.5) * 14 * dpr * speed;
+        const oy = h * (0.792 + Math.sin(u * Math.PI) * 0.02) + (rnd() - 0.5) * 10 * dpr;
+        const angle = -Math.PI / 2 + (rnd() - 0.5) * 0.85;
+        const sp = (2 + rnd() * 3) * dpr * speed;
+        const vx0 = Math.cos(angle) * sp * (0.6 + rnd());
+        const vy0 = Math.sin(angle) * sp * (0.6 + rnd()) - 0.65 * dpr * gravMul;
+        const pos = integrateSparkParticle(ox, oy, vx0, vy0, gStep, t);
+        const x = pos.x + (rnd() - 0.5) * 2 * dpr;
+        const y = pos.y + (rnd() - 0.5) * 2 * dpr;
+        const life = Math.max(0.08, 0.35 + rnd() * 0.35) * 0.95;
+        const aLife = burstFade * Math.min(1, (t + 0.08) / life) * Math.min(1, 0.4 + rnd() * 0.6);
+        const hue = hue0 + (rnd() - 0.5) * 2 * spread;
+        const pr = (1.05 + rnd() * 1.75) * dpr;
+        const a = Math.min(0.95, aLife * 1.25);
+        const grd = ctx.createRadialGradient(x, y, 0, x, y, pr * 3);
+        grd.addColorStop(0, "hsla(" + hue + ",100%,70%," + a + ")");
+        grd.addColorStop(0.4, "hsla(" + hue + ",90%,50%," + a * 0.6 + ")");
+        grd.addColorStop(1, "hsla(" + hue + ",80%,40%,0)");
+        ctx.fillStyle = grd;
+        ctx.globalAlpha = 1;
+        ctx.beginPath();
+        ctx.arc(x, y, pr * 2.2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    ctx.restore();
+    ctx.globalAlpha = 1;
+  }
+
+  /**
    * Rich sparks (aligned with samples/vfx-effects-demo.html burst look): additive blend, large radial
    * glows (r → 3r gradient), optional core flash, substepped motion.
    *
@@ -229,6 +406,11 @@
   function drawPresentationVfxSparks(ctx, w, h, st, paintOpts) {
     ctx.clearRect(0, 0, w, h);
     if (!st || !st.active) return;
+    const effectKind = st.effectKind != null ? String(st.effectKind) : "sparks";
+    if (effectKind === "trail") {
+      drawPresentationVfxTrail(ctx, w, h, st, paintOpts);
+      return;
+    }
     const cw = Math.max(1, ctx.canvas.clientWidth || 1);
     const dpr = w / cw;
     const ox = st.anchorX01 * w;
