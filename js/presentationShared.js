@@ -802,6 +802,16 @@
     const gateRoot = doc.getElementById("presManualRepGate");
     if (gateRoot) {
       const on = !!opts.manualRepTransitionAwaiting;
+      const prevOn = gateRoot.getAttribute("data-pres-manual-gate-on") === "1";
+      if (on && !prevOn) {
+        const gateBtn = doc.getElementById("presManualRepGateBtn");
+        if (gateBtn) gateBtn.classList.remove("presentation-manual-rep-gate__btn--ack-pending");
+      }
+      if (!on) {
+        const gateBtn = doc.getElementById("presManualRepGateBtn");
+        if (gateBtn) gateBtn.classList.remove("presentation-manual-rep-gate__btn--ack-pending");
+      }
+      gateRoot.setAttribute("data-pres-manual-gate-on", on ? "1" : "0");
       gateRoot.hidden = !on;
       gateRoot.setAttribute("aria-hidden", on ? "false" : "true");
     }

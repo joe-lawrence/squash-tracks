@@ -777,8 +777,7 @@ body.player-menu-open .player-menu-anchor {
 }
 
 /**
- * Manual rep transition: theme-colored Lucide circle-check-big button.
- * No darkened overlay — just the button centered in the content area.
+ * Manual rep transition: idle = Lucide circle + soft “breathing” pulse; tap = circle-check-big flash then dismiss.
  */
 .presentation-manual-rep-gate {
   --pres-manual-gate-footer: clamp(4.35rem, 15cqmin, 6rem);
@@ -812,16 +811,20 @@ body.player-menu-open .player-menu-anchor {
   background: color-mix(in srgb, var(--player-pres-icon-bg) 55%, transparent);
   box-shadow:
     0 0 0 2px color-mix(in srgb, var(--player-pres-vfx-scheme) 45%, transparent),
-    0 0 28px var(--player-accent-glow-inner),
-    0 0 52px var(--player-accent-glow);
+    0 0 26px var(--player-accent-glow-inner),
+    0 0 48px var(--player-accent-glow);
   pointer-events: auto;
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
   user-select: none;
-  animation: presentation-manual-rep-gate-glow 1.6s ease-in-out infinite;
 }
 
-.presentation-manual-rep-gate__btn:hover {
+/* Idle: slower “breath” — scale + layered glow + slight ring thickness pulse */
+.presentation-manual-rep-gate__btn:not(.presentation-manual-rep-gate__btn--ack-pending) {
+  animation: presentation-manual-rep-gate-idle 2.35s ease-in-out infinite;
+}
+
+.presentation-manual-rep-gate__btn:hover:not(.presentation-manual-rep-gate__btn--ack-pending) {
   filter: brightness(1.08);
 }
 
@@ -830,20 +833,96 @@ body.player-menu-open .player-menu-anchor {
   outline-offset: 3px;
 }
 
-@keyframes presentation-manual-rep-gate-glow {
+@keyframes presentation-manual-rep-gate-idle {
   0%,
   100% {
+    transform: translate(-50%, -50%) scale(1);
+    filter: brightness(1);
     box-shadow:
-      0 0 0 2px color-mix(in srgb, var(--player-pres-vfx-scheme) 40%, transparent),
-      0 0 22px var(--player-accent-glow-inner),
-      0 0 44px var(--player-accent-glow);
+      0 0 0 2px color-mix(in srgb, var(--player-pres-vfx-scheme) 38%, transparent),
+      0 0 18px var(--player-accent-glow-inner),
+      0 0 36px var(--player-accent-glow),
+      0 0 0 0 rgba(56, 189, 248, 0);
   }
   50% {
+    transform: translate(-50%, -50%) scale(1.08);
+    filter: brightness(1.12);
     box-shadow:
-      0 0 0 2px color-mix(in srgb, var(--player-pres-vfx-scheme) 65%, transparent),
-      0 0 32px var(--player-accent-glow-inner),
-      0 0 64px var(--player-accent-glow);
+      0 0 0 3px color-mix(in srgb, var(--player-pres-vfx-scheme) 72%, transparent),
+      0 0 34px var(--player-accent-glow-inner),
+      0 0 72px var(--player-accent-glow),
+      0 0 48px color-mix(in srgb, var(--player-pres-vfx-scheme) 22%, transparent);
   }
+}
+
+/* Acknowledge: brief pop + bright ring, then JS dismisses gate */
+.presentation-manual-rep-gate__btn--ack-pending {
+  animation: presentation-manual-rep-gate-ack 0.56s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+@keyframes presentation-manual-rep-gate-ack {
+  0% {
+    transform: translate(-50%, -50%) scale(1);
+    filter: brightness(1);
+    box-shadow:
+      0 0 0 2px color-mix(in srgb, var(--player-pres-vfx-scheme) 50%, transparent),
+      0 0 28px var(--player-accent-glow-inner),
+      0 0 52px var(--player-accent-glow);
+  }
+  42% {
+    transform: translate(-50%, -50%) scale(1.16);
+    filter: brightness(1.35) saturate(1.12);
+    box-shadow:
+      0 0 0 4px color-mix(in srgb, var(--player-pres-vfx-scheme) 88%, transparent),
+      0 0 48px var(--player-accent-glow-inner),
+      0 0 96px var(--player-accent-glow),
+      0 0 80px color-mix(in srgb, var(--player-pres-vfx-scheme) 35%, transparent);
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(1.04);
+    filter: brightness(1.12);
+    box-shadow:
+      0 0 0 2px color-mix(in srgb, var(--player-pres-vfx-scheme) 55%, transparent),
+      0 0 32px var(--player-accent-glow-inner),
+      0 0 60px var(--player-accent-glow);
+  }
+}
+
+.pres-manual-gate-icon-slot {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: clamp(3.25rem, 22cqmin, 5.25rem);
+  height: clamp(3.25rem, 22cqmin, 5.25rem);
+}
+
+.pres-manual-gate-svg {
+  grid-area: 1 / 1;
+  width: 100%;
+  height: 100%;
+  transition:
+    opacity 0.14s ease,
+    transform 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.presentation-manual-rep-gate__btn .pres-manual-gate-svg--idle {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.presentation-manual-rep-gate__btn .pres-manual-gate-svg--ack {
+  opacity: 0;
+  transform: scale(0.86);
+}
+
+.presentation-manual-rep-gate__btn--ack-pending .pres-manual-gate-svg--idle {
+  opacity: 0;
+  transform: scale(0.82);
+}
+
+.presentation-manual-rep-gate__btn--ack-pending .pres-manual-gate-svg--ack {
+  opacity: 1;
+  transform: scale(1.06);
 }
 
 .presentation-panel-header {

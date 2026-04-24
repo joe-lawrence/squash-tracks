@@ -396,16 +396,28 @@
   let presManualRepGateAwaiting = false;
   /** While gate is up, presentation/audio stay on this rep until continue (segmentIndex / repIndex of the manual rep). */
   let presManualRepGateMeta = null;
+  let presManualGateAckTimer = 0;
+
+  function presResetManualGateButtonUi() {
+    if (presManualGateAckTimer) {
+      clearTimeout(presManualGateAckTimer);
+      presManualGateAckTimer = 0;
+    }
+    const gateBtn = document.getElementById("presManualRepGateBtn");
+    if (gateBtn) gateBtn.classList.remove("presentation-manual-rep-gate__btn--ack-pending");
+  }
 
   function presClearManualRepGate() {
     presManualRepGateAwaiting = false;
     presManualRepGateMeta = null;
+    presResetManualGateButtonUi();
   }
 
   function presDismissManualRepGate() {
     if (!presManualRepGateAwaiting) return;
     presManualRepGateAwaiting = false;
     presManualRepGateMeta = null;
+    presResetManualGateButtonUi();
     presWallLast = performance.now();
     const w = WP();
     if (w && Array.isArray(segments) && segments.length) {
@@ -1280,7 +1292,13 @@
         function (e) {
           e.preventDefault();
           e.stopPropagation();
-          presDismissManualRepGate();
+          if (!presManualRepGateAwaiting) return;
+          if (gateBtn.classList.contains("presentation-manual-rep-gate__btn--ack-pending")) return;
+          gateBtn.classList.add("presentation-manual-rep-gate__btn--ack-pending");
+          presManualGateAckTimer = window.setTimeout(function () {
+            presManualGateAckTimer = 0;
+            presDismissManualRepGate();
+          }, 520);
         },
         true
       );

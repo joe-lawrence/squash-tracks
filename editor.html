@@ -398,7 +398,7 @@
       color: var(--text);
       font: inherit;
     }
-    /** Manual rep transition overlay (preview) — theme accent + glow */
+    /** Manual rep transition (preview): idle circle pulse → tap check flash */
     .presentation-manual-rep-gate {
       --pres-manual-gate-footer: clamp(4.35rem, 15cqmin, 6rem);
       --pres-manual-gate-header: clamp(2.8rem, 10cqmin, 3.5rem);
@@ -429,35 +429,104 @@
       background: color-mix(in srgb, var(--bg) 70%, rgba(30, 30, 35, 0.5));
       box-shadow:
         0 0 0 2px color-mix(in srgb, var(--lane-sfx) 45%, transparent),
-        0 0 28px color-mix(in srgb, var(--lane-sfx) 35%, transparent),
-        0 0 52px color-mix(in srgb, var(--lane-sfx) 22%, transparent);
+        0 0 26px color-mix(in srgb, var(--lane-sfx) 32%, transparent),
+        0 0 48px color-mix(in srgb, var(--lane-sfx) 20%, transparent);
       pointer-events: auto;
       -webkit-tap-highlight-color: transparent;
       touch-action: manipulation;
       user-select: none;
-      animation: presentation-manual-rep-gate-glow-editor 1.6s ease-in-out infinite;
     }
-    .presentation-manual-rep-gate__btn:hover {
+    .presentation-manual-rep-gate__btn:not(.presentation-manual-rep-gate__btn--ack-pending) {
+      animation: presentation-manual-rep-gate-idle-editor 2.35s ease-in-out infinite;
+    }
+    .presentation-manual-rep-gate__btn:hover:not(.presentation-manual-rep-gate__btn--ack-pending) {
       filter: brightness(1.08);
     }
     .presentation-manual-rep-gate__btn:focus-visible {
       outline: 2px solid var(--lane-sfx);
       outline-offset: 3px;
     }
-    @keyframes presentation-manual-rep-gate-glow-editor {
+    @keyframes presentation-manual-rep-gate-idle-editor {
       0%,
       100% {
+        transform: translate(-50%, -50%) scale(1);
+        filter: brightness(1);
         box-shadow:
-          0 0 0 2px color-mix(in srgb, var(--lane-sfx) 40%, transparent),
-          0 0 22px color-mix(in srgb, var(--lane-sfx) 28%, transparent),
-          0 0 44px color-mix(in srgb, var(--lane-sfx) 16%, transparent);
+          0 0 0 2px color-mix(in srgb, var(--lane-sfx) 38%, transparent),
+          0 0 18px color-mix(in srgb, var(--lane-sfx) 26%, transparent),
+          0 0 36px color-mix(in srgb, var(--lane-sfx) 14%, transparent),
+          0 0 0 0 rgba(56, 189, 248, 0);
       }
       50% {
+        transform: translate(-50%, -50%) scale(1.08);
+        filter: brightness(1.12);
         box-shadow:
-          0 0 0 2px color-mix(in srgb, var(--lane-sfx) 65%, transparent),
-          0 0 32px color-mix(in srgb, var(--lane-sfx) 38%, transparent),
-          0 0 64px color-mix(in srgb, var(--lane-sfx) 24%, transparent);
+          0 0 0 3px color-mix(in srgb, var(--lane-sfx) 72%, transparent),
+          0 0 34px color-mix(in srgb, var(--lane-sfx) 36%, transparent),
+          0 0 72px color-mix(in srgb, var(--lane-sfx) 22%, transparent),
+          0 0 48px color-mix(in srgb, var(--lane-sfx) 18%, transparent);
       }
+    }
+    .presentation-manual-rep-gate__btn--ack-pending {
+      animation: presentation-manual-rep-gate-ack-editor 0.56s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+    }
+    @keyframes presentation-manual-rep-gate-ack-editor {
+      0% {
+        transform: translate(-50%, -50%) scale(1);
+        filter: brightness(1);
+        box-shadow:
+          0 0 0 2px color-mix(in srgb, var(--lane-sfx) 50%, transparent),
+          0 0 28px color-mix(in srgb, var(--lane-sfx) 30%, transparent),
+          0 0 52px color-mix(in srgb, var(--lane-sfx) 18%, transparent);
+      }
+      42% {
+        transform: translate(-50%, -50%) scale(1.16);
+        filter: brightness(1.35) saturate(1.12);
+        box-shadow:
+          0 0 0 4px color-mix(in srgb, var(--lane-sfx) 88%, transparent),
+          0 0 48px color-mix(in srgb, var(--lane-sfx) 42%, transparent),
+          0 0 96px color-mix(in srgb, var(--lane-sfx) 26%, transparent),
+          0 0 80px color-mix(in srgb, var(--lane-sfx) 28%, transparent);
+      }
+      100% {
+        transform: translate(-50%, -50%) scale(1.04);
+        filter: brightness(1.12);
+        box-shadow:
+          0 0 0 2px color-mix(in srgb, var(--lane-sfx) 55%, transparent),
+          0 0 32px color-mix(in srgb, var(--lane-sfx) 34%, transparent),
+          0 0 60px color-mix(in srgb, var(--lane-sfx) 20%, transparent);
+      }
+    }
+    .pres-manual-gate-icon-slot {
+      position: relative;
+      display: grid;
+      place-items: center;
+      width: clamp(3.25rem, 22cqmin, 5.25rem);
+      height: clamp(3.25rem, 22cqmin, 5.25rem);
+    }
+    .pres-manual-gate-svg {
+      grid-area: 1 / 1;
+      width: 100%;
+      height: 100%;
+      transition:
+        opacity 0.14s ease,
+        transform 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    .presentation-manual-rep-gate__btn .pres-manual-gate-svg--idle {
+      opacity: 1;
+      transform: scale(1);
+    }
+    .presentation-manual-rep-gate__btn .pres-manual-gate-svg--ack {
+      opacity: 0;
+      transform: scale(0.86);
+    }
+    .presentation-manual-rep-gate__btn--ack-pending .pres-manual-gate-svg--idle {
+      opacity: 0;
+      transform: scale(0.82);
+    }
+    .presentation-manual-rep-gate__btn--ack-pending .pres-manual-gate-svg--ack {
+      opacity: 1;
+      transform: scale(1.06);
     }
     /** Top bar: workout name | timing (transport lives in `.presentation-panel-footer`). */
     .presentation-panel-header {
@@ -2036,25 +2105,42 @@
               type="button"
               class="presentation-manual-rep-gate__btn"
               id="presManualRepGateBtn"
-              aria-label="Continue workout preview"
+              aria-label="Tap circle to continue preview"
               title="Continue"
             >
-              <!-- Lucide circle-check-big — https://lucide.dev/icons/circle-check-big (ISC) -->
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="96"
-                height="96"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="1.35"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                aria-hidden="true"
-              >
-                <path d="M21.801 10A10 10 0 1 1 17 3.335" />
-                <path d="m9 11 3 3L22 4" />
-              </svg>
+              <span class="pres-manual-gate-icon-slot" aria-hidden="true">
+                <!-- Lucide circle — https://lucide.dev/icons/circle (ISC) -->
+                <svg
+                  class="pres-manual-gate-svg pres-manual-gate-svg--idle"
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="96"
+                  height="96"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.35"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <circle cx="12" cy="12" r="10" />
+                </svg>
+                <!-- Lucide circle-check-big — https://lucide.dev/icons/circle-check-big (ISC) -->
+                <svg
+                  class="pres-manual-gate-svg pres-manual-gate-svg--ack"
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="96"
+                  height="96"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.35"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M21.801 10A10 10 0 1 1 17 3.335" />
+                  <path d="m9 11 3 3L22 4" />
+                </svg>
+              </span>
             </button>
           </div>
           <div class="presentation-panel-header">
@@ -9788,16 +9874,28 @@
       let presWallLast = 0;
       let presManualRepGateAwaiting = false;
       let presManualRepGateMeta = null;
+      let presManualGateAckTimer = 0;
+
+      function presResetManualGateButtonUi() {
+        if (presManualGateAckTimer) {
+          clearTimeout(presManualGateAckTimer);
+          presManualGateAckTimer = 0;
+        }
+        const gateBtn = document.getElementById("presManualRepGateBtn");
+        if (gateBtn) gateBtn.classList.remove("presentation-manual-rep-gate__btn--ack-pending");
+      }
 
       function presClearManualRepGate() {
         presManualRepGateAwaiting = false;
         presManualRepGateMeta = null;
+        presResetManualGateButtonUi();
       }
 
       function presDismissManualRepGate() {
         if (!presManualRepGateAwaiting) return;
         presManualRepGateAwaiting = false;
         presManualRepGateMeta = null;
+        presResetManualGateButtonUi();
         presWallLast = performance.now();
         const WP = WorkoutPresentation;
         if (WP && Array.isArray(segments) && segments.length) {
@@ -10755,7 +10853,13 @@
             (e) => {
               e.preventDefault();
               e.stopPropagation();
-              presDismissManualRepGate();
+              if (!presManualRepGateAwaiting) return;
+              if (presManualRepGateBtn.classList.contains("presentation-manual-rep-gate__btn--ack-pending")) return;
+              presManualRepGateBtn.classList.add("presentation-manual-rep-gate__btn--ack-pending");
+              presManualGateAckTimer = window.setTimeout(() => {
+                presManualGateAckTimer = 0;
+                presDismissManualRepGate();
+              }, 520);
             },
             true
           );
