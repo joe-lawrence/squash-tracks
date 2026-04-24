@@ -199,7 +199,7 @@
 
   function vfxEffectTypeOf(ev) {
     const eff = ev && ev.vfxEffectType != null ? String(ev.vfxEffectType).trim().toLowerCase() : "background";
-    if (eff === "sparks") return "sparks";
+    if (eff === "fireworks" || eff === "sparks") return "fireworks";
     if (eff === "trail") return "trail";
     return "background";
   }
@@ -224,11 +224,11 @@
   const TRAIL_HUE_CENTER = 10;
   const TRAIL_HUE_SPREAD = 30;
   const TRAIL_GRAVITY_MUL = 1;
-  /** Wall-clock length of one full spark burst (matches 0.1 s snap grid: 6 × TIME_SNAP_SEC). */
-  const SPARKS_BURST_DURATION_SEC = 0.6;
+  /** Wall-clock length of one full fireworks burst (0.1 s snap grid: 5 × TIME_SNAP_SEC). */
+  const SPARKS_BURST_DURATION_SEC = 0.5;
 
   /**
-   * Burst count for a sparks cue from its duration (editor and playback agree).
+   * Burst count for a fireworks cue from its duration (editor and playback agree).
    * @param {number} durSec snapped cue duration in seconds
    */
   function sparksBurstCountFromCueDurationSec(durSec) {
@@ -242,17 +242,19 @@
   }
 
   /**
-   * Sparks overlay snapshot for canvas rendering (deterministic from time + event).
+   * Fireworks overlay snapshot for canvas rendering (deterministic from time + event).
    * Bursts: each full burst plays for `SPARKS_BURST_DURATION_SEC`; count is derived from cue duration
    * (see `sparksBurstCountFromCueDurationSec`). Bursts are sequential in wall time, not compressed into rel01.
    */
-  function activeVfxSparksState(segment, localSec) {
+  function activeVfxSparksState(segment, localSec, vfxVisualSalt) {
+    const salt = Number(vfxVisualSalt) >>> 0;
     const inactive = {
       active: false,
       relInBurst01: 0,
       burstIndex: 0,
       burstCount: 1,
       seed: 0,
+      fireworksEventId: "",
       anchorX01: 0.5,
       anchorY01: 0.5,
       hueCenter: 0,
@@ -264,7 +266,7 @@
     const win = findWinningVfxEvent(segment, localSec);
     if (!win) return inactive;
     const best = win.ev;
-    if (vfxEffectTypeOf(best) !== "sparks") return inactive;
+    if (vfxEffectTypeOf(best) !== "fireworks") return inactive;
     const dur = Math.max(TIME_SNAP_SEC, snapTime(best.duration));
     const burstCount = sparksBurstCountFromCueDurationSec(dur);
     const burstSpan = snapTime(burstCount * SPARKS_BURST_DURATION_SEC);
@@ -287,8 +289,9 @@
       vfxMix32(Math.floor(snapTime(best.start) * 1000), Math.floor(dur * 1000)),
       vfxMix32(idHash, burstIndex * 0x9e3779b9)
     );
-    const rngHue = vfxMix32(seedBase, 1);
-    const rngAnchor = vfxMix32(seedBase, 2);
+    const seed = vfxMix32(seedBase, salt);
+    const rngHue = vfxMix32(seed, 1);
+    const rngAnchor = vfxMix32(seed, 2);
     const hueCenter = (rngHue % 36000) / 100;
     const anchorX01 = 0.12 + (rngAnchor % 10000) / 10000 * 0.76;
     const anchorY01 = 0.12 + ((rngAnchor >>> 14) % 10000) / 10000 * 0.76;
@@ -297,7 +300,8 @@
       relInBurst01,
       burstIndex,
       burstCount,
-      seed: seedBase,
+      seed,
+      fireworksEventId: idStr,
       anchorX01,
       anchorY01,
       hueCenter,
@@ -310,7 +314,7 @@
 
   /**
    * Trail spark overlay: fixed hue (10 / 30°), 120 emitters on a near-horizontal path just above the progress bar.
-   * Same burst timing as sparks (`SPARKS_BURST_DURATION_SEC` slices from cue duration).
+   * Same burst timing as fireworks (`SPARKS_BURST_DURATION_SEC` slices from cue duration).
    */
   function activeVfxTrailState(segment, localSec) {
     const inactive = {
@@ -424,8 +428,12 @@
 
   /**
    * @returns {object} Snapshot for one UI frame.
+   * @param {object} [frameOpts]
+   * @param {number} [frameOpts.vfxVisualSalt] — XOR’d into fireworks RNG seed (e.g. per-play salt from the shell).
    */
-  function presentationFrame(segments, globalSec) {
+  function presentationFrame(segments, globalSec, frameOpts) {
+    const fo = frameOpts && typeof frameOpts === "object" ? frameOpts : null;
+    const vfxVisualSalt = fo && Number.isFinite(Number(fo.vfxVisualSalt)) ? Number(fo.vfxVisualSalt) >>> 0 : 0;
     const { segmentIndex, localSec, segment, workoutTotal } = locateGlobalTime(segments, globalSec);
     const partCount = Array.isArray(segments) ? segments.length : 0;
     if (!segment) {
@@ -447,11 +455,12 @@
         vfxOverlay: { active: false, opacity: 0, colorMode: "scheme", customHex: "" },
         vfxSparks: {
           active: false,
-          effectKind: "sparks",
+          effectKind: "fireworks",
           relInBurst01: 0,
           burstIndex: 0,
           burstCount: 1,
           seed: 0,
+          fireworksEventId: "",
           anchorX01: 0.5,
           anchorY01: 0.5,
           hueCenter: 0,
@@ -479,20 +488,21 @@
     const cuePres = activeTextCuePresentation(segment, localSec);
     const vfx = activeVfxOverlayState(segment, localSec);
     const trailSt = activeVfxTrailState(segment, localSec);
-    const sparksSt = activeVfxSparksState(segment, localSec);
+    const sparksSt = activeVfxSparksState(segment, localSec, vfxVisualSalt);
     let vfxSparks;
     if (trailSt.active) {
       vfxSparks = Object.assign({ effectKind: "trail" }, trailSt);
     } else if (sparksSt.active) {
-      vfxSparks = Object.assign({ effectKind: "sparks" }, sparksSt);
+      vfxSparks = Object.assign({ effectKind: "fireworks" }, sparksSt);
     } else {
       vfxSparks = {
         active: false,
-        effectKind: "sparks",
+        effectKind: "fireworks",
         relInBurst01: 0,
         burstIndex: 0,
         burstCount: 1,
         seed: 0,
+        fireworksEventId: "",
         anchorX01: 0.5,
         anchorY01: 0.5,
         hueCenter: 0,

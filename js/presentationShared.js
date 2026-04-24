@@ -163,8 +163,55 @@
   /** @type {WeakMap<Document, object>} */
   const presSparksSimByDoc = new WeakMap();
 
+  /** Per-document salt so fireworks hues / particles change each burst and after seeks. */
+  const presVfxVisualSaltByDoc = new WeakMap();
+
+  function presRngSaltU32() {
+    return (Math.floor(Math.random() * 0x100000000) >>> 0);
+  }
+
+  /**
+   * @param {Document} doc
+   * @param {number} timeSec
+   * @param {object} opts — pass `vfxVisualSalt` to override (tests / callers).
+   * @param {object} WP — WorkoutPresentation
+   * @param {object[]} segments
+   */
+  function resolvePresentationVfxVisualSalt(doc, timeSec, opts, WP, segments) {
+    if (opts && opts.vfxVisualSalt != null && Number.isFinite(Number(opts.vfxVisualSalt))) {
+      return Number(opts.vfxVisualSalt) >>> 0;
+    }
+    if (!doc || !WP || typeof WP.presentationFrame !== "function") return 0;
+    let st = presVfxVisualSaltByDoc.get(doc);
+    const t = Number(timeSec) || 0;
+    if (!st) {
+      st = { lastT: t, v: presRngSaltU32(), lastSig: "" };
+      presVfxVisualSaltByDoc.set(doc, st);
+    }
+    if (t + 0.08 < st.lastT - 1e-9) {
+      st.v = presRngSaltU32();
+      st.lastSig = "";
+    }
+    st.lastT = t;
+    const probe = WP.presentationFrame(segments, t, { vfxVisualSalt: 0 });
+    const vs = probe.vfxSparks;
+    const fw = vs && vs.active && String(vs.effectKind) === "fireworks";
+    let sig = "";
+    if (fw) {
+      const idPart = vs.fireworksEventId != null && String(vs.fireworksEventId) ? String(vs.fireworksEventId) : "_";
+      sig = idPart + ":" + (vs.burstIndex | 0);
+    }
+    if (fw && sig !== st.lastSig) {
+      st.v = presRngSaltU32();
+      st.lastSig = sig;
+    }
+    if (!fw) st.lastSig = "";
+    presVfxVisualSaltByDoc.set(doc, st);
+    return st.v >>> 0;
+  }
+
   function presSparksBurstKey(st, w, h) {
-    const kind = st.effectKind != null ? String(st.effectKind) : "sparks";
+    const kind = st.effectKind != null ? String(st.effectKind) : "fireworks";
     const n = Math.max(1, Math.min(256, Math.floor(Number(st.particleCount)) || 120));
     const ax = Number(st.anchorX01);
     const ay = Number(st.anchorY01);
@@ -197,7 +244,7 @@
       const jx = (rnd() - 0.5) * 2.5 * dpr;
       const jy = (rnd() - 0.5) * 2.5 * dpr;
       const life = Math.max(0.08, 0.35 + rnd() * 0.35);
-      const aMul = Math.min(1, 0.4 + rnd() * 0.6);
+      const aMul = Math.min(1, 0.48 + rnd() * 0.52);
       const hue = hue0 + (rnd() - 0.5) * 2 * spread;
       const pr = (1.2 + rnd() * 2) * dpr;
       parts.push({
@@ -288,7 +335,7 @@
       const burstWallSec =
         global.WorkoutPresentation && Number(global.WorkoutPresentation.SPARKS_BURST_DURATION_SEC) > 0
           ? global.WorkoutPresentation.SPARKS_BURST_DURATION_SEC
-          : 0.6;
+          : 0.5;
       const physStepsPerWallSec = SPARKS_PHYS_MAX_STEPS / burstWallSec;
       const burstKey = presSparksBurstKey(st, w, h);
       let sim = presSparksSimByDoc.get(doc);
@@ -406,7 +453,7 @@
   function drawPresentationVfxSparks(ctx, w, h, st, paintOpts) {
     ctx.clearRect(0, 0, w, h);
     if (!st || !st.active) return;
-    const effectKind = st.effectKind != null ? String(st.effectKind) : "sparks";
+    const effectKind = st.effectKind != null ? String(st.effectKind) : "fireworks";
     if (effectKind === "trail") {
       drawPresentationVfxTrail(ctx, w, h, st, paintOpts);
       return;
@@ -440,7 +487,7 @@
       const flash = burstFade * burstFade * (1 - t / 0.42);
       const R = Math.min(w, h) * (0.22 + 0.18 * (1 - t));
       const gr = ctx.createRadialGradient(ox, oy, 0, ox, oy, R);
-      const a0 = 0.45 * flash;
+      const a0 = 0.52 * flash;
       gr.addColorStop(0, "hsla(" + (hue0 + 18) + ",100%,92%," + a0 + ")");
       gr.addColorStop(0.25, "hsla(" + hue0 + ",95%,72%," + a0 * 0.55 + ")");
       gr.addColorStop(0.55, "hsla(" + hue0 + ",90%,55%," + a0 * 0.22 + ")");
@@ -455,7 +502,7 @@
       const burstWallSec =
         global.WorkoutPresentation && Number(global.WorkoutPresentation.SPARKS_BURST_DURATION_SEC) > 0
           ? global.WorkoutPresentation.SPARKS_BURST_DURATION_SEC
-          : 0.6;
+          : 0.5;
       const physStepsPerWallSec = SPARKS_PHYS_MAX_STEPS / burstWallSec;
       const burstKey = presSparksBurstKey(st, w, h);
       let sim = presSparksSimByDoc.get(doc);
@@ -514,7 +561,7 @@
         const px = p.x + p.jx;
         const py = p.y + p.jy;
         const aLife = burstFade * Math.min(1, (t + 0.08) / p.life) * p.aMul;
-        const a = Math.min(0.95, aLife * 1.25);
+        const a = Math.min(0.98, aLife * 1.35);
         const grd = ctx.createRadialGradient(px, py, 0, px, py, p.pr * 3);
         grd.addColorStop(0, "hsla(" + p.hue + ",100%,70%," + a + ")");
         grd.addColorStop(0.4, "hsla(" + p.hue + ",90%,50%," + a * 0.6 + ")");
@@ -539,7 +586,7 @@
         const aLife = burstFade * Math.min(1, (t + 0.08) / life) * Math.min(1, 0.4 + rnd() * 0.6);
         const hue = hue0 + (rnd() - 0.5) * 2 * spread;
         const pr = (1.2 + rnd() * 2) * dpr;
-        const a = Math.min(0.95, aLife * 1.25);
+        const a = Math.min(0.98, aLife * 1.35);
 
         const grd = ctx.createRadialGradient(x, y, 0, x, y, pr * 3);
         grd.addColorStop(0, "hsla(" + hue + ",100%,70%," + a + ")");
@@ -583,6 +630,7 @@
    * @param {string} opts.defaultWorkoutName
    * @param {number} opts.timeSec — global workout second (caller clamps if needed)
    * @param {boolean} [opts.statefulSparks] — when not `false`, carry spark particle velocity across frames (smoother; default on).
+   * @param {number} [opts.vfxVisualSalt] — optional 32-bit salt for fireworks RNG (shell manages salt if omitted).
    */
   function renderPresentationIntoDocument(doc, opts) {
     const WP = global.WorkoutPresentation;
@@ -591,7 +639,8 @@
     const defaultWorkoutName = opts.defaultWorkoutName || "Workout";
     const maxT = WP.totalWorkoutDuration(segments);
     const t = Math.max(0, Math.min(Number(opts.timeSec) || 0, maxT));
-    const frame = WP.presentationFrame(segments, t);
+    const vfxSalt = resolvePresentationVfxVisualSalt(doc, t, opts, WP, segments);
+    const frame = WP.presentationFrame(segments, t, { vfxVisualSalt: vfxSalt });
     const vfxEl = doc.getElementById("presVfxOverlay");
     if (vfxEl) {
       const vx = frame.vfxOverlay;
