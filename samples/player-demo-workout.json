@@ -10,7 +10,7 @@
         {
           "name": "Rep 1",
           "elementId": "sample-rep-1",
-          "order": ["text", "tts", "sfx"],
+          "order": ["text", "tts", "sfx", "vfx"],
           "events": [
             {
               "lane": "text",
@@ -55,6 +55,19 @@
               "sfxKind": "shot",
               "name": "Shot beep",
               "elementId": "ev-sfx-1"
+            },
+            {
+              "lane": "vfx",
+              "start": 9,
+              "duration": 2,
+              "name": "Red ramp",
+              "elementId": "ev-vfx-1",
+              "vfxKind": "bg_fade",
+              "vfxRepeatCount": 1,
+              "vfxEffectType": "background",
+              "vfxBgMode": "fade_in",
+              "vfxColorMode": "custom",
+              "vfxColor": "#dc2626"
             }
           ]
         }

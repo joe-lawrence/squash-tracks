@@ -134,6 +134,195 @@
       .slice(0, TEXT_CUE_HEADING_BODY_MAX);
   }
 
+  const VFX_PEAK_OPACITY = 0.55;
+
+  function clampVfxRepeatCount(n) {
+    const k = Math.floor(Number(n));
+    if (!Number.isFinite(k) || k < 1) return 1;
+    return Math.min(99, k);
+  }
+
+  /** @param {"flash"|"fade_in"|"fade_in_out"} bgMode */
+  function resolveVfxBgMode(ev) {
+    const m = ev && ev.vfxBgMode != null ? String(ev.vfxBgMode).trim().toLowerCase() : "";
+    if (m === "flash" || m === "fade_in" || m === "fade_in_out") return m;
+    if (ev && ev.vfxFadeInOnly === true) return "fade_in";
+    return "fade_in_out";
+  }
+
+  /**
+   * Opacity multiplier [0,1] within one VFX clip, before peak scaling.
+   * `repeats` = number of cycles across the clip duration.
+   */
+  function vfxBgWaveOpacity01(relInClip01, repeats, bgMode) {
+    const r = clampVfxRepeatCount(repeats);
+    const u = ((relInClip01 * r) % 1 + 1) % 1;
+    if (bgMode === "flash") {
+      return u < 0.5 - 1e-12 ? 1 : 0;
+    }
+    if (bgMode === "fade_in") {
+      return u;
+    }
+    /* fade_in_out */
+    if (u < 0.5 - 1e-12) return u * 2;
+    return (1 - u) * 2;
+  }
+
+  /** @returns {{ ev: object, rel01: number } | null} */
+  function findWinningVfxEvent(segment, localSec) {
+    if (!segment || !Array.isArray(segment.reps)) return null;
+    const t = snapTime(localSec);
+    let best = null;
+    let bestStart = -Infinity;
+    for (const rep of segment.reps) {
+      if (!rep || !Array.isArray(rep.events)) continue;
+      for (const ev of rep.events) {
+        if (!ev || ev.lane !== "vfx") continue;
+        const kind = ev.vfxKind != null ? String(ev.vfxKind).trim() : "bg_fade";
+        if (kind !== "bg_fade") continue;
+        const a = snapTime(ev.start);
+        const b = snapTime(ev.start + ev.duration);
+        if (t + 1e-9 >= a && t < b - 1e-9) {
+          if (a >= bestStart - 1e-9) {
+            bestStart = a;
+            best = ev;
+          }
+        }
+      }
+    }
+    if (!best) return null;
+    const dur = Math.max(TIME_SNAP_SEC, snapTime(best.duration));
+    const rel = snapTime(t - snapTime(best.start)) / dur;
+    const rel01 = Math.max(0, Math.min(1, rel));
+    return { ev: best, rel01 };
+  }
+
+  function vfxEffectTypeOf(ev) {
+    const eff = ev && ev.vfxEffectType != null ? String(ev.vfxEffectType).trim().toLowerCase() : "background";
+    return eff === "sparks" ? "sparks" : "background";
+  }
+
+  /** Deterministic 32-bit mix for seeds (no Math.random in presentation math). */
+  function vfxMix32(a, b) {
+    let x = (Math.imul(a | 0, 0xcc9e2d51) ^ (b | 0)) >>> 0;
+    x ^= x >>> 16;
+    x = Math.imul(x, 0x85ebca6b) >>> 0;
+    x ^= x >>> 13;
+    x = Math.imul(x, 0xc2b2ae35) >>> 0;
+    return x >>> 0;
+  }
+
+  const SPARKS_PARTICLE_COUNT = 120;
+  const SPARKS_SPEED_MUL = 1;
+  const SPARKS_HUE_SPREAD = 40;
+  const SPARKS_GRAVITY_MUL = 2;
+  /** Wall-clock length of one full spark burst (matches 0.1 s snap grid: 6 × TIME_SNAP_SEC). */
+  const SPARKS_BURST_DURATION_SEC = 0.6;
+
+  /**
+   * Burst count for a sparks cue from its duration (editor and playback agree).
+   * @param {number} durSec snapped cue duration in seconds
+   */
+  function sparksBurstCountFromCueDurationSec(durSec) {
+    const d = Math.max(TIME_SNAP_SEC, snapTime(durSec));
+    const b = SPARKS_BURST_DURATION_SEC;
+    let n = Math.round(d / b);
+    if (!Number.isFinite(n) || n < 1) n = 1;
+    n = Math.min(99, n);
+    while (n > 1 && snapTime(n * b) > d + 1e-9) n--;
+    return n;
+  }
+
+  /**
+   * Sparks overlay snapshot for canvas rendering (deterministic from time + event).
+   * Bursts: each full burst plays for `SPARKS_BURST_DURATION_SEC`; count is derived from cue duration
+   * (see `sparksBurstCountFromCueDurationSec`). Bursts are sequential in wall time, not compressed into rel01.
+   */
+  function activeVfxSparksState(segment, localSec) {
+    const inactive = {
+      active: false,
+      relInBurst01: 0,
+      burstIndex: 0,
+      burstCount: 1,
+      seed: 0,
+      anchorX01: 0.5,
+      anchorY01: 0.5,
+      hueCenter: 0,
+      particleCount: SPARKS_PARTICLE_COUNT,
+      speedMul: SPARKS_SPEED_MUL,
+      hueSpread: SPARKS_HUE_SPREAD,
+      gravityMul: SPARKS_GRAVITY_MUL,
+    };
+    const win = findWinningVfxEvent(segment, localSec);
+    if (!win) return inactive;
+    const best = win.ev;
+    if (vfxEffectTypeOf(best) !== "sparks") return inactive;
+    const dur = Math.max(TIME_SNAP_SEC, snapTime(best.duration));
+    const burstCount = sparksBurstCountFromCueDurationSec(dur);
+    const burstSpan = snapTime(burstCount * SPARKS_BURST_DURATION_SEC);
+    const t0 = snapTime(localSec - snapTime(best.start));
+    if (t0 < 0 || t0 >= dur || t0 >= burstSpan - 1e-9) return inactive;
+    const burstIndex = Math.min(
+      burstCount - 1,
+      Math.max(0, Math.floor(t0 / SPARKS_BURST_DURATION_SEC + 1e-12))
+    );
+    const relInBurst01 = Math.max(
+      0,
+      Math.min(1, (t0 - burstIndex * SPARKS_BURST_DURATION_SEC) / SPARKS_BURST_DURATION_SEC)
+    );
+    let idHash = 0;
+    const idStr = best.elementId != null ? String(best.elementId) : "";
+    for (let i = 0; i < idStr.length; i++) {
+      idHash = (Math.imul(idHash, 31) + idStr.charCodeAt(i)) >>> 0;
+    }
+    const seedBase = vfxMix32(
+      vfxMix32(Math.floor(snapTime(best.start) * 1000), Math.floor(dur * 1000)),
+      vfxMix32(idHash, burstIndex * 0x9e3779b9)
+    );
+    const rngHue = vfxMix32(seedBase, 1);
+    const rngAnchor = vfxMix32(seedBase, 2);
+    const hueCenter = (rngHue % 36000) / 100;
+    const anchorX01 = 0.12 + (rngAnchor % 10000) / 10000 * 0.76;
+    const anchorY01 = 0.12 + ((rngAnchor >>> 14) % 10000) / 10000 * 0.76;
+    return {
+      active: true,
+      relInBurst01,
+      burstIndex,
+      burstCount,
+      seed: seedBase,
+      anchorX01,
+      anchorY01,
+      hueCenter,
+      particleCount: SPARKS_PARTICLE_COUNT,
+      speedMul: SPARKS_SPEED_MUL,
+      hueSpread: SPARKS_HUE_SPREAD,
+      gravityMul: SPARKS_GRAVITY_MUL,
+    };
+  }
+
+  /** Which VFX event wins when several overlap (latest start wins, same as text lane). */
+  function activeVfxOverlayState(segment, localSec) {
+    const empty = { active: false, opacity: 0, colorMode: "scheme", customHex: "" };
+    const win = findWinningVfxEvent(segment, localSec);
+    if (!win) return empty;
+    const best = win.ev;
+    if (vfxEffectTypeOf(best) !== "background") return empty;
+    const rel01 = win.rel01;
+    const repeats = clampVfxRepeatCount(best.vfxRepeatCount != null ? best.vfxRepeatCount : 1);
+    const bgMode = resolveVfxBgMode(best);
+    const wave = vfxBgWaveOpacity01(rel01, repeats, bgMode);
+    const op = Math.max(0, Math.min(1, wave * VFX_PEAK_OPACITY));
+    const colorMode = best.vfxColorMode === "custom" ? "custom" : "scheme";
+    const customHex =
+      best.vfxColor != null && String(best.vfxColor).trim() ? String(best.vfxColor).trim().slice(0, 32) : "";
+    return {
+      active: op > 1e-5,
+      opacity: op,
+      colorMode,
+      customHex,
+    };
+  }
+
   /** Active text-lane cue content for presentation (heading + body, not cue name). */
   function activeTextCuePresentation(segment, localSec) {
     if (!segment || !Array.isArray(segment.reps)) {
@@ -186,6 +375,21 @@
         cuePresentationActive: false,
         cueHeading: "",
         cueBody: "",
+        vfxOverlay: { active: false, opacity: 0, colorMode: "scheme", customHex: "" },
+        vfxSparks: {
+          active: false,
+          relInBurst01: 0,
+          burstIndex: 0,
+          burstCount: 1,
+          seed: 0,
+          anchorX01: 0.5,
+          anchorY01: 0.5,
+          hueCenter: 0,
+          particleCount: 120,
+          speedMul: 1,
+          hueSpread: 40,
+          gravityMul: 2,
+        },
       };
     }
     const reps = segment.reps || [];
@@ -203,6 +407,8 @@
     const presentationHideRepInfo = rawRepName.startsWith(".");
     const repName = presentationHideRepInfo ? "" : repDisplayName(segment, rIdx);
     const cuePres = activeTextCuePresentation(segment, localSec);
+    const vfx = activeVfxOverlayState(segment, localSec);
+    const vfxSparks = activeVfxSparksState(segment, localSec);
     return {
       workoutTotal,
       globalSec: Math.min(Math.max(0, globalSec), workoutTotal),
@@ -218,6 +424,8 @@
       cuePresentationActive: cuePres.active,
       cueHeading: cuePres.heading,
       cueBody: cuePres.body,
+      vfxOverlay: vfx,
+      vfxSparks,
     };
   }
 
@@ -233,6 +441,8 @@
 
   global.WorkoutPresentation = {
     TIME_SNAP_SEC,
+    SPARKS_BURST_DURATION_SEC,
+    sparksBurstCountFromCueDurationSec,
     snapTime,
     repDurationForDefault,
     cumulativeRepStartInSegment,
@@ -245,5 +455,8 @@
     globalSecAtRepStart,
     activeTextCuePresentation,
     repDisplayName,
+    activeVfxOverlayState,
+    activeVfxSparksState,
+    findWinningVfxEvent,
   };
 })(typeof window !== "undefined" ? window : globalThis);

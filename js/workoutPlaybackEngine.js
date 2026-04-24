@@ -8,7 +8,7 @@
 (function (global) {
   "use strict";
 
-  const LANES = new Set(["text", "tts", "sfx"]);
+  const LANES = new Set(["text", "tts", "sfx", "vfx"]);
 
   function ttsTextFromEvent(ev) {
     if (ev.speech != null && String(ev.speech).trim()) {
@@ -94,6 +94,16 @@
           if (lane === "tts") {
             row.voiceSlot = raw.voiceSlot === "b" ? "b" : "a";
             if (raw.speech != null && String(raw.speech).trim()) row.speech = String(raw.speech).trim();
+          }
+          if (lane === "vfx") {
+            row.vfxKind = raw.vfxKind != null ? String(raw.vfxKind).trim() : "bg_fade";
+            row.vfxRepeatCount = raw.vfxRepeatCount;
+            row.vfxEffectType =
+              raw.vfxEffectType != null ? String(raw.vfxEffectType).trim().toLowerCase() : "background";
+            row.vfxBgMode = raw.vfxBgMode != null ? String(raw.vfxBgMode).trim().toLowerCase() : "";
+            row.vfxFadeInOnly = !!raw.vfxFadeInOnly;
+            row.vfxColorMode = raw.vfxColorMode === "custom" ? "custom" : "scheme";
+            row.vfxColor = raw.vfxColor != null ? String(raw.vfxColor) : "";
           }
           out.push(row);
         }

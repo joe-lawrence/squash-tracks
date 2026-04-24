@@ -24,6 +24,8 @@
       --lane-text: #f472b6;
       --lane-tts: #a78bfa;
       --lane-sfx: #2dd4bf;
+      --lane-vfx: #fb923c;
+      --editor-pres-vfx-scheme: #fb923c;
       --btn: #1a1d24;
       /** Brighter than `--line` for emphasis (borders, playhead) — not quite white. */
       --line-bright: color-mix(in srgb, var(--line) 22%, #e8eaef 78%);
@@ -356,6 +358,7 @@
     }
     /** Inner “fullscreen” viewport (what the PWA would show). */
     .presentation-device-screen {
+      position: relative;
       container-type: size;
       container-name: presdev;
       flex: 1 1 auto;
@@ -366,6 +369,24 @@
       display: flex;
       flex-direction: column;
       background: linear-gradient(165deg, #0c0e12 0%, #060708 100%);
+    }
+    .presentation-vfx-overlay {
+      position: absolute;
+      inset: 0;
+      z-index: 0;
+      pointer-events: none;
+      border-radius: inherit;
+      background: transparent;
+    }
+    .presentation-vfx-sparks-canvas {
+      position: absolute;
+      inset: 0;
+      z-index: 2;
+      width: 100%;
+      height: 100%;
+      display: block;
+      pointer-events: none;
+      border-radius: inherit;
     }
     /** Top bar: workout name | timing (transport lives in `.presentation-panel-footer`). */
     .presentation-panel-header {
@@ -1618,6 +1639,7 @@
     .clip.text { background: linear-gradient(180deg, #f9a8d4, #db2777); color: #fff; }
     .clip.tts { background: linear-gradient(180deg, #c4b5fd, #7c3aed); color: #fff; }
     .clip.sfx { background: linear-gradient(180deg, #5eead4, #0f766e); color: rgba(0, 0, 0, 0.85); }
+    .clip.vfx { background: linear-gradient(180deg, #fdba74, #c2410c); color: rgba(0, 0, 0, 0.88); }
 
     .toast {
       font-family: "JetBrains Mono", monospace;
@@ -1856,6 +1878,7 @@
       <option value="text">Text</option>
       <option value="tts">TTS</option>
       <option value="sfx">SFX</option>
+      <option value="vfx">VFX</option>
     </select>
     <span class="sep"></span>
     <div class="lib-item-picker" id="libItemPicker">
@@ -1934,6 +1957,8 @@
     <div class="presentation-device-shell">
       <div class="presentation-device-frame" id="presDeviceFrame" data-aspect="9-16">
         <div class="presentation-device-screen">
+          <div class="presentation-vfx-overlay" id="presVfxOverlay" hidden aria-hidden="true"></div>
+          <canvas class="presentation-vfx-sparks-canvas" id="presVfxSparksCanvas" hidden aria-hidden="true"></canvas>
           <div class="presentation-panel-header">
             <p class="pres-head-name" id="presWorkoutTitle">New Workout</p>
             <span class="pres-head-time" id="presTime" aria-live="polite">0.0s / 0.0s</span>
@@ -2045,6 +2070,10 @@
           <div class="timeline-gutter lane-label"><span class="dot" style="background:var(--lane-sfx)"></span>+ Add SFX</div>
           <div class="lane-body lane-track" id="lane-sfx"></div>
         </div>
+        <div class="timeline-row lane lane-row" data-lane="vfx">
+          <div class="timeline-gutter lane-label"><span class="dot" style="background:var(--lane-vfx)"></span>+ Add VFX</div>
+          <div class="lane-body lane-track" id="lane-vfx"></div>
+        </div>
         <div class="timeline-grid-overlay" id="timeline-grid-overlay" aria-hidden="true"></div>
         <div class="rep-displace-hint-overlay" id="rep-displace-hint-overlay" aria-hidden="true"></div>
         <div class="rep-selection-overlay" id="rep-selection-overlay" aria-hidden="true"></div>
@@ -2088,38 +2117,42 @@
           <textarea id="editCueBody" rows="4" maxlength="8000" autocomplete="off" spellcheck="true"></textarea>
         </div>
       </div>
-      <div class="field">
-        <label for="editStart">Start — global time (s)</label>
-        <div class="num-stepper">
-          <button type="button" class="num-stepper-btn" data-stepper-down aria-label="Decrease start">−</button>
-          <input
-            type="text"
-            inputmode="decimal"
-            class="num-stepper-val"
-            id="editStart"
-            min="0"
-            step="0.1"
-            autocomplete="off"
-            spellcheck="false"
-          />
-          <button type="button" class="num-stepper-btn" data-stepper-up aria-label="Increase start">+</button>
-        </div>
-      </div>
-      <div class="field">
-        <label for="editDuration">Duration (s)</label>
-        <div class="num-stepper">
-          <button type="button" class="num-stepper-btn" data-stepper-down aria-label="Decrease duration">−</button>
-          <input
-            type="text"
-            inputmode="decimal"
-            class="num-stepper-val"
-            id="editDuration"
-            min="0.1"
-            step="0.1"
-            autocomplete="off"
-            spellcheck="false"
-          />
-          <button type="button" class="num-stepper-btn" data-stepper-up aria-label="Increase duration">+</button>
+      <div id="clipTimingSlotTop">
+        <div id="clipTimingFieldsWrap">
+          <div class="field">
+            <label for="editStart">Start — global time (s)</label>
+            <div class="num-stepper">
+              <button type="button" class="num-stepper-btn" data-stepper-down aria-label="Decrease start">−</button>
+              <input
+                type="text"
+                inputmode="decimal"
+                class="num-stepper-val"
+                id="editStart"
+                min="0"
+                step="0.1"
+                autocomplete="off"
+                spellcheck="false"
+              />
+              <button type="button" class="num-stepper-btn" data-stepper-up aria-label="Increase start">+</button>
+            </div>
+          </div>
+          <div class="field">
+            <label for="editDuration">Duration (s)</label>
+            <div class="num-stepper">
+              <button type="button" class="num-stepper-btn" data-stepper-down aria-label="Decrease duration">−</button>
+              <input
+                type="text"
+                inputmode="decimal"
+                class="num-stepper-val"
+                id="editDuration"
+                min="0.1"
+                step="0.1"
+                autocomplete="off"
+                spellcheck="false"
+              />
+              <button type="button" class="num-stepper-btn" data-stepper-up aria-label="Increase duration">+</button>
+            </div>
+          </div>
         </div>
       </div>
       <div class="field" id="sfxKindWrap" hidden>
@@ -2128,6 +2161,47 @@
           <option value="split">Split-step</option>
           <option value="shot">Shot</option>
         </select>
+      </div>
+      <div id="vfxEditorWrap" hidden>
+        <div class="field">
+          <label for="editVfxEffectType">Effect type</label>
+          <select id="editVfxEffectType">
+            <option value="background">Background</option>
+            <option value="sparks">Sparks</option>
+          </select>
+        </div>
+        <div class="field" id="vfxBackgroundSubmodesWrap">
+          <label for="editVfxBgMode">Background style</label>
+          <select id="editVfxBgMode">
+            <option value="flash">Flash (no fade)</option>
+            <option value="fade_in">Fade in</option>
+            <option value="fade_in_out">Fade in &amp; out</option>
+          </select>
+        </div>
+        <div class="field">
+          <label
+            for="editVfxRepeat"
+            id="labelEditVfxRepeat"
+            title="How many cycles fit in this cue’s duration — many cycles with a short duration reads as a strobe."
+            >Cycles (repeats)</label
+          >
+          <input type="number" id="editVfxRepeat" min="1" max="99" step="1" class="num-stepper-val" style="max-width: 6rem" />
+          <p id="editVfxSparksBurstHelp" class="field-hint" hidden style="margin: 0.35rem 0 0; max-width: 28rem; line-height: 1.35"></p>
+        </div>
+        <div id="vfxTintColorFieldsWrap">
+          <div class="field">
+            <label for="editVfxColorMode">Tint color</label>
+            <select id="editVfxColorMode">
+              <option value="scheme">Theme (color scheme)</option>
+              <option value="custom">Custom…</option>
+            </select>
+          </div>
+          <div class="field" id="editVfxCustomColorWrap" hidden>
+            <label for="editVfxColor">Custom</label>
+            <input type="color" id="editVfxColor" value="#ef4444" />
+          </div>
+        </div>
+        <div id="clipTimingSlotVfxBottom"></div>
       </div>
       <div class="field" id="ttsVoiceSlotWrap" hidden>
         <label for="editTtsVoiceSlot">Voice slot</label>
@@ -2393,7 +2467,7 @@
     (function () {
       const FILE_VERSION_SINGLE = 1;
       const FILE_VERSION_MULTI = 2;
-      const DEFAULT_ORDER = ["text", "tts", "sfx"];
+      const DEFAULT_ORDER = ["text", "tts", "sfx", "vfx"];
       const DEFAULT_INTERVAL_FALLBACK = 4.5;
       const DEFAULT_WORKOUT_NAME = "New Workout";
       const WORKOUT_NAME_MAX_LEN = 64;
@@ -2406,6 +2480,7 @@
         { id: "text", label: "Text", clipLabel: "TXT" },
         { id: "tts", label: "TTS", clipLabel: "TTS" },
         { id: "sfx", label: "SFX", clipLabel: "SFX" },
+        { id: "vfx", label: "VFX", clipLabel: "VFX" },
       ];
 
       let nextElementIdNum = 1;
@@ -2449,6 +2524,31 @@
         if (lane === "sfx") return sfxKind === "shot" ? "shot" : "split";
         const L = LANES.find((x) => x.id === lane);
         return L ? L.clipLabel : String(lane);
+      }
+
+      function normalizeVfxHex(h) {
+        let s = String(h || "").trim();
+        if (!s) return "#ef4444";
+        if (s[0] === "#") s = s.slice(1);
+        if (s.length === 3) {
+          s = s[0] + s[0] + s[1] + s[1] + s[2] + s[2];
+        }
+        if (!/^[0-9a-fA-F]{6}$/.test(s)) return "#ef4444";
+        return "#" + s.toLowerCase();
+      }
+
+      function normalizeVfxEffectType(e) {
+        const t = e && e.vfxEffectType != null ? String(e.vfxEffectType).trim().toLowerCase() : "";
+        if (t === "sparks") return "sparks";
+        if (t === "background") return "background";
+        return "background";
+      }
+
+      function normalizeVfxBgModeFromRaw(e) {
+        const m = e && e.vfxBgMode != null ? String(e.vfxBgMode).trim().toLowerCase() : "";
+        if (m === "flash" || m === "fade_in" || m === "fade_in_out") return m;
+        if (e && e.vfxFadeInOnly === true) return "fade_in";
+        return "fade_in_out";
       }
 
       const TIME_SNAP_SEC = 0.1;
@@ -2506,8 +2606,53 @@
         return parseFloat((q * TIME_SNAP_SEC).toFixed(SNAP_FRAC_DIGITS));
       }
 
+      function sparksBurstDurationSec() {
+        const WP = typeof window !== "undefined" ? window.WorkoutPresentation : null;
+        return WP && Number.isFinite(WP.SPARKS_BURST_DURATION_SEC) ? WP.SPARKS_BURST_DURATION_SEC : 0.6;
+      }
+
+      /** Burst count from duration for sparks (editor / save); rounds then clamps 1–99. */
+      function sparksEditorBurstCountFromFormDuration(durSec) {
+        const B = sparksBurstDurationSec();
+        const d = snapTime(Math.max(TIME_SNAP_SEC, durSec));
+        let n = Math.round(d / B);
+        if (!Number.isFinite(n) || n < 1) n = 1;
+        return Math.min(99, n);
+      }
+
+      function sparksFormDurationFromBurstCount(n) {
+        const B = sparksBurstDurationSec();
+        let k = Math.floor(Number(n));
+        if (!Number.isFinite(k) || k < 1) k = 1;
+        k = Math.min(99, k);
+        return snapTime(k * B);
+      }
+
+      function sparksBurstCountForStoredDuration(durSec) {
+        const WP = typeof window !== "undefined" ? window.WorkoutPresentation : null;
+        if (WP && typeof WP.sparksBurstCountFromCueDurationSec === "function") {
+          return WP.sparksBurstCountFromCueDurationSec(durSec);
+        }
+        return sparksEditorBurstCountFromFormDuration(durSec);
+      }
+
+      function updateEditVfxSparksBurstHelp() {
+        const el = document.getElementById("editVfxSparksBurstHelp");
+        if (!el || !editVfxEffectType) return;
+        const isSparks = editVfxEffectType.value === "sparks";
+        el.hidden = !isSparks;
+        if (!isSparks) return;
+        const B = sparksBurstDurationSec();
+        el.textContent =
+          "Each spark burst plays for " +
+          B +
+          " s. Burst count is derived from duration (or change bursts to set duration to bursts × " +
+          B +
+          " s). Max 99 bursts.";
+      }
+
       const CUE_DEFAULT_DURATIONS_STORAGE_KEY = "repEditorCueDefaultDurations";
-      const CUE_DEFAULT_DURATIONS_FALLBACK = { text: 0.35, tts: 1.15, sfx: 0.4 };
+      const CUE_DEFAULT_DURATIONS_FALLBACK = { text: 0.35, tts: 1.15, sfx: 0.4, vfx: 1.0 };
 
       function loadCueDefaultDurations() {
         try {
@@ -2519,6 +2664,7 @@
                 text: snapTime(Math.max(TIME_SNAP_SEC, Number(o.text) || CUE_DEFAULT_DURATIONS_FALLBACK.text)),
                 tts: snapTime(Math.max(TIME_SNAP_SEC, Number(o.tts) || CUE_DEFAULT_DURATIONS_FALLBACK.tts)),
                 sfx: snapTime(Math.max(TIME_SNAP_SEC, Number(o.sfx) || CUE_DEFAULT_DURATIONS_FALLBACK.sfx)),
+                vfx: snapTime(Math.max(TIME_SNAP_SEC, Number(o.vfx) || CUE_DEFAULT_DURATIONS_FALLBACK.vfx)),
               };
             }
           }
@@ -2685,6 +2831,16 @@
       const editMilestone = document.getElementById("editMilestone");
       const ttsSpeechWrap = document.getElementById("ttsSpeechWrap");
       const editTtsSpeech = document.getElementById("editTtsSpeech");
+      const vfxEditorWrap = document.getElementById("vfxEditorWrap");
+      const editVfxEffectType = document.getElementById("editVfxEffectType");
+      const vfxBackgroundSubmodesWrap = document.getElementById("vfxBackgroundSubmodesWrap");
+      const editVfxBgMode = document.getElementById("editVfxBgMode");
+      const editVfxRepeat = document.getElementById("editVfxRepeat");
+      const labelEditVfxRepeat = document.getElementById("labelEditVfxRepeat");
+      const vfxTintColorFieldsWrap = document.getElementById("vfxTintColorFieldsWrap");
+      const editVfxColorMode = document.getElementById("editVfxColorMode");
+      const editVfxCustomColorWrap = document.getElementById("editVfxCustomColorWrap");
+      const editVfxColor = document.getElementById("editVfxColor");
       const settingsModal = document.getElementById("settingsModal");
       const libItemDeleteModal = document.getElementById("libItemDeleteModal");
       const libAddNameConflictModal = document.getElementById("libAddNameConflictModal");
@@ -2966,6 +3122,18 @@
         const sfxK = lane === "sfx" ? (e.sfxKind === "shot" ? "shot" : "split") : null;
         const out = { lane, start: snapTime(start), duration: snapTime(duration) };
         if (lane === "sfx") out.sfxKind = sfxK;
+        if (lane === "vfx") {
+          out.vfxKind = "bg_fade";
+          let rc = Math.floor(Number(e.vfxRepeatCount));
+          if (!Number.isFinite(rc) || rc < 1) rc = 1;
+          out.vfxRepeatCount = Math.min(99, rc);
+          out.vfxEffectType = normalizeVfxEffectType(e);
+          out.vfxBgMode = normalizeVfxBgModeFromRaw(e);
+          out.vfxColorMode = e.vfxColorMode === "custom" ? "custom" : "scheme";
+          if (out.vfxColorMode === "custom") {
+            out.vfxColor = normalizeVfxHex(e.vfxColor != null ? e.vfxColor : "#ef4444");
+          }
+        }
         if (e.elementId != null && String(e.elementId).trim()) {
           out.elementId = String(e.elementId).trim().slice(0, 80);
         }
@@ -4552,7 +4720,8 @@
       }
 
       function defaultDurationForNewCue(laneId) {
-        return snapTime(defaultCueDurations[laneId] || CUE_DEFAULT_DURATIONS_FALLBACK.text);
+        const fb = CUE_DEFAULT_DURATIONS_FALLBACK[laneId] || CUE_DEFAULT_DURATIONS_FALLBACK.text;
+        return snapTime(defaultCueDurations[laneId] || fb);
       }
 
       /**
@@ -5069,8 +5238,8 @@
       }
 
       const LIBRARY_STORAGE_KEY = "repEditorLibraryV1";
-      const LIBRARY_CATEGORIES = ["parts", "rep", "text", "tts", "sfx"];
-      let libraryStore = { parts: [], rep: [], text: [], tts: [], sfx: [] };
+      const LIBRARY_CATEGORIES = ["parts", "rep", "text", "tts", "sfx", "vfx"];
+      let libraryStore = { parts: [], rep: [], text: [], tts: [], sfx: [], vfx: [] };
       let libraryCategory = "parts";
       let libPendingDelete = null;
       /** `{ cat, snap }` when the add-name conflict modal is open. */
@@ -5113,10 +5282,10 @@
           if (!refs.length) return { error: "No valid cues in selection." };
           const lanes = new Set(refs.map((r) => r.ev && r.ev.lane).filter(Boolean));
           if (lanes.size > 1) {
-            return { error: "Select cues on one lane only (Text, TTS, or SFX)." };
+            return { error: "Select cues on one lane only (Text, TTS, SFX, or VFX)." };
           }
           const lane0 = refs[0].ev.lane;
-          if (lane0 !== "text" && lane0 !== "tts" && lane0 !== "sfx") {
+          if (lane0 !== "text" && lane0 !== "tts" && lane0 !== "sfx" && lane0 !== "vfx") {
             return { error: "Unknown cue lane." };
           }
           return { cat: lane0 };
@@ -5230,7 +5399,7 @@
             data: { reps: payloads },
           };
         }
-        if (cat === "text" || cat === "tts" || cat === "sfx") {
+        if (cat === "text" || cat === "tts" || cat === "sfx" || cat === "vfx") {
           const refs = getSelectedCueRefsSorted();
           const laneRefs = refs.filter((x) => x.ev && x.ev.lane === cat);
           if (!laneRefs.length) {
@@ -5254,6 +5423,16 @@
               o.voiceSlot = ev.voiceSlot === "b" ? "b" : "a";
               const sp = normalizeTtsSpeech(ev.speech);
               if (sp) o.speech = sp;
+            }
+            if (ev.lane === "vfx") {
+              o.vfxKind = "bg_fade";
+              let rc = Math.floor(Number(ev.vfxRepeatCount));
+              if (!Number.isFinite(rc) || rc < 1) rc = 1;
+              o.vfxRepeatCount = Math.min(99, rc);
+              o.vfxEffectType = normalizeVfxEffectType(ev);
+              o.vfxBgMode = normalizeVfxBgModeFromRaw(ev);
+              o.vfxColorMode = ev.vfxColorMode === "custom" ? "custom" : "scheme";
+              if (o.vfxColorMode === "custom" && ev.vfxColor) o.vfxColor = normalizeVfxHex(ev.vfxColor);
             }
             const nm = String(ev.name || "").trim();
             if (nm) o.name = nm.slice(0, 48);
@@ -5286,7 +5465,7 @@
           if (!Array.isArray(rr) || rr.length === 0) throw new Error('Need a non-empty "reps" array.');
           return { reps: rr.map(function(r) { return normalizeRep(r, defaultIntervalSec); }) };
         }
-        if (cat === "text" || cat === "tts" || cat === "sfx") {
+        if (cat === "text" || cat === "tts" || cat === "sfx" || cat === "vfx") {
           const evs = data.events;
           if (!Array.isArray(evs) || evs.length === 0) throw new Error('Need a non-empty "events" array.');
           return {
@@ -5302,6 +5481,16 @@
                 o.voiceSlot = String(e.voiceSlot || "").toLowerCase() === "b" ? "b" : "a";
                 const sp = normalizeTtsSpeech(e.speech);
                 if (sp) o.speech = sp;
+              }
+              if (cat === "vfx") {
+                o.vfxKind = "bg_fade";
+                let rc = Math.floor(Number(e.vfxRepeatCount));
+                if (!Number.isFinite(rc) || rc < 1) rc = 1;
+                o.vfxRepeatCount = Math.min(99, rc);
+                o.vfxEffectType = normalizeVfxEffectType(e);
+                o.vfxBgMode = normalizeVfxBgModeFromRaw(e);
+                o.vfxColorMode = e.vfxColorMode === "custom" ? "custom" : "scheme";
+                if (o.vfxColorMode === "custom") o.vfxColor = normalizeVfxHex(e.vfxColor != null ? e.vfxColor : "#ef4444");
               }
               if (e.name != null && String(e.name).trim()) o.name = String(e.name).trim().slice(0, 48);
               if (cat === "text") {
@@ -5417,6 +5606,7 @@
         if (cat === "text") return "Text · ";
         if (cat === "tts") return "TTS · ";
         if (cat === "sfx") return "SFX · ";
+        if (cat === "vfx") return "VFX · ";
         return "";
       }
 
@@ -5631,6 +5821,16 @@
         repNameInput.select();
       }
 
+      /** VFX modal: timing fields live after color controls; other lanes keep them in the default slot. */
+      function setClipTimingFieldsPlacementForLane(laneId) {
+        const slotTop = document.getElementById("clipTimingSlotTop");
+        const slotVfx = document.getElementById("clipTimingSlotVfxBottom");
+        const wrap = document.getElementById("clipTimingFieldsWrap");
+        if (!slotTop || !slotVfx || !wrap) return;
+        if (laneId === "vfx") slotVfx.appendChild(wrap);
+        else slotTop.appendChild(wrap);
+      }
+
       function openLibraryCueEditor(item, cat, id) {
         const evs = item.data && item.data.events;
         if (!Array.isArray(evs) || !evs.length) {
@@ -5684,6 +5884,12 @@
           const defaultMilestone = cat === "tts";
           editMilestone.checked = ev.milestone !== undefined ? ev.milestone : defaultMilestone;
         }
+        if (vfxEditorWrap) {
+          vfxEditorWrap.hidden = cat !== "vfx";
+          if (cat === "vfx") syncVfxEditorFromEvent(ev);
+        }
+        setClipTimingFieldsPlacementForLane(cat);
+        if (cat !== "vfx" && editVfxCustomColorWrap) editVfxCustomColorWrap.hidden = true;
         const startLbl = document.querySelector('label[for="editStart"]');
         if (startLbl) startLbl.textContent = "Start — rep-relative time (s)";
         const cr = document.getElementById("clipModalRemove");
@@ -5720,7 +5926,7 @@
           openLibraryPartEditor(item, ref.cat, ref.id);
         } else if (ref.cat === "rep") {
           openLibraryRepEditor(item, ref.cat, ref.id);
-        } else if (ref.cat === "text" || ref.cat === "tts" || ref.cat === "sfx") {
+        } else if (ref.cat === "text" || ref.cat === "tts" || ref.cat === "sfx" || ref.cat === "vfx") {
           openLibraryCueEditor(item, ref.cat, ref.id);
         } else {
           showToast("Unknown library category.");
@@ -5915,6 +6121,16 @@
                   const sp = normalizeTtsSpeech(e.speech);
                   if (sp) o.speech = sp;
                 }
+                if (cat === "vfx") {
+                  o.vfxKind = "bg_fade";
+                  let rc = Math.floor(Number(e.vfxRepeatCount));
+                  if (!Number.isFinite(rc) || rc < 1) rc = 1;
+                  o.vfxRepeatCount = Math.min(99, rc);
+                  o.vfxEffectType = normalizeVfxEffectType(e);
+                  o.vfxBgMode = normalizeVfxBgModeFromRaw(e);
+                  o.vfxColorMode = e.vfxColorMode === "custom" ? "custom" : "scheme";
+                  if (o.vfxColorMode === "custom") o.vfxColor = normalizeVfxHex(e.vfxColor != null ? e.vfxColor : "#ef4444");
+                }
                 if (cat === "text") {
                   const hb = normalizeTextCuePresentationFields(e.heading, e.body);
                   if (hb.heading) o.heading = hb.heading;
@@ -6076,6 +6292,16 @@
             const hb = normalizeTextCuePresentationFields(ev.heading, ev.body);
             if (hb.heading) o.heading = hb.heading;
             if (hb.body) o.body = hb.body;
+          }
+          if (ev.lane === "vfx") {
+            o.vfxKind = "bg_fade";
+            let rc = Math.floor(Number(ev.vfxRepeatCount));
+            if (!Number.isFinite(rc) || rc < 1) rc = 1;
+            o.vfxRepeatCount = Math.min(99, rc);
+            o.vfxEffectType = normalizeVfxEffectType(ev);
+            o.vfxBgMode = normalizeVfxBgModeFromRaw(ev);
+            o.vfxColorMode = ev.vfxColorMode === "custom" ? "custom" : "scheme";
+            if (o.vfxColorMode === "custom" && ev.vfxColor) o.vfxColor = normalizeVfxHex(ev.vfxColor);
           }
           if (ev.milestone === true || ev.milestone === false) o.milestone = ev.milestone;
           return o;
@@ -6273,8 +6499,8 @@
               lane: item.lane,
               start: snapTime(T0 + item.relStart),
               duration: snapTime(item.duration),
-              sfxKind: item.sfxKind,
             };
+            if (item.lane === "sfx") o.sfxKind = item.sfxKind === "shot" ? "shot" : "split";
             const nm = item.name != null ? String(item.name).trim() : "";
             if (nm) o.name = nm.slice(0, 48);
             if (item.lane === "tts") {
@@ -6286,6 +6512,16 @@
               const hb = normalizeTextCuePresentationFields(item.heading, item.body);
               if (hb.heading) o.heading = hb.heading;
               if (hb.body) o.body = hb.body;
+            }
+            if (item.lane === "vfx") {
+              o.vfxKind = "bg_fade";
+              let rc = Math.floor(Number(item.vfxRepeatCount));
+              if (!Number.isFinite(rc) || rc < 1) rc = 1;
+              o.vfxRepeatCount = Math.min(99, rc);
+              o.vfxEffectType = normalizeVfxEffectType(item);
+              o.vfxBgMode = normalizeVfxBgModeFromRaw(item);
+              o.vfxColorMode = item.vfxColorMode === "custom" ? "custom" : "scheme";
+              if (o.vfxColorMode === "custom" && item.vfxColor) o.vfxColor = normalizeVfxHex(item.vfxColor);
             }
             if (item.milestone === true || item.milestone === false) o.milestone = item.milestone;
             return o;
@@ -6415,6 +6651,16 @@
             const sp = normalizeTtsSpeech(p.speech);
             if (sp) ev.speech = sp;
           }
+          if (p.lane === "vfx") {
+            ev.vfxKind = "bg_fade";
+            let rc = Math.floor(Number(p.vfxRepeatCount));
+            if (!Number.isFinite(rc) || rc < 1) rc = 1;
+            ev.vfxRepeatCount = Math.min(99, rc);
+            ev.vfxEffectType = normalizeVfxEffectType(p);
+            ev.vfxBgMode = normalizeVfxBgModeFromRaw(p);
+            ev.vfxColorMode = p.vfxColorMode === "custom" ? "custom" : "scheme";
+            if (ev.vfxColorMode === "custom" && p.vfxColor) ev.vfxColor = normalizeVfxHex(p.vfxColor);
+          }
           if (p.milestone === true || p.milestone === false) ev.milestone = p.milestone;
           reps[rTarget].events.push(ev);
         }
@@ -6469,6 +6715,13 @@
         const ev = { lane: laneId, start: snapTime(st), duration: snapTime(dur) };
         if (laneId === "sfx") ev.sfxKind = reps[r].sfxKind === "shot" ? "shot" : "split";
         if (laneId === "tts") ev.voiceSlot = "a";
+        if (laneId === "vfx") {
+          ev.vfxKind = "bg_fade";
+          ev.vfxEffectType = "background";
+          ev.vfxBgMode = "fade_in_out";
+          ev.vfxRepeatCount = 1;
+          ev.vfxColorMode = "scheme";
+        }
         ev.elementId = genElementId();
         ev.name = defaultNewCueName(ev.lane, ev.sfxKind);
         reps[r].events.push(ev);
@@ -6529,6 +6782,9 @@
         defaultCueDurations.text = snapTime(tt);
         defaultCueDurations.tts = snapTime(ttv);
         defaultCueDurations.sfx = snapTime(tsfx);
+        if (defaultCueDurations.vfx == null || !Number.isFinite(defaultCueDurations.vfx)) {
+          defaultCueDurations.vfx = snapTime(CUE_DEFAULT_DURATIONS_FALLBACK.vfx);
+        }
         persistCueDefaultDurations();
         closeSettingsModal();
         refreshAll();
@@ -7847,6 +8103,79 @@
         });
       }
 
+      function updateVfxEffectTypeUi() {
+        const et = editVfxEffectType && editVfxEffectType.value;
+        const isBg = et === "background";
+        const isSparks = et === "sparks";
+        if (vfxBackgroundSubmodesWrap) vfxBackgroundSubmodesWrap.hidden = !isBg;
+        if (vfxTintColorFieldsWrap) vfxTintColorFieldsWrap.hidden = !!isSparks;
+        if (labelEditVfxRepeat) {
+          labelEditVfxRepeat.textContent = isSparks ? "Bursts" : "Cycles (repeats)";
+          labelEditVfxRepeat.title = isSparks
+            ? "Each burst is a fixed length; total cue duration is bursts × that length (see hint below)."
+            : "How many cycles fit in this cue’s duration — many cycles with a short duration reads as a strobe.";
+        }
+        updateEditVfxSparksBurstHelp();
+      }
+
+      function syncSparksBurstFromRepeatField() {
+        if (!editVfxEffectType || editVfxEffectType.value !== "sparks" || !editDuration || !editVfxRepeat) return;
+        let n = parseInt(editVfxRepeat.value, 10);
+        if (!Number.isFinite(n) || n < 1) n = 1;
+        n = Math.min(99, n);
+        editDuration.value = formatSnapSecForInput(sparksFormDurationFromBurstCount(n));
+      }
+
+      function syncSparksRepeatFromDurationField() {
+        if (!editVfxEffectType || editVfxEffectType.value !== "sparks" || !editVfxRepeat || !editDuration) return;
+        const raw = normalizeNumStepperInput(editDuration);
+        if (!Number.isFinite(raw)) return;
+        const d = snapTime(Math.max(TIME_SNAP_SEC, raw));
+        const n = sparksEditorBurstCountFromFormDuration(d);
+        editVfxRepeat.value = String(n);
+      }
+
+      function syncVfxEditorFromEvent(ev) {
+        if (!vfxEditorWrap || !editVfxRepeat || !editVfxColorMode) return;
+        if (editVfxEffectType) editVfxEffectType.value = normalizeVfxEffectType(ev);
+        if (editVfxBgMode) editVfxBgMode.value = normalizeVfxBgModeFromRaw(ev);
+        let rc;
+        if (normalizeVfxEffectType(ev) === "sparks") {
+          const d0 = ev.duration != null ? Number(ev.duration) : sparksBurstDurationSec();
+          rc = sparksBurstCountForStoredDuration(d0);
+        } else {
+          const rc0 = ev.vfxRepeatCount != null ? Math.floor(Number(ev.vfxRepeatCount)) : 1;
+          rc = !Number.isFinite(rc0) || rc0 < 1 ? 1 : Math.min(99, rc0);
+        }
+        editVfxRepeat.value = String(rc);
+        editVfxColorMode.value = ev.vfxColorMode === "custom" ? "custom" : "scheme";
+        if (editVfxColor) editVfxColor.value = normalizeVfxHex(ev.vfxColor || "#ef4444");
+        if (editVfxCustomColorWrap) editVfxCustomColorWrap.hidden = editVfxColorMode.value !== "custom";
+        updateVfxEffectTypeUi();
+      }
+
+      function applyVfxEditorToEvent(ev) {
+        if (!ev || ev.lane !== "vfx") return;
+        ev.vfxKind = "bg_fade";
+        ev.vfxEffectType = editVfxEffectType && editVfxEffectType.value ? editVfxEffectType.value : "background";
+        if (ev.vfxEffectType === "sparks") {
+          delete ev.vfxBgMode;
+          ev.vfxColorMode = "scheme";
+          delete ev.vfxColor;
+        } else {
+          let rc = editVfxRepeat ? parseInt(editVfxRepeat.value, 10) : 1;
+          if (!Number.isFinite(rc) || rc < 1) rc = 1;
+          ev.vfxRepeatCount = Math.min(99, rc);
+          let bm = editVfxBgMode && editVfxBgMode.value ? editVfxBgMode.value : "fade_in_out";
+          if (bm !== "flash" && bm !== "fade_in" && bm !== "fade_in_out") bm = "fade_in_out";
+          ev.vfxBgMode = bm;
+          ev.vfxColorMode = editVfxColorMode && editVfxColorMode.value === "custom" ? "custom" : "scheme";
+          if (ev.vfxColorMode === "custom" && editVfxColor) ev.vfxColor = normalizeVfxHex(editVfxColor.value);
+          else delete ev.vfxColor;
+        }
+        if (ev.vfxFadeInOnly !== undefined) delete ev.vfxFadeInOnly;
+      }
+
       function clipLabelText(ev) {
         if (ev.lane === "sfx") return ev.sfxKind === "shot" ? "shot" : "split";
         if (ev.lane === "tts") {
@@ -7900,6 +8229,12 @@
           const defaultMilestone = ev.lane === "tts";
           editMilestone.checked = ev.milestone !== undefined ? ev.milestone : defaultMilestone;
         }
+        if (vfxEditorWrap) {
+          vfxEditorWrap.hidden = ev.lane !== "vfx";
+          if (ev.lane === "vfx") syncVfxEditorFromEvent(ev);
+        }
+        setClipTimingFieldsPlacementForLane(ev.lane);
+        if (ev.lane !== "vfx" && editVfxCustomColorWrap) editVfxCustomColorWrap.hidden = true;
         replaceClipSelection(r, eventIndex);
         clipModal.classList.add("open");
         clipModal.setAttribute("aria-hidden", "false");
@@ -7920,6 +8255,9 @@
         if (clipTextHeadingBodyWrap) clipTextHeadingBodyWrap.hidden = true;
         if (editCueHeading) editCueHeading.value = "";
         if (editCueBody) editCueBody.value = "";
+        if (vfxEditorWrap) vfxEditorWrap.hidden = true;
+        if (editVfxCustomColorWrap) editVfxCustomColorWrap.hidden = true;
+        setClipTimingFieldsPlacementForLane("");
         clipEditContext = null;
       }
 
@@ -8058,7 +8396,40 @@
       }
       bindEnterKeyAppliesPrimary("repNameModalSave", repNameInput, repIntervalInput);
 
-      bindEnterKeyAppliesPrimary("clipModalSave", editCueName, editStart, editDuration);
+      bindEnterKeyAppliesPrimary("clipModalSave", editCueName, editStart, editDuration, editVfxRepeat);
+
+      if (editVfxColorMode && editVfxCustomColorWrap) {
+        editVfxColorMode.addEventListener("change", function () {
+          editVfxCustomColorWrap.hidden = editVfxColorMode.value !== "custom";
+        });
+      }
+      if (editVfxEffectType) {
+        editVfxEffectType.addEventListener("change", function () {
+          updateVfxEffectTypeUi();
+          if (
+            editVfxEffectType.value === "sparks" &&
+            editDuration &&
+            vfxEditorWrap &&
+            !vfxEditorWrap.hidden
+          ) {
+            const raw = normalizeNumStepperInput(editDuration);
+            let d = Number.isFinite(raw) ? snapTime(Math.max(TIME_SNAP_SEC, raw)) : sparksFormDurationFromBurstCount(1);
+            const n = sparksEditorBurstCountFromFormDuration(d);
+            if (editVfxRepeat) editVfxRepeat.value = String(n);
+            editDuration.value = formatSnapSecForInput(sparksFormDurationFromBurstCount(n));
+          }
+        });
+      }
+      if (editVfxRepeat) {
+        ["input", "change"].forEach(function (evtName) {
+          editVfxRepeat.addEventListener(evtName, syncSparksBurstFromRepeatField);
+        });
+      }
+      if (editDuration) {
+        editDuration.addEventListener("input", function () {
+          if (editVfxEffectType && editVfxEffectType.value === "sparks") syncSparksRepeatFromDurationField();
+        });
+      }
 
       function targetIsTextEntryField(el) {
         if (!el || typeof el !== "object") return false;
@@ -8325,8 +8696,14 @@
           let dur = normalizeNumStepperInput(editDuration);
           if (!Number.isFinite(st)) st = 0;
           st = snapTime(st);
-          if (!Number.isFinite(dur)) dur = defaultCueDurations[cat] || CUE_DEFAULT_DURATIONS_FALLBACK.text;
+          if (!Number.isFinite(dur)) {
+            dur = defaultCueDurations[cat] || CUE_DEFAULT_DURATIONS_FALLBACK[cat] || CUE_DEFAULT_DURATIONS_FALLBACK.text;
+          }
           dur = snapTime(Math.max(TIME_SNAP_SEC, dur));
+          if (cat === "vfx" && editVfxEffectType && editVfxEffectType.value === "sparks") {
+            const nSp = sparksEditorBurstCountFromFormDuration(dur);
+            dur = sparksFormDurationFromBurstCount(nSp);
+          }
           const trial = JSON.parse(JSON.stringify(item.data));
           const evs = trial.events;
           if (!libraryCueEventsPlacementValid(evs, cat, eventIndex, st, dur)) {
@@ -8355,6 +8732,10 @@
             else delete ev.heading;
             if (hb.body) ev.body = hb.body;
             else delete ev.body;
+          }
+          if (cat === "vfx") applyVfxEditorToEvent(ev);
+          if (cat === "vfx" && normalizeVfxEffectType(ev) === "sparks") {
+            ev.vfxRepeatCount = sparksEditorBurstCountFromFormDuration(dur);
           }
           // Milestone: only store if different from default (TTS=true, others=false)
           if (editMilestone) {
@@ -8400,9 +8781,18 @@
         let st = normalizeNumStepperInput(editStart);
         let dur = normalizeNumStepperInput(editDuration);
         if (!Number.isFinite(st) || st < 0) st = 0;
-        if (!Number.isFinite(dur)) dur = defaultCueDurations[ev.lane] || CUE_DEFAULT_DURATIONS_FALLBACK.text;
+        if (!Number.isFinite(dur)) {
+          dur =
+            defaultCueDurations[ev.lane] ||
+            CUE_DEFAULT_DURATIONS_FALLBACK[ev.lane] ||
+            CUE_DEFAULT_DURATIONS_FALLBACK.text;
+        }
         st = snapTime(st);
         dur = snapTime(Math.max(TIME_SNAP_SEC, dur));
+        if (ev.lane === "vfx" && editVfxEffectType && editVfxEffectType.value === "sparks") {
+          const nSp = sparksEditorBurstCountFromFormDuration(dur);
+          dur = sparksFormDurationFromBurstCount(nSp);
+        }
 
         if (!eventPlacementValid(r, ev.lane, st, dur, eventIndex)) {
           discardLastUndoSnapshot();
@@ -8423,6 +8813,10 @@
           const sp = normalizeTtsSpeech(editTtsSpeech.value);
           if (sp) ev.speech = sp;
           else delete ev.speech;
+        }
+        if (ev.lane === "vfx") applyVfxEditorToEvent(ev);
+        if (ev.lane === "vfx" && normalizeVfxEffectType(ev) === "sparks") {
+          ev.vfxRepeatCount = sparksEditorBurstCountFromFormDuration(dur);
         }
 
         const nm = editCueName ? String(editCueName.value || "").trim().slice(0, 48) : "";
