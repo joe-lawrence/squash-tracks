@@ -39,6 +39,7 @@
 html {
   height: 100%;
   height: 100dvh;
+  background: var(--bg);
 }
 
 body.player-page {
@@ -747,7 +748,9 @@ body.player-menu-open .player-menu-anchor {
   min-height: 0;
   box-sizing: border-box;
   padding: clamp(0.55rem, 4cqmin, 0.95rem) clamp(0.6rem, 4.5cqmin, 1rem) clamp(0.65rem, 4cqmin, 1rem);
-  padding-bottom: max(clamp(0.65rem, 4cqmin, 1rem), env(safe-area-inset-bottom));
+  /* iPhone portrait PWA: paint screen background into the notch / status area (viewport-fit=cover). */
+  padding-top: max(clamp(0.55rem, 4cqmin, 0.95rem), env(safe-area-inset-top, 0px));
+  padding-bottom: max(clamp(0.65rem, 4cqmin, 1rem), env(safe-area-inset-bottom, 0px));
   display: flex;
   flex-direction: column;
   background: var(--player-pres-screen-bg);
@@ -1087,8 +1090,8 @@ body.player-menu-open .player-menu-anchor {
 /* Short viewports / landscape phones: tighten chrome, keep cue dominant */
 @media (max-height: 520px) {
   .player-page .presentation-device-screen {
-    padding-top: clamp(0.35rem, 2.8cqmin, 0.55rem);
-    padding-bottom: max(clamp(0.45rem, 3cqmin, 0.65rem), env(safe-area-inset-bottom));
+    padding-top: max(clamp(0.35rem, 2.8cqmin, 0.55rem), env(safe-area-inset-top, 0px));
+    padding-bottom: max(clamp(0.45rem, 3cqmin, 0.65rem), env(safe-area-inset-bottom, 0px));
   }
 
   .player-page .presentation-panel-header {
