@@ -212,9 +212,17 @@
 
   function presSparksBurstKey(st, w, h) {
     const kind = st.effectKind != null ? String(st.effectKind) : "fireworks";
-    const n = Math.max(1, Math.min(256, Math.floor(Number(st.particleCount)) || 120));
+    const nCap = kind === "fireballs" || kind === "trail" ? 384 : 256;
+    const n = Math.max(1, Math.min(nCap, Math.floor(Number(st.particleCount)) || 120));
     const ax = Number(st.anchorX01);
     const ay = Number(st.anchorY01);
+    let ww = w | 0;
+    let hh = h | 0;
+    /* Fireballs: quantize buffer size so DPR / layout jitter does not reset the stateful sim every frame. */
+    if (kind === "fireballs" || kind === "trail") {
+      ww = (ww + 8) >> 4 << 4;
+      hh = (hh + 8) >> 4 << 4;
+    }
     return [
       kind,
       st.seed >>> 0,
@@ -226,8 +234,8 @@
       Math.round((Number(st.hueCenter) || 0) * 100),
       Math.round(ax * 1e4),
       Math.round(ay * 1e4),
-      w | 0,
-      h | 0,
+      ww,
+      hh,
     ].join(":");
   }
 
@@ -265,8 +273,12 @@
     return parts;
   }
 
+  /** Emitter band near bottom of stage (fraction of canvas height from top). */
+  const FIREBALLS_BAND_Y_CENTER = 0.93;
+  const FIREBALLS_BAND_Y_WAVE = 0.012;
+
   /**
-   * Trail emitters: near-horizontal path across the canvas, slightly above the rep progress bar band.
+   * Fireballs emitters: horizontal band near the bottom of the canvas.
    * Matches demo `trailSparks` speeds; hue from fixed presentation constants.
    */
   function presTrailBuildParticles(w, h, dpr, speed, gravMul, hue0, spread, steps, rnd) {
@@ -275,7 +287,8 @@
     for (let i = 0; i < steps; i++) {
       const u = i / denom;
       const ox = w * (0.02 + u * 0.96) + (rnd() - 0.5) * 14 * dpr * speed;
-      const oy = h * (0.792 + Math.sin(u * Math.PI) * 0.02) + (rnd() - 0.5) * 10 * dpr;
+      const oy =
+        h * (FIREBALLS_BAND_Y_CENTER + Math.sin(u * Math.PI) * FIREBALLS_BAND_Y_WAVE) + (rnd() - 0.5) * 10 * dpr;
       const angle = -Math.PI / 2 + (rnd() - 0.5) * 0.85;
       const sp = (2 + rnd() * 3) * dpr * speed;
       const vx0 = Math.cos(angle) * sp * (0.6 + rnd());
@@ -283,7 +296,7 @@
       const jx = (rnd() - 0.5) * 2 * dpr;
       const jy = (rnd() - 0.5) * 2 * dpr;
       const life = Math.max(0.08, 0.35 + rnd() * 0.35) * 0.95;
-      const aMul = Math.min(1, 0.4 + rnd() * 0.6);
+      const aMul = Math.min(1, 0.48 + rnd() * 0.52);
       const hue = hue0 + (rnd() - 0.5) * 2 * spread;
       const pr = (1.05 + rnd() * 1.75) * dpr;
       parts.push({
@@ -305,14 +318,18 @@
   }
 
   /**
-   * Trail spark FX (fixed 120 steps, hue 10±30°, gravity 100%).
-   * @param {object} st — `frame.vfxSparks` with `effectKind: "trail"`
+   * Fireballs FX (hue 10±30°, gravity 100%). Emitter count scales with CSS width so density stays similar in portrait vs landscape.
+   * @param {object} st — `frame.vfxSparks` with `effectKind: "fireballs"` (legacy `"trail"` still draws here).
    */
   function drawPresentationVfxTrail(ctx, w, h, st, paintOpts) {
-    const cw = Math.max(1, ctx.canvas.clientWidth || 1);
+    const cwRaw = Math.max(1, ctx.canvas.clientWidth || 1);
+    /* Snap width so emitter count does not flip when the layout shifts by a pixel or two. */
+    const cw = Math.max(32, Math.round(cwRaw / 16) * 16);
     const dpr = w / cw;
     const t = Math.max(0, Math.min(1, st.relInBurst01));
-    const n = Math.max(1, Math.min(256, Math.floor(Number(st.particleCount)) || 120));
+    const refCw = 800;
+    const refN = 280;
+    const n = Math.max(100, Math.min(384, Math.round((cw * refN) / refCw)));
     const speed = Number(st.speedMul) || 1;
     const gravMul = Number(st.gravityMul) || 1;
     const gStep = 0.1 * dpr * gravMul;
@@ -337,9 +354,11 @@
           ? global.WorkoutPresentation.SPARKS_BURST_DURATION_SEC
           : 0.5;
       const physStepsPerWallSec = SPARKS_PHYS_MAX_STEPS / burstWallSec;
-      const burstKey = presSparksBurstKey(st, w, h);
+      const burstKey = presSparksBurstKey(Object.assign({}, st, { particleCount: n }), w, h);
       let sim = presSparksSimByDoc.get(doc);
       const dtWall = sim && Number.isFinite(sim.lastGlobalSec) ? globalSec - sim.lastGlobalSec : 0;
+      const relJumpTol = 0.22;
+      const fireballsMaxMicroSteps = 40;
       let reset =
         !sim ||
         sim.burstKey !== burstKey ||
@@ -348,7 +367,7 @@
         dtWall < -1e-6 ||
         dtWall > SPARKS_STATEFUL_SEEK_RESET_SEC ||
         (sim.lastRel01 != null && t + 1e-9 < sim.lastRel01) ||
-        (sim.lastRel01 != null && Math.abs(t - sim.lastRel01) > SPARKS_STATEFUL_REL_JUMP);
+        (sim.lastRel01 != null && Math.abs(t - sim.lastRel01) > relJumpTol);
 
       if (reset) {
         const rnd0 = makePresRng((st.seed >>> 0) ^ ((st.burstIndex | 0) * 0x2b893049));
@@ -373,7 +392,7 @@
         let steps = 0;
         if (dtWall > 1e-9) {
           steps = Math.round(dtWall * physStepsPerWallSec);
-          steps = Math.min(SPARKS_STATEFUL_MAX_STEPS_PER_FRAME, Math.max(1, steps));
+          steps = Math.min(fireballsMaxMicroSteps, Math.max(1, steps));
         }
         for (let s = 0; s < steps; s++) {
           for (let pi = 0; pi < sim.particles.length; pi++) {
@@ -394,7 +413,7 @@
         const px = p.x + p.jx;
         const py = p.y + p.jy;
         const aLife = burstFade * Math.min(1, (t + 0.08) / p.life) * p.aMul;
-        const a = Math.min(0.95, aLife * 1.25);
+        const a = Math.min(0.98, aLife * 1.35);
         const grd = ctx.createRadialGradient(px, py, 0, px, py, p.pr * 3);
         grd.addColorStop(0, "hsla(" + p.hue + ",100%,70%," + a + ")");
         grd.addColorStop(0.4, "hsla(" + p.hue + ",90%,50%," + a * 0.6 + ")");
@@ -411,7 +430,8 @@
       for (let i = 0; i < n; i++) {
         const u = i / denom;
         const ox = w * (0.02 + u * 0.96) + (rnd() - 0.5) * 14 * dpr * speed;
-        const oy = h * (0.792 + Math.sin(u * Math.PI) * 0.02) + (rnd() - 0.5) * 10 * dpr;
+        const oy =
+          h * (FIREBALLS_BAND_Y_CENTER + Math.sin(u * Math.PI) * FIREBALLS_BAND_Y_WAVE) + (rnd() - 0.5) * 10 * dpr;
         const angle = -Math.PI / 2 + (rnd() - 0.5) * 0.85;
         const sp = (2 + rnd() * 3) * dpr * speed;
         const vx0 = Math.cos(angle) * sp * (0.6 + rnd());
@@ -420,10 +440,10 @@
         const x = pos.x + (rnd() - 0.5) * 2 * dpr;
         const y = pos.y + (rnd() - 0.5) * 2 * dpr;
         const life = Math.max(0.08, 0.35 + rnd() * 0.35) * 0.95;
-        const aLife = burstFade * Math.min(1, (t + 0.08) / life) * Math.min(1, 0.4 + rnd() * 0.6);
+        const aLife = burstFade * Math.min(1, (t + 0.08) / life) * Math.min(1, 0.48 + rnd() * 0.52);
         const hue = hue0 + (rnd() - 0.5) * 2 * spread;
         const pr = (1.05 + rnd() * 1.75) * dpr;
-        const a = Math.min(0.95, aLife * 1.25);
+        const a = Math.min(0.98, aLife * 1.35);
         const grd = ctx.createRadialGradient(x, y, 0, x, y, pr * 3);
         grd.addColorStop(0, "hsla(" + hue + ",100%,70%," + a + ")");
         grd.addColorStop(0.4, "hsla(" + hue + ",90%,50%," + a * 0.6 + ")");
@@ -454,7 +474,7 @@
     ctx.clearRect(0, 0, w, h);
     if (!st || !st.active) return;
     const effectKind = st.effectKind != null ? String(st.effectKind) : "fireworks";
-    if (effectKind === "trail") {
+    if (effectKind === "trail" || effectKind === "fireballs") {
       drawPresentationVfxTrail(ctx, w, h, st, paintOpts);
       return;
     }

@@ -200,7 +200,7 @@
   function vfxEffectTypeOf(ev) {
     const eff = ev && ev.vfxEffectType != null ? String(ev.vfxEffectType).trim().toLowerCase() : "background";
     if (eff === "fireworks" || eff === "sparks") return "fireworks";
-    if (eff === "trail") return "trail";
+    if (eff === "fireballs" || eff === "trail") return "fireballs";
     return "background";
   }
 
@@ -313,8 +313,8 @@
   }
 
   /**
-   * Trail spark overlay: fixed hue (10 / 30°), 120 emitters on a near-horizontal path just above the progress bar.
-   * Same burst timing as fireworks (`SPARKS_BURST_DURATION_SEC` slices from cue duration).
+   * Fireballs overlay: fixed hue (10 / 30°), emitters along a band near the bottom of the stage.
+   * Exactly one wall-clock burst per cue: active only for `min(cue duration, SPARKS_BURST_DURATION_SEC)` from cue start.
    */
   function activeVfxTrailState(segment, localSec) {
     const inactive = {
@@ -334,34 +334,27 @@
     const win = findWinningVfxEvent(segment, localSec);
     if (!win) return inactive;
     const best = win.ev;
-    if (vfxEffectTypeOf(best) !== "trail") return inactive;
-    const dur = Math.max(TIME_SNAP_SEC, snapTime(best.duration));
-    const burstCount = sparksBurstCountFromCueDurationSec(dur);
-    const burstSpan = snapTime(burstCount * SPARKS_BURST_DURATION_SEC);
+    if (vfxEffectTypeOf(best) !== "fireballs") return inactive;
+    const B = SPARKS_BURST_DURATION_SEC;
+    const durStored = Math.max(TIME_SNAP_SEC, snapTime(best.duration));
+    const playEnd = Math.min(durStored, B);
     const t0 = snapTime(localSec - snapTime(best.start));
-    if (t0 < 0 || t0 >= dur || t0 >= burstSpan - 1e-9) return inactive;
-    const burstIndex = Math.min(
-      burstCount - 1,
-      Math.max(0, Math.floor(t0 / SPARKS_BURST_DURATION_SEC + 1e-12))
-    );
-    const relInBurst01 = Math.max(
-      0,
-      Math.min(1, (t0 - burstIndex * SPARKS_BURST_DURATION_SEC) / SPARKS_BURST_DURATION_SEC)
-    );
+    if (t0 < 0 || t0 >= playEnd - 1e-9) return inactive;
+    const relInBurst01 = Math.max(0, Math.min(1, t0 / B));
     let idHash = 0;
     const idStr = best.elementId != null ? String(best.elementId) : "";
     for (let i = 0; i < idStr.length; i++) {
       idHash = (Math.imul(idHash, 31) + idStr.charCodeAt(i)) >>> 0;
     }
     const seedBase = vfxMix32(
-      vfxMix32(Math.floor(snapTime(best.start) * 1000), Math.floor(dur * 1000)),
-      vfxMix32(idHash, burstIndex * 0x9e3779b9)
+      vfxMix32(Math.floor(snapTime(best.start) * 1000), Math.floor(durStored * 1000)),
+      vfxMix32(idHash, 0)
     );
     return {
       active: true,
       relInBurst01,
-      burstIndex,
-      burstCount,
+      burstIndex: 0,
+      burstCount: 1,
       seed: seedBase,
       anchorX01: 0.5,
       anchorY01: 0.8,
@@ -491,7 +484,7 @@
     const sparksSt = activeVfxSparksState(segment, localSec, vfxVisualSalt);
     let vfxSparks;
     if (trailSt.active) {
-      vfxSparks = Object.assign({ effectKind: "trail" }, trailSt);
+      vfxSparks = Object.assign({ effectKind: "fireballs" }, trailSt);
     } else if (sparksSt.active) {
       vfxSparks = Object.assign({ effectKind: "fireworks" }, sparksSt);
     } else {

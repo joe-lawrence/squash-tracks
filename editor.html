@@ -2168,7 +2168,7 @@
           <select id="editVfxEffectType">
             <option value="background">Background</option>
             <option value="fireworks">Fireworks</option>
-            <option value="trail">Trail</option>
+            <option value="fireballs">Fireballs</option>
           </select>
         </div>
         <div class="field" id="vfxBackgroundSubmodesWrap">
@@ -2540,7 +2540,7 @@
       function normalizeVfxEffectType(e) {
         const t = e && e.vfxEffectType != null ? String(e.vfxEffectType).trim().toLowerCase() : "";
         if (t === "fireworks" || t === "sparks") return "fireworks";
-        if (t === "trail") return "trail";
+        if (t === "fireballs" || t === "trail") return "fireballs";
         if (t === "background") return "background";
         return "background";
       }
@@ -2612,7 +2612,7 @@
         return WP && Number.isFinite(WP.SPARKS_BURST_DURATION_SEC) ? WP.SPARKS_BURST_DURATION_SEC : 0.5;
       }
 
-      /** Burst count from duration for fireworks / trail (editor / save); rounds then clamps 1–99. */
+      /** Burst count from duration for fireworks (editor / save); rounds then clamps 1–99. */
       function sparksEditorBurstCountFromFormDuration(durSec) {
         const B = sparksBurstDurationSec();
         const d = snapTime(Math.max(TIME_SNAP_SEC, durSec));
@@ -2639,6 +2639,15 @@
 
       function isVfxFireworksEvent(ev) {
         return !!(ev && ev.lane === "vfx" && normalizeVfxEffectType(ev) === "fireworks");
+      }
+
+      function isVfxFireballsEvent(ev) {
+        return !!(ev && ev.lane === "vfx" && normalizeVfxEffectType(ev) === "fireballs");
+      }
+
+      /** Fireballs: exactly one burst (`SPARKS_BURST_DURATION_SEC`); no multi-burst cues. */
+      function snapFireballsCueDurationSec() {
+        return sparksBurstDurationSec();
       }
 
       /** Fireworks cue length: at least one burst, snapped to whole burst multiples of `SPARKS_BURST_DURATION_SEC`. */
@@ -2858,7 +2867,13 @@
       function editVfxParticleBurstEffectSelected() {
         const v = editVfxEffectType && editVfxEffectType.value;
         const t = v != null ? String(v).trim().toLowerCase() : "";
-        return t === "fireworks" || t === "sparks" || t === "trail";
+        return t === "fireworks" || t === "sparks" || t === "fireballs" || t === "trail";
+      }
+
+      function editVfxFireballsSelected() {
+        const v = editVfxEffectType && editVfxEffectType.value;
+        const t = v != null ? String(v).trim().toLowerCase() : "";
+        return t === "fireballs" || t === "trail";
       }
 
       /** Fireworks duration field: step/min = one burst; other cues use default 0.1 s stepper. */
@@ -2874,13 +2889,15 @@
         }
         const rawFx =
           editVfxEffectType && editVfxEffectType.value ? String(editVfxEffectType.value).trim().toLowerCase() : "";
-        if (rawFx === "fireworks" || rawFx === "sparks") {
+        if (rawFx === "fireworks" || rawFx === "sparks" || rawFx === "fireballs" || rawFx === "trail") {
           const B = sparksBurstDurationSec();
           editDuration.setAttribute("step", String(B));
           editDuration.setAttribute("min", String(B));
+          editDuration.setAttribute("max", String(B));
         } else {
           editDuration.removeAttribute("step");
           editDuration.removeAttribute("min");
+          editDuration.removeAttribute("max");
         }
       }
 
@@ -4490,6 +4507,13 @@
         if (!ev) return null;
         const st = ev.start;
         const cap = snapTime(totalTimelineSec() - st);
+        if (isVfxFireballsEvent(ev)) {
+          const B = sparksBurstDurationSec();
+          let dur = B;
+          dur = Math.min(dur, cap);
+          if (eventPlacementValid(r, ev.lane, st, dur, idx)) return { st, dur };
+          return null;
+        }
         if (isVfxFireworksEvent(ev)) {
           const B = sparksBurstDurationSec();
           let dur = snapFireworksCueDurationSec(snapTime(desiredEndInRep - st));
@@ -4516,6 +4540,15 @@
         const ev = reps[r].events[idx];
         if (!ev) return null;
         const end = snapTime(ev.start + ev.duration);
+        if (isVfxFireballsEvent(ev)) {
+          const B = sparksBurstDurationSec();
+          const want = snapTime(desiredStartInRep);
+          let st = snapTime(Math.max(0, want));
+          st = Math.min(st, snapTime(totalTimelineSec() - B));
+          const dur = B;
+          if (eventPlacementValid(r, ev.lane, st, dur, idx)) return { st, dur };
+          return null;
+        }
         if (isVfxFireworksEvent(ev)) {
           const B = sparksBurstDurationSec();
           let dur0 = snapTime(Math.floor(end / B) * B);
@@ -7548,7 +7581,8 @@
           for (const ev of reps[r].events) {
             if (!ev) continue;
             ev.start = snapTime(ev.start);
-            if (isVfxFireworksEvent(ev)) ev.duration = snapFireworksCueDurationSec(ev.duration);
+            if (isVfxFireballsEvent(ev)) ev.duration = snapFireballsCueDurationSec();
+            else if (isVfxFireworksEvent(ev)) ev.duration = snapFireworksCueDurationSec(ev.duration);
             else ev.duration = Math.max(TIME_SNAP_SEC, snapTime(Number(ev.duration)));
           }
         }
@@ -8170,6 +8204,7 @@
         const et = editVfxEffectType && editVfxEffectType.value;
         const isBg = et === "background";
         const particleFx = editVfxParticleBurstEffectSelected();
+        const fb = et === "fireballs" || et === "trail";
         if (vfxBackgroundSubmodesWrap) vfxBackgroundSubmodesWrap.hidden = !isBg;
         if (vfxTintColorFieldsWrap) vfxTintColorFieldsWrap.hidden = !!particleFx;
         if (labelEditVfxRepeat) {
@@ -8178,10 +8213,14 @@
             ? "Changing bursts updates cue length."
             : "How many cycles fit in this cue’s duration — many cycles with a short duration reads as a strobe.";
         }
+        const repeatField = labelEditVfxRepeat && labelEditVfxRepeat.parentElement;
+        if (repeatField) repeatField.hidden = !!fb;
+        if (editDuration) editDuration.readOnly = !!fb;
       }
 
       function syncSparksBurstFromRepeatField() {
-        if (!editVfxParticleBurstEffectSelected() || !editDuration || !editVfxRepeat) return;
+        if (!editVfxParticleBurstEffectSelected() || editVfxFireballsSelected() || !editDuration || !editVfxRepeat)
+          return;
         let n = parseInt(editVfxRepeat.value, 10);
         if (!Number.isFinite(n) || n < 1) n = 1;
         n = Math.min(99, n);
@@ -8189,7 +8228,8 @@
       }
 
       function syncSparksRepeatFromDurationField() {
-        if (!editVfxParticleBurstEffectSelected() || !editVfxRepeat || !editDuration) return;
+        if (!editVfxParticleBurstEffectSelected() || editVfxFireballsSelected() || !editVfxRepeat || !editDuration)
+          return;
         const raw = normalizeNumStepperInput(editDuration);
         if (!Number.isFinite(raw)) return;
         const d = snapTime(Math.max(TIME_SNAP_SEC, raw));
@@ -8203,7 +8243,10 @@
         if (editVfxBgMode) editVfxBgMode.value = normalizeVfxBgModeFromRaw(ev);
         let rc;
         const vfxNorm = normalizeVfxEffectType(ev);
-        if (vfxNorm === "fireworks" || vfxNorm === "trail") {
+        if (vfxNorm === "fireballs") {
+          rc = 1;
+          if (editDuration) editDuration.value = formatSnapSecForInput(sparksBurstDurationSec());
+        } else if (vfxNorm === "fireworks") {
           const d0 = ev.duration != null ? Number(ev.duration) : sparksBurstDurationSec();
           rc = sparksBurstCountForStoredDuration(d0);
         } else {
@@ -8225,10 +8268,11 @@
         ev.vfxEffectType = normalizeVfxEffectType({
           vfxEffectType: editVfxEffectType && editVfxEffectType.value ? editVfxEffectType.value : "background",
         });
-        if (ev.vfxEffectType === "fireworks" || ev.vfxEffectType === "trail") {
+        if (ev.vfxEffectType === "fireworks" || ev.vfxEffectType === "fireballs") {
           delete ev.vfxBgMode;
           ev.vfxColorMode = "scheme";
           delete ev.vfxColor;
+          if (ev.vfxEffectType === "fireballs") ev.vfxRepeatCount = 1;
         } else {
           let rc = editVfxRepeat ? parseInt(editVfxRepeat.value, 10) : 1;
           if (!Number.isFinite(rc) || rc < 1) rc = 1;
@@ -8328,6 +8372,8 @@
         if (editDuration) {
           editDuration.removeAttribute("step");
           editDuration.removeAttribute("min");
+          editDuration.removeAttribute("max");
+          editDuration.readOnly = false;
         }
         setClipTimingFieldsPlacementForLane("");
         clipEditContext = null;
@@ -8479,10 +8525,14 @@
         editVfxEffectType.addEventListener("change", function () {
           const afterRaw = editVfxEffectType.value ? String(editVfxEffectType.value).trim().toLowerCase() : "background";
           const afterParticle =
-            afterRaw === "fireworks" || afterRaw === "sparks" || afterRaw === "trail";
+            afterRaw === "fireworks" ||
+            afterRaw === "sparks" ||
+            afterRaw === "fireballs" ||
+            afterRaw === "trail";
           const beforeParticle =
             vfxEffectTypeEditorBaseline === "fireworks" ||
             vfxEffectTypeEditorBaseline === "sparks" ||
+            vfxEffectTypeEditorBaseline === "fireballs" ||
             vfxEffectTypeEditorBaseline === "trail";
           updateVfxEffectTypeUi();
           if (
@@ -8493,7 +8543,11 @@
           ) {
             if (afterParticle && !beforeParticle) {
               if (editVfxRepeat) editVfxRepeat.value = "1";
-              editDuration.value = formatSnapSecForInput(sparksFormDurationFromBurstCount(1));
+              if (afterRaw === "fireballs" || afterRaw === "trail") {
+                editDuration.value = formatSnapSecForInput(sparksBurstDurationSec());
+              } else {
+                editDuration.value = formatSnapSecForInput(sparksFormDurationFromBurstCount(1));
+              }
             } else if (afterParticle) {
               const raw = normalizeNumStepperInput(editDuration);
               let d = Number.isFinite(raw) ? snapTime(Math.max(TIME_SNAP_SEC, raw)) : sparksFormDurationFromBurstCount(1);
@@ -8548,7 +8602,7 @@
                 const m = clipKeyboardResizeMode;
                 ensureEvents(m.r);
                 const evK = reps[m.r].events[m.eventIdx];
-                if (evK && isVfxFireworksEvent(evK)) {
+                if (evK && isVfxFireworksEvent(evK) && !isVfxFireballsEvent(evK)) {
                   const Bk = sparksBurstDurationSec();
                   step = e.key === "ArrowRight" ? Bk : -Bk;
                 }
@@ -8796,11 +8850,16 @@
           const libFxForm =
             cat === "vfx" && editVfxEffectType ? String(editVfxEffectType.value).trim().toLowerCase() : "";
           if (cat === "vfx" && editVfxParticleBurstEffectSelected()) {
-            const nSp = sparksEditorBurstCountFromFormDuration(dur);
-            dur = sparksFormDurationFromBurstCount(nSp);
+            if (libFxForm !== "fireballs" && libFxForm !== "trail") {
+              const nSp = sparksEditorBurstCountFromFormDuration(dur);
+              dur = sparksFormDurationFromBurstCount(nSp);
+            }
           }
           if (cat === "vfx" && (libFxForm === "fireworks" || libFxForm === "sparks")) {
             dur = snapFireworksCueDurationSec(dur);
+          }
+          if (cat === "vfx" && (libFxForm === "fireballs" || libFxForm === "trail")) {
+            dur = snapFireballsCueDurationSec();
           }
           const trial = JSON.parse(JSON.stringify(item.data));
           const evs = trial.events;
@@ -8835,9 +8894,11 @@
           if (cat === "vfx") {
             const vfxN = normalizeVfxEffectType(ev);
             if (vfxN === "fireworks") dur = snapFireworksCueDurationSec(dur);
-            if (vfxN === "fireworks" || vfxN === "trail") {
+            if (vfxN === "fireballs") dur = snapFireballsCueDurationSec();
+            if (vfxN === "fireworks") {
               ev.vfxRepeatCount = sparksEditorBurstCountFromFormDuration(dur);
             }
+            if (vfxN === "fireballs") ev.vfxRepeatCount = 1;
           }
           // Milestone: only store if different from default (TTS=true, others=false)
           if (editMilestone) {
@@ -8894,11 +8955,16 @@
         const timelineFxForm =
           ev.lane === "vfx" && editVfxEffectType ? String(editVfxEffectType.value).trim().toLowerCase() : "";
         if (ev.lane === "vfx" && editVfxParticleBurstEffectSelected()) {
-          const nSp = sparksEditorBurstCountFromFormDuration(dur);
-          dur = sparksFormDurationFromBurstCount(nSp);
+          if (timelineFxForm !== "fireballs" && timelineFxForm !== "trail") {
+            const nSp = sparksEditorBurstCountFromFormDuration(dur);
+            dur = sparksFormDurationFromBurstCount(nSp);
+          }
         }
         if (ev.lane === "vfx" && (timelineFxForm === "fireworks" || timelineFxForm === "sparks")) {
           dur = snapFireworksCueDurationSec(dur);
+        }
+        if (ev.lane === "vfx" && (timelineFxForm === "fireballs" || timelineFxForm === "trail")) {
+          dur = snapFireballsCueDurationSec();
         }
 
         if (!eventPlacementValid(r, ev.lane, st, dur, eventIndex)) {
@@ -8925,9 +8991,11 @@
         if (ev.lane === "vfx") {
           const vfxN = normalizeVfxEffectType(ev);
           if (vfxN === "fireworks") dur = snapFireworksCueDurationSec(dur);
-          if (vfxN === "fireworks" || vfxN === "trail") {
+          if (vfxN === "fireballs") dur = snapFireballsCueDurationSec();
+          if (vfxN === "fireworks") {
             ev.vfxRepeatCount = sparksEditorBurstCountFromFormDuration(dur);
           }
+          if (vfxN === "fireballs") ev.vfxRepeatCount = 1;
         }
 
         const nm = editCueName ? String(editCueName.value || "").trim().slice(0, 48) : "";
@@ -8994,13 +9062,21 @@
               st = start0;
               dur = snapTime(Math.max(TIME_SNAP_SEC, dur0 + deltaSec));
               dur = Math.min(dur, snapTime(cap - st));
-              if (isVfxFireworksEvent(ev)) dur = snapFireworksCueDurationSec(dur);
+              if (isVfxFireballsEvent(ev)) dur = snapFireballsCueDurationSec();
+              else if (isVfxFireworksEvent(ev)) dur = snapFireworksCueDurationSec(dur);
             } else {
-              const minSpan = isVfxFireworksEvent(ev) ? sparksBurstDurationSec() : TIME_SNAP_SEC;
+              const minSpan = isVfxFireballsEvent(ev)
+                ? sparksBurstDurationSec()
+                : isVfxFireworksEvent(ev)
+                  ? sparksBurstDurationSec()
+                  : TIME_SNAP_SEC;
               st = snapTime(start0 + deltaSec);
               st = Math.max(0, Math.min(st, end0 - minSpan));
               dur = snapTime(end0 - st);
-              if (isVfxFireworksEvent(ev)) {
+              if (isVfxFireballsEvent(ev)) {
+                dur = snapFireballsCueDurationSec();
+                st = snapTime(end0 - dur);
+              } else if (isVfxFireworksEvent(ev)) {
                 dur = snapFireworksCueDurationSec(dur);
                 st = snapTime(end0 - dur);
               }
