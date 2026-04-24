@@ -119,6 +119,54 @@
     return n || "Rep " + (repIndex + 1);
   }
 
+  /** Part / rep names starting with `.` are hidden in presentation; they are omitted from X/Y counters too. */
+  function segmentPresentationCounted(seg) {
+    const nm = seg && seg.name != null ? String(seg.name).trim() : "";
+    return !nm.startsWith(".");
+  }
+
+  function repPresentationCounted(rep) {
+    const nm = rep && rep.name != null ? String(rep.name).trim() : "";
+    return !nm.startsWith(".");
+  }
+
+  function countPresentationVisibleSegments(segments) {
+    if (!Array.isArray(segments) || segments.length === 0) return 1;
+    let c = 0;
+    for (let i = 0; i < segments.length; i++) {
+      if (segmentPresentationCounted(segments[i])) c++;
+    }
+    return Math.max(1, c);
+  }
+
+  function presentationVisiblePartOrdinal0(segments, segmentIndex) {
+    if (!Array.isArray(segments)) return 0;
+    let ord = 0;
+    for (let i = 0; i < segmentIndex && i < segments.length; i++) {
+      if (segmentPresentationCounted(segments[i])) ord++;
+    }
+    return ord;
+  }
+
+  function countPresentationVisibleReps(segment) {
+    const reps = segment && Array.isArray(segment.reps) ? segment.reps : [];
+    if (reps.length === 0) return 1;
+    let c = 0;
+    for (let r = 0; r < reps.length; r++) {
+      if (repPresentationCounted(reps[r])) c++;
+    }
+    return Math.max(1, c);
+  }
+
+  function presentationVisibleRepOrdinal0(segment, repIndex) {
+    const reps = segment && Array.isArray(segment.reps) ? segment.reps : [];
+    let ord = 0;
+    for (let r = 0; r < repIndex && r < reps.length; r++) {
+      if (repPresentationCounted(reps[r])) ord++;
+    }
+    return ord;
+  }
+
   /**
    * Active text-lane cue at segment-local timeline second `localSec`.
    * Cue `start` / `duration` use the same segment-global coordinates as the editor.
@@ -512,17 +560,17 @@
       segment = loc.segment;
       workoutTotal = loc.workoutTotal;
     }
-    const partCount = Array.isArray(segments) ? segments.length : 0;
+    const partCountVisible = countPresentationVisibleSegments(segments);
     if (!segment) {
       return {
         workoutTotal,
         globalSec: Math.min(globalSec, workoutTotal),
         partIndex: 0,
-        partCount: Math.max(1, partCount),
+        partCount: partCountVisible,
         partName: "",
         presentationHidePartInfo: false,
         repIndex: 0,
-        repCount: 0,
+        repCount: 1,
         repName: "",
         presentationHideRepInfo: false,
         repProgress01: 0,
@@ -551,6 +599,9 @@
     const reps = segment.reps || [];
     const nReps = reps.length;
     const rIdx = holdRepIndex != null ? holdRepIndex : repIndexAtLocalSec(segment, localSec);
+    const partOrdinal0 = presentationVisiblePartOrdinal0(segments, segmentIndex);
+    const repOrdinal0 = presentationVisibleRepOrdinal0(segment, rIdx);
+    const repCountVisible = countPresentationVisibleReps(segment);
     const g0 = cumulativeRepStartInSegment(segment, rIdx);
     const rDur = repDurationForDefault(reps[rIdx], segment.defaultIntervalSec);
     const offset =
@@ -596,12 +647,12 @@
     return {
       workoutTotal,
       globalSec: Math.min(Math.max(0, globalSec), workoutTotal),
-      partIndex: segmentIndex,
-      partCount: Math.max(1, partCount),
+      partIndex: partOrdinal0,
+      partCount: partCountVisible,
       partName,
       presentationHidePartInfo,
-      repIndex: rIdx,
-      repCount: Math.max(1, nReps),
+      repIndex: repOrdinal0,
+      repCount: repCountVisible,
       repName,
       presentationHideRepInfo,
       repProgress01: Math.max(0, Math.min(1, prog)),
