@@ -1778,6 +1778,122 @@
     }
     .clip.text { background: linear-gradient(180deg, #f9a8d4, #db2777); color: #fff; }
     .clip.tts { background: linear-gradient(180deg, #c4b5fd, #7c3aed); color: #fff; }
+    /**
+     * Linked Text sits above TTS in the lane stack — nudge each toward the shared horizontal seam
+     * so the pair reads closer without changing lane height or hit targets (same sum of insets as 9+9).
+     * 17/1 + 1/17 is about as tight as is practical while leaving a 1px inset from the lane row edges.
+     */
+    .clip.text.text-tts-linked {
+      top: 17px;
+      bottom: 1px;
+    }
+    .clip.tts.text-tts-linked {
+      top: 1px;
+      bottom: 17px;
+    }
+    /**
+     * Dotted yellow ring for the linked “linkee” cue: partner is selected (or is the anchor while this cue
+     * is also group-selected). Solid `.selected` stays on the anchor only — see `clipShowSolidSelectedRing`.
+     */
+    .clip.clip-linked-partner-highlight:not(.selected):not(.dragging) {
+      z-index: 5;
+      outline: 2px dashed rgba(251, 191, 36, 0.92);
+      outline-offset: 0;
+    }
+    /* Clip modal tabbed interface */
+    .clip-modal-header {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      margin-bottom: 0.6rem;
+    }
+    .clip-modal-title-prefix {
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: var(--text);
+      white-space: nowrap;
+    }
+    .clip-modal-name-input {
+      flex: 1;
+      padding: 0.3rem 0.45rem !important;
+      font-size: 0.88rem !important;
+      border: 1px solid var(--line) !important;
+      border-radius: 5px !important;
+      background: #0d0f12 !important;
+      color: var(--text) !important;
+    }
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0,0,0,0);
+      border: 0;
+    }
+    .clip-modal-tabs {
+      display: flex;
+      gap: 0;
+      border-bottom: 1px solid var(--line);
+      margin-bottom: 0.75rem;
+    }
+    .clip-modal-tab {
+      padding: 0.4rem 0.7rem;
+      font-size: 0.75rem;
+      background: transparent;
+      border: none;
+      border-bottom: 2px solid transparent;
+      color: var(--dim);
+      cursor: pointer;
+      transition: color 0.15s, border-color 0.15s;
+    }
+    .clip-modal-tab:hover {
+      color: var(--text);
+    }
+    .clip-modal-tab[aria-selected="true"] {
+      color: var(--text);
+      border-bottom-color: #7c3aed;
+    }
+    .clip-modal-tab[hidden] {
+      display: none;
+    }
+    /**
+     * Tab panels: single grid cell so every allowed panel contributes its height — row height is the
+     * tallest tab for this cue type (inactive panels stay visibility:hidden, not display:none).
+     * Panels with `data-clip-modal-unused` are for other lane types and stay out of layout.
+     */
+    .clip-modal-tab-panels {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
+      align-content: start;
+    }
+    .clip-modal-tab-panel {
+      grid-area: 1 / 1;
+      min-width: 0;
+    }
+    .clip-modal-tab-panel[data-clip-modal-unused] {
+      display: none !important;
+    }
+    .clip-modal-tab-panel[hidden]:not([data-clip-modal-unused]) {
+      display: block !important;
+      visibility: hidden;
+      pointer-events: none;
+    }
+    .clip-modal-tab.tab-dirty::before {
+      content: "* ";
+      color: var(--lane-sfx);
+    }
+    .clip-modal-tab.tab-dirty {
+      color: var(--lane-sfx);
+    }
+    .field-dirty > label::before {
+      content: "* ";
+      color: var(--lane-sfx);
+    }
+    .field-dirty > label {
+      color: var(--lane-sfx) !important;
+    }
     .clip.sfx { background: linear-gradient(180deg, #5eead4, #0f766e); color: rgba(0, 0, 0, 0.85); }
     .clip.vfx { background: linear-gradient(180deg, #fdba74, #c2410c); color: rgba(0, 0, 0, 0.88); }
 
@@ -1994,6 +2110,19 @@
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <rect width="8" height="4" x="8" y="2" rx="1" ry="1" />
           <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" />
+        </svg>
+      </button>
+      <button type="button" id="btnCueTxtTtsLink" class="toolbar-icon-btn" disabled title="Link selected Text + TTS (same rep, one of each)" aria-label="Link text and TTS">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+          <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+        </svg>
+      </button>
+      <button type="button" id="btnCueTxtTtsUnlink" class="toolbar-icon-btn" disabled title="Remove Text↔TTS link on selected cue(s)" aria-label="Unlink text and TTS">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="m18.84 12.25 1.72-1.71a5 5 0 0 0-7.07-7.07l-1.71 1.71" />
+          <path d="M5.17 11.75 3.46 13.46a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+          <line x1="8" x2="16" y1="8" y2="16" />
         </svg>
       </button>
     </span>
@@ -2281,42 +2410,26 @@
   <p class="toast" id="toast" aria-live="polite"></p>
 
   <div class="modal-backdrop" id="clipModal" aria-hidden="true">
-    <div class="modal" role="dialog" aria-labelledby="clipModalTitle">
-      <h3 id="clipModalTitle">Edit cue</h3>
-      <div class="field">
-        <label for="editCueName">Name</label>
-        <input type="text" id="editCueName" maxlength="48" autocomplete="off" spellcheck="false" />
+    <div class="modal modal-wide" role="dialog" aria-labelledby="clipModalTitle">
+      <div class="clip-modal-header">
+        <span class="clip-modal-title-prefix" id="clipModalTitlePrefix">Edit Text ·</span>
+        <input type="text" id="editCueName" class="clip-modal-name-input" maxlength="48" autocomplete="off" spellcheck="false" placeholder="Cue name" />
       </div>
-      <div class="field" id="ttsSpeechWrap" hidden>
-        <label for="editTtsSpeech">Speech</label>
-        <textarea id="editTtsSpeech" rows="4" maxlength="8000" autocomplete="off" spellcheck="true"></textarea>
+      <h3 id="clipModalTitle" class="sr-only">Edit cue</h3>
+      <div class="clip-modal-tabs" role="tablist" aria-label="Cue editor tabs">
+        <button type="button" role="tab" class="clip-modal-tab" data-tab="timing" aria-selected="true">Timing</button>
+        <button type="button" role="tab" class="clip-modal-tab" data-tab="display" aria-selected="false">Display</button>
+        <button type="button" role="tab" class="clip-modal-tab" data-tab="voice" aria-selected="false">Voice</button>
+        <button type="button" role="tab" class="clip-modal-tab" data-tab="effect" aria-selected="false">Effect</button>
+        <button type="button" role="tab" class="clip-modal-tab" id="clipModalTabLink" data-tab="link" aria-selected="false">Link</button>
       </div>
-      <div id="clipTextHeadingBodyWrap" hidden>
-        <div class="field">
-          <label for="editCueHeading">Heading</label>
-          <textarea id="editCueHeading" rows="3" maxlength="8000" autocomplete="off" spellcheck="true"></textarea>
-        </div>
-        <div class="field">
-          <label for="editCueBody">Body</label>
-          <textarea id="editCueBody" rows="4" maxlength="8000" autocomplete="off" spellcheck="true"></textarea>
-        </div>
-      </div>
-      <div id="clipTimingSlotTop">
-        <div id="clipTimingFieldsWrap">
+      <div class="clip-modal-tab-panels">
+        <div id="clipTabTiming" class="clip-modal-tab-panel" role="tabpanel">
           <div class="field">
             <label for="editStart">Start — global time (s)</label>
             <div class="num-stepper">
               <button type="button" class="num-stepper-btn" data-stepper-down aria-label="Decrease start">−</button>
-              <input
-                type="text"
-                inputmode="decimal"
-                class="num-stepper-val"
-                id="editStart"
-                min="0"
-                step="0.1"
-                autocomplete="off"
-                spellcheck="false"
-              />
+              <input type="text" inputmode="decimal" class="num-stepper-val" id="editStart" min="0" step="0.1" autocomplete="off" spellcheck="false" />
               <button type="button" class="num-stepper-btn" data-stepper-up aria-label="Increase start">+</button>
             </div>
           </div>
@@ -2324,29 +2437,51 @@
             <label for="editDuration">Duration (s)</label>
             <div class="num-stepper">
               <button type="button" class="num-stepper-btn" data-stepper-down aria-label="Decrease duration">−</button>
-              <input
-                type="text"
-                inputmode="decimal"
-                class="num-stepper-val"
-                id="editDuration"
-                min="0.1"
-                step="0.1"
-                autocomplete="off"
-                spellcheck="false"
-              />
+              <input type="text" inputmode="decimal" class="num-stepper-val" id="editDuration" min="0.1" step="0.1" autocomplete="off" spellcheck="false" />
               <button type="button" class="num-stepper-btn" data-stepper-up aria-label="Increase duration">+</button>
             </div>
           </div>
+          <div class="field" id="milestoneWrap">
+            <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer">
+              <input type="checkbox" id="editMilestone" style="width:auto;margin:0" />
+              Show as timeline milestone
+            </label>
+          </div>
         </div>
-      </div>
-      <div class="field" id="sfxKindWrap" hidden>
-        <label for="editSfxKind">SFX kind</label>
-        <select id="editSfxKind">
-          <option value="split">Split-step</option>
-          <option value="shot">Shot</option>
-        </select>
-      </div>
-      <div id="vfxEditorWrap" hidden>
+        <div id="clipTabDisplay" class="clip-modal-tab-panel" role="tabpanel" hidden>
+          <div class="field">
+            <label for="editCueHeading">Heading</label>
+            <textarea id="editCueHeading" rows="3" maxlength="8000" autocomplete="off" spellcheck="true"></textarea>
+          </div>
+          <div class="field">
+            <label for="editCueBody">Body</label>
+            <textarea id="editCueBody" rows="4" maxlength="8000" autocomplete="off" spellcheck="true"></textarea>
+          </div>
+        </div>
+        <div id="clipTabVoice" class="clip-modal-tab-panel" role="tabpanel" hidden>
+          <div class="field">
+            <label for="editTtsVoiceSlot">Voice slot</label>
+            <select id="editTtsVoiceSlot">
+              <option value="a">Voice A</option>
+              <option value="b">Voice B</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="editTtsSpeech">Speech</label>
+            <textarea id="editTtsSpeech" rows="5" maxlength="8000" autocomplete="off" spellcheck="true"></textarea>
+          </div>
+        </div>
+        <div id="clipTabEffect" class="clip-modal-tab-panel" role="tabpanel" hidden>
+          <div id="sfxKindWrap">
+            <div class="field">
+              <label for="editSfxKind">Sound effect</label>
+              <select id="editSfxKind">
+                <option value="split">Split-step</option>
+                <option value="shot">Shot</option>
+              </select>
+            </div>
+          </div>
+          <div id="vfxEditorWrap">
         <div class="field">
           <label for="editVfxEffectType">Effect type</label>
           <select id="editVfxEffectType">
@@ -2401,20 +2536,25 @@
             <input type="color" id="editVfxColor" value="#ef4444" />
           </div>
         </div>
-        <div id="clipTimingSlotVfxBottom"></div>
-      </div>
-      <div class="field" id="ttsVoiceSlotWrap" hidden>
-        <label for="editTtsVoiceSlot">Voice slot</label>
-        <select id="editTtsVoiceSlot">
-          <option value="a">Voice A</option>
-          <option value="b">Voice B</option>
-        </select>
-      </div>
-      <div class="field" id="milestoneWrap">
-        <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer">
-          <input type="checkbox" id="editMilestone" style="width:auto;margin:0" />
-          Show as timeline milestone
-        </label>
+          </div>
+        </div>
+        <div id="clipTabLink" class="clip-modal-tab-panel" role="tabpanel" hidden>
+          <div class="field">
+            <label for="clipTxtTtsLinkPick" id="clipTxtTtsLinkPickLabel">Link(ed) to cue:</label>
+            <select id="clipTxtTtsLinkPick"></select>
+          </div>
+          <div class="field" id="clipTxtTtsSyncFieldsWrap">
+            <div style="font-size: 0.72rem; color: var(--dim); margin-bottom: 0.35rem">Sync</div>
+            <label style="display: flex; align-items: center; gap: 0.45rem; cursor: pointer; margin-bottom: 0.3rem">
+              <input type="checkbox" id="clipTxtTtsSyncStart" style="width: auto; margin: 0" />
+              <span>Start</span>
+            </label>
+            <label style="display: flex; align-items: center; gap: 0.45rem; cursor: pointer">
+              <input type="checkbox" id="clipTxtTtsSyncDuration" style="width: auto; margin: 0" />
+              <span>Duration</span>
+            </label>
+          </div>
+        </div>
       </div>
       <div class="actions">
         <button type="button" class="danger" id="clipModalRemove" style="margin-right:auto;border-color:#7f1d1d;color:#fecaca">Remove</button>
@@ -3030,8 +3170,14 @@
             syncDisabled();
           });
 
-          down.addEventListener("click", () => bump(-1));
-          up.addEventListener("click", () => bump(1));
+          down.addEventListener("click", () => {
+            bump(-1);
+            input.dispatchEvent(new Event("input", { bubbles: true }));
+          });
+          up.addEventListener("click", () => {
+            bump(1);
+            input.dispatchEvent(new Event("input", { bubbles: true }));
+          });
           syncDisabled();
         });
       }
@@ -3053,19 +3199,194 @@
       const repIntervalInput = document.getElementById("repIntervalInput");
       const repTransitionSelect = document.getElementById("repTransitionSelect");
       const editCueName = document.getElementById("editCueName");
-      const clipTextHeadingBodyWrap = document.getElementById("clipTextHeadingBodyWrap");
       const editCueHeading = document.getElementById("editCueHeading");
       const editCueBody = document.getElementById("editCueBody");
       const editStart = document.getElementById("editStart");
       const editDuration = document.getElementById("editDuration");
       const editSfxKind = document.getElementById("editSfxKind");
       const sfxKindWrap = document.getElementById("sfxKindWrap");
-      const ttsVoiceSlotWrap = document.getElementById("ttsVoiceSlotWrap");
       const editTtsVoiceSlot = document.getElementById("editTtsVoiceSlot");
-      const milestoneWrap = document.getElementById("milestoneWrap");
       const editMilestone = document.getElementById("editMilestone");
-      const ttsSpeechWrap = document.getElementById("ttsSpeechWrap");
       const editTtsSpeech = document.getElementById("editTtsSpeech");
+
+      const CLIP_MODAL_TABS_BY_LANE = {
+        text: ["timing", "display", "link"],
+        tts: ["timing", "voice", "link"],
+        sfx: ["timing", "effect"],
+        vfx: ["timing", "effect"],
+      };
+      const CLIP_MODAL_PANEL_TAB_ID = {
+        clipTabTiming: "timing",
+        clipTabDisplay: "display",
+        clipTabVoice: "voice",
+        clipTabEffect: "effect",
+        clipTabLink: "link",
+      };
+      function clipModalPanelTabId(panelEl) {
+        return CLIP_MODAL_PANEL_TAB_ID[panelEl.id] || "";
+      }
+      let clipModalCurrentTab = "timing";
+      let clipModalCurrentLane = null;
+      const clipModalDirtyFields = new Set();
+
+      function switchClipModalTab(tabId) {
+        const tabs = document.querySelectorAll(".clip-modal-tab");
+        const panels = document.querySelectorAll(".clip-modal-tab-panel");
+        const panelId = "clipTab" + tabId.charAt(0).toUpperCase() + tabId.slice(1);
+        tabs.forEach((t) => {
+          const isActive = t.dataset.tab === tabId;
+          t.setAttribute("aria-selected", isActive ? "true" : "false");
+          if (isActive) t.classList.remove("tab-dirty");
+        });
+        panels.forEach((p) => {
+          if (p.hasAttribute("data-clip-modal-unused")) {
+            p.hidden = true;
+            p.setAttribute("aria-hidden", "true");
+            p.setAttribute("tabindex", "-1");
+            p.setAttribute("inert", "");
+            return;
+          }
+          const isActive = p.id === panelId;
+          p.hidden = !isActive;
+          p.setAttribute("aria-hidden", isActive ? "false" : "true");
+          if (isActive) {
+            p.removeAttribute("tabindex");
+            p.removeAttribute("inert");
+          } else {
+            p.setAttribute("tabindex", "-1");
+            p.setAttribute("inert", "");
+          }
+        });
+        clipModalCurrentTab = tabId;
+      }
+
+      function setupClipModalTabsForLane(lane, opts) {
+        let allowedTabs = (CLIP_MODAL_TABS_BY_LANE[lane] || ["timing"]).slice();
+        if (opts && opts.library) {
+          allowedTabs = allowedTabs.filter((tabId) => tabId !== "link");
+        }
+        const tabs = document.querySelectorAll(".clip-modal-tab");
+        tabs.forEach((t) => {
+          const id = t.dataset.tab;
+          t.hidden = !allowedTabs.includes(id);
+          t.classList.remove("tab-dirty");
+          if (id === "link" && !t.hidden) {
+            if (lane === "text") t.textContent = "TTS Link";
+            else if (lane === "tts") t.textContent = "TXT Link";
+            else t.textContent = "Link";
+          }
+        });
+        const panelsEl = document.querySelector(".clip-modal-tab-panels");
+        if (panelsEl) panelsEl.dataset.lane = lane;
+        document.querySelectorAll(".clip-modal-tab-panel").forEach((p) => {
+          const tid = clipModalPanelTabId(p);
+          if (!tid || !allowedTabs.includes(tid)) {
+            p.setAttribute("data-clip-modal-unused", "");
+            p.hidden = true;
+            p.setAttribute("aria-hidden", "true");
+            p.setAttribute("tabindex", "-1");
+            p.setAttribute("inert", "");
+          } else {
+            p.removeAttribute("data-clip-modal-unused");
+            p.removeAttribute("inert");
+          }
+        });
+        clipModalCurrentLane = lane;
+        clearAllFieldDirty();
+        const defaultTab =
+          opts && opts.activeTab && allowedTabs.includes(opts.activeTab)
+            ? opts.activeTab
+            : allowedTabs.length > 1
+              ? allowedTabs[1]
+              : allowedTabs[0];
+        switchClipModalTab(defaultTab);
+      }
+
+      function getTabForField(fieldId) {
+        const fieldTabMap = {
+          editStart: "timing",
+          editDuration: "timing",
+          editMilestone: "timing",
+          editCueHeading: "display",
+          editCueBody: "display",
+          editTtsVoiceSlot: "voice",
+          editTtsSpeech: "voice",
+          editSfxKind: "effect",
+          editVfxEffectType: "effect",
+          editVfxBgMode: "effect",
+          editVfxRepeat: "effect",
+          editVfxColorMode: "effect",
+          editVfxColor: "effect",
+          editVfxFireworksPlacement: "effect",
+          editVfxFireworksColor: "effect",
+          clipTxtTtsLinkPick: "link",
+          clipTxtTtsSyncStart: "link",
+          clipTxtTtsSyncDuration: "link",
+        };
+        return fieldTabMap[fieldId] || null;
+      }
+
+      function markFieldDirty(fieldId) {
+        const el = document.getElementById(fieldId);
+        if (!el) return;
+        const field = el.closest(".field");
+        if (field) field.classList.add("field-dirty");
+        clipModalDirtyFields.add(fieldId);
+        const tab = getTabForField(fieldId);
+        if (tab && tab !== clipModalCurrentTab) {
+          const tabBtn = document.querySelector('.clip-modal-tab[data-tab="' + tab + '"]');
+          if (tabBtn && !tabBtn.hidden) tabBtn.classList.add("tab-dirty");
+        }
+      }
+
+      function clearFieldDirty(fieldId) {
+        const el = document.getElementById(fieldId);
+        if (!el) return;
+        const field = el.closest(".field");
+        if (field) field.classList.remove("field-dirty");
+        clipModalDirtyFields.delete(fieldId);
+      }
+
+      function clearAllFieldDirty() {
+        document.querySelectorAll("#clipModal .field-dirty").forEach((field) => field.classList.remove("field-dirty"));
+        clipModalDirtyFields.clear();
+        document.querySelectorAll("#clipModal .clip-modal-tab").forEach((t) => t.classList.remove("tab-dirty"));
+      }
+
+      function initClipModalTabListeners() {
+        document.querySelectorAll(".clip-modal-tab").forEach((btn) => {
+          btn.addEventListener("click", () => {
+            if (btn.hidden) return;
+            switchClipModalTab(btn.dataset.tab);
+          });
+        });
+      }
+      initClipModalTabListeners();
+
+      function initClipModalDirtyFieldListeners() {
+        const fieldIds = [
+          "editStart", "editDuration", "editMilestone",
+          "editCueHeading", "editCueBody",
+          "editTtsVoiceSlot", "editTtsSpeech",
+          "editSfxKind",
+          "editVfxEffectType", "editVfxBgMode", "editVfxRepeat",
+          "editVfxColorMode", "editVfxColor",
+          "editVfxFireworksPlacement", "editVfxFireworksColor",
+          "clipTxtTtsLinkPick",
+          "clipTxtTtsSyncStart",
+          "clipTxtTtsSyncDuration",
+        ];
+        for (const fid of fieldIds) {
+          const el = document.getElementById(fid);
+          if (!el) continue;
+          const clearFn = () => clearFieldDirty(fid);
+          el.addEventListener("focus", clearFn);
+          el.addEventListener("click", clearFn);
+          el.addEventListener("input", clearFn);
+          el.addEventListener("change", clearFn);
+        }
+      }
+      initClipModalDirtyFieldListeners();
       const vfxEditorWrap = document.getElementById("vfxEditorWrap");
       const vfxFireworksOptionsWrap = document.getElementById("vfxFireworksOptionsWrap");
       const editVfxFireworksPlacement = document.getElementById("editVfxFireworksPlacement");
@@ -3123,7 +3444,11 @@
           const B = sparksBurstDurationSec();
           editDuration.setAttribute("step", String(B));
           editDuration.setAttribute("min", String(B));
-          editDuration.setAttribute("max", String(B));
+          if (rawFx === "fireballs" || rawFx === "trail") {
+            editDuration.setAttribute("max", String(B));
+          } else {
+            editDuration.removeAttribute("max");
+          }
         } else {
           editDuration.removeAttribute("step");
           editDuration.removeAttribute("min");
@@ -3137,6 +3462,11 @@
       let repRenameContext = null;
       /** Selected cues `"repIndex:eventIndex"`. Multiple when Group mode is on. */
       let selectedClipKeys = new Set();
+      /**
+       * Which selected cue shows the solid selection ring when a Text↔TTS pair is both selected
+       * (e.g. after a linked group move). The partner cue uses the dotted ring instead.
+       */
+      let clipSelectionAnchorKey = null;
       let clipGroupMode = false;
       /** `{ r, eventIdx, edge }` — arrow keys nudge that cue edge (single selection only). */
       let clipKeyboardResizeMode = null;
@@ -3185,6 +3515,7 @@
           selectedRepIndices: [...selectedRepIndices],
           selectedSegmentIndices: [...selectedSegmentIndices],
           selectedClipKeys: [...selectedClipKeys],
+          clipSelectionAnchorKey,
           clipGroupMode,
           partSidebarActiveRingVisible,
           workoutName: workoutName,
@@ -3220,6 +3551,13 @@
         }
         selectedClipKeys.clear();
         for (const x of s.selectedClipKeys) selectedClipKeys.add(x);
+        clipSelectionAnchorKey =
+          Object.prototype.hasOwnProperty.call(s, "clipSelectionAnchorKey") &&
+          typeof s.clipSelectionAnchorKey === "string" &&
+          selectedClipKeys.has(s.clipSelectionAnchorKey)
+            ? s.clipSelectionAnchorKey
+            : null;
+        if (selectedClipKeys.size > 0) normalizeClipSelectionAnchor();
         clipGroupMode = !!s.clipGroupMode;
         partSidebarActiveRingVisible = s.partSidebarActiveRingVisible === true;
         if (Object.prototype.hasOwnProperty.call(s, "workoutName")) {
@@ -3430,11 +3768,21 @@
           const { heading, body } = normalizeTextCuePresentationFields(e.heading, e.body);
           if (heading) out.heading = heading;
           if (body) out.body = body;
+          if (e.linkedTtsElementId != null && String(e.linkedTtsElementId).trim()) {
+            out.linkedTtsElementId = String(e.linkedTtsElementId).trim().slice(0, 80);
+          }
+          if (e.linkedSyncStart === true) out.linkedSyncStart = true;
+          if (e.linkedSyncDuration === true) out.linkedSyncDuration = true;
         }
         if (lane === "tts") {
           out.voiceSlot = String(e.voiceSlot || "").toLowerCase() === "b" ? "b" : "a";
           const sp = normalizeTtsSpeech(e.speech);
           if (sp) out.speech = sp;
+          if (e.linkedTextElementId != null && String(e.linkedTextElementId).trim()) {
+            out.linkedTextElementId = String(e.linkedTextElementId).trim().slice(0, 80);
+          }
+          if (e.linkedSyncStart === true) out.linkedSyncStart = true;
+          if (e.linkedSyncDuration === true) out.linkedSyncDuration = true;
         }
         // Milestone property: explicit true/false is preserved, undefined uses lane default (TTS=true, others=false)
         if (e.milestone === true || e.milestone === false) {
@@ -3745,6 +4093,7 @@
           bindActiveSegmentPointers();
           selectedSegmentIndices.clear();
           selectedClipKeys.clear();
+          clipSelectionAnchorKey = null;
           selectedRepIndices.clear();
           selectedRepIndex = -1;
           partSidebarActiveRingVisible = false;
@@ -3810,6 +4159,7 @@
         activeSegmentIndex = newIdx;
         bindActiveSegmentPointers();
         selectedClipKeys.clear();
+        clipSelectionAnchorKey = null;
         selectedRepIndices.clear();
         selectedRepIndex = -1;
         cueClipboard = null;
@@ -3942,6 +4292,7 @@
           if (ni >= 0) selectedSegmentIndices.add(ni);
         }
         selectedClipKeys.clear();
+        clipSelectionAnchorKey = null;
         selectedRepIndices.clear();
         selectedRepIndex = -1;
         cueClipboard = null;
@@ -4558,13 +4909,30 @@
         if (!rep || typeof rep !== "object") return;
         rep.elementId = genElementId();
         if (!Array.isArray(rep.events)) rep.events = [];
+        const oldToNew = new Map();
         for (const ev of rep.events) {
           if (!ev || typeof ev !== "object") continue;
+          const oldId =
+            ev.elementId != null && String(ev.elementId).trim() ? String(ev.elementId).trim().slice(0, 80) : "";
           ev.elementId = genElementId();
+          if (oldId) oldToNew.set(oldId, ev.elementId);
           if (ev.lane === "sfx" && !ev.sfxKind) ev.sfxKind = "split";
           if (ev.lane === "tts" && ev.voiceSlot !== "a" && ev.voiceSlot !== "b") ev.voiceSlot = "a";
           if (ev.name == null || !String(ev.name).trim()) {
             ev.name = defaultNewCueName(ev.lane, ev.sfxKind);
+          }
+        }
+        for (const ev of rep.events) {
+          if (!ev || typeof ev !== "object") continue;
+          if (ev.lane === "text" && ev.linkedTtsElementId) {
+            const nu = oldToNew.get(String(ev.linkedTtsElementId).trim().slice(0, 80));
+            if (nu) ev.linkedTtsElementId = nu;
+            else delete ev.linkedTtsElementId;
+          }
+          if (ev.lane === "tts" && ev.linkedTextElementId) {
+            const nu = oldToNew.get(String(ev.linkedTextElementId).trim().slice(0, 80));
+            if (nu) ev.linkedTextElementId = nu;
+            else delete ev.linkedTextElementId;
           }
         }
       }
@@ -4750,7 +5118,7 @@
           const B = sparksBurstDurationSec();
           let dur = B;
           dur = Math.min(dur, cap);
-          if (eventPlacementValid(r, ev.lane, st, dur, idx)) return { st, dur };
+          if (clipResizePlacementValid(r, idx, st, dur)) return { st, dur };
           return null;
         }
         if (isVfxFireworksEvent(ev)) {
@@ -4758,19 +5126,14 @@
           let dur = snapFireworksCueDurationSec(snapTime(desiredEndInRep - st));
           dur = Math.min(dur, cap);
           dur = snapFireworksCueDurationSec(dur);
-          while (dur >= B - 1e-9) {
-            if (eventPlacementValid(r, ev.lane, st, dur, idx)) return { st, dur };
-            dur = snapTime(dur - B);
-          }
+          if (dur < B - 1e-9) return null;
+          if (clipResizePlacementValid(r, idx, st, dur)) return { st, dur };
           return null;
         }
         let dur = snapTime(desiredEndInRep - st);
         dur = Math.max(TIME_SNAP_SEC, dur);
         dur = Math.min(dur, cap);
-        while (dur >= TIME_SNAP_SEC - 1e-9) {
-          if (eventPlacementValid(r, ev.lane, st, dur, idx)) return { st, dur };
-          dur = snapTime(dur - TIME_SNAP_SEC);
-        }
+        if (clipResizePlacementValid(r, idx, st, dur)) return { st, dur };
         return null;
       }
 
@@ -4785,38 +5148,26 @@
           let st = snapTime(Math.max(0, want));
           st = Math.min(st, snapTime(totalTimelineSec() - B));
           const dur = B;
-          if (eventPlacementValid(r, ev.lane, st, dur, idx)) return { st, dur };
+          if (clipResizePlacementValid(r, idx, st, dur)) return { st, dur };
           return null;
         }
         if (isVfxFireworksEvent(ev)) {
           const B = sparksBurstDurationSec();
-          let dur0 = snapTime(Math.floor(end / B) * B);
-          if (dur0 < B - 1e-9) dur0 = B;
-          while (dur0 > end + 1e-9) dur0 = snapTime(dur0 - B);
           const want = snapTime(desiredStartInRep);
-          let best = null;
-          let bestD = Infinity;
-          for (let dur = dur0; dur >= B - 1e-9; dur = snapTime(dur - B)) {
-            const st = snapTime(end - dur);
-            if (st < -1e-9) continue;
-            if (!eventPlacementValid(r, ev.lane, st, dur, idx)) continue;
-            const d = Math.abs(st - want);
-            if (d < bestD - 1e-9 || (Math.abs(d - bestD) < 1e-9 && best != null && st < best.st)) {
-              bestD = d;
-              best = { st, dur };
-            }
-          }
-          return best;
+          let st = Math.max(0, Math.min(want, snapTime(end - B)));
+          let dur = snapTime(end - st);
+          const durSnap = snapFireworksCueDurationSec(dur);
+          if (Math.abs(dur - durSnap) > 1e-6) return null;
+          if (dur < B - 1e-9) return null;
+          st = snapTime(end - dur);
+          if (clipResizePlacementValid(r, idx, st, dur)) return { st, dur };
+          return null;
         }
         let st = snapTime(desiredStartInRep);
         st = Math.max(0, st);
         st = Math.min(st, snapTime(end - TIME_SNAP_SEC));
-        let dur = snapTime(end - st);
-        while (st <= end - TIME_SNAP_SEC + 1e-9 && dur >= TIME_SNAP_SEC - 1e-9) {
-          if (eventPlacementValid(r, ev.lane, st, dur, idx)) return { st, dur };
-          st = snapTime(st + TIME_SNAP_SEC);
-          dur = snapTime(end - st);
-        }
+        const dur = snapTime(end - st);
+        if (clipResizePlacementValid(r, idx, st, dur)) return { st, dur };
         return null;
       }
 
@@ -4856,6 +5207,7 @@
             lane: ev.lane,
           });
         }
+        if (members.length) expandRigidMembersWithHiddenTextTtsPartners(members, excludeKeys);
         return members.length ? { excludeKeys, members } : null;
       }
 
@@ -4869,11 +5221,49 @@
           ensureEvents(r);
           const ev = reps[r].events[i];
           if (!ev) return false;
+          const part = getTextTtsLinkedPartner(r, i);
+          if (part) {
+            const excludeKeys = new Set([k, clipKey(part.r, part.i)]);
+            const members = [
+              {
+                r,
+                eventIdx: i,
+                start0: snapTime(ev.start),
+                dur: snapTime(ev.duration),
+                lane: ev.lane,
+              },
+              {
+                r: part.r,
+                eventIdx: part.i,
+                start0: snapTime(part.ev.start),
+                dur: snapTime(part.ev.duration),
+                lane: part.ev.lane,
+              },
+            ];
+            const delta = snapGroupDeltaTowardValid(step, members, excludeKeys);
+            if (Math.abs(delta) < 1e-9) return false;
+            ensureKeyboardCueUndoBatch();
+            for (const m of members) {
+              ensureEvents(m.r);
+              const e2 = reps[m.r].events[m.eventIdx];
+              if (e2) e2.start = snapTime(m.start0 + delta);
+            }
+            for (const m of members) {
+              const e2 = reps[m.r] && reps[m.r].events[m.eventIdx];
+              if (e2 && (e2.lane === "text" || e2.lane === "tts")) {
+                propagateTextTtsLinkedTimingFromEditedCue(m.r, m.eventIdx);
+              }
+            }
+            return true;
+          }
           const preferred = snapTime(ev.start + step);
           const placed = resolveDragPosition(ev.lane, preferred, ev.duration, r, i);
           if (placed === null || Math.abs(placed - ev.start) < 1e-9) return false;
           ensureKeyboardCueUndoBatch();
           ev.start = placed;
+          if (ev.lane === "text" || ev.lane === "tts") {
+            propagateTextTtsLinkedTimingFromEditedCue(r, i);
+          }
           return true;
         }
         const bg = buildGroupMembersFromSelection();
@@ -4885,6 +5275,12 @@
           ensureEvents(m.r);
           const ev = reps[m.r].events[m.eventIdx];
           if (ev) ev.start = snapTime(m.start0 + delta);
+        }
+        for (const m of bg.members) {
+          const ev = reps[m.r] && reps[m.r].events[m.eventIdx];
+          if (ev && (ev.lane === "text" || ev.lane === "tts")) {
+            propagateTextTtsLinkedTimingFromEditedCue(m.r, m.eventIdx);
+          }
         }
         return true;
       }
@@ -4910,6 +5306,9 @@
         ensureKeyboardCueUndoBatch();
         ev.start = applied.st;
         ev.duration = applied.dur;
+        if (ev.lane === "text" || ev.lane === "tts") {
+          propagateTextTtsLinkedTimingFromEditedCue(r, eventIdx);
+        }
         return true;
       }
 
@@ -5127,7 +5526,10 @@
         selectedSegmentIndices.clear();
         selectedClipKeys.clear();
         clipKeyboardResizeMode = null;
-        document.querySelectorAll(".clip.selected").forEach((c) => c.classList.remove("selected"));
+        document.querySelectorAll(".clip").forEach((c) =>
+          c.classList.remove("selected", "clip-linked-partner-highlight")
+        );
+        clipSelectionAnchorKey = null;
         selectedRepIndex = r;
         selectedRepIndices.clear();
         selectedRepIndices.add(r);
@@ -5324,6 +5726,331 @@
         return { r, i };
       }
 
+      function trimCueLinkElementId(raw) {
+        if (raw == null) return "";
+        return String(raw).trim().slice(0, 80);
+      }
+
+      function findEventIndexByElementId(repIndex, elementId) {
+        const id = trimCueLinkElementId(elementId);
+        if (!id) return -1;
+        if (repIndex < 0 || repIndex >= repCount()) return -1;
+        ensureEvents(repIndex);
+        const arr = reps[repIndex].events;
+        for (let j = 0; j < arr.length; j++) {
+          const ev = arr[j];
+          if (ev && trimCueLinkElementId(ev.elementId) === id) return j;
+        }
+        return -1;
+      }
+
+      function getTextTtsLinkedPartner(repIndex, eventIndex) {
+        if (repIndex < 0 || repIndex >= repCount()) return null;
+        ensureEvents(repIndex);
+        const ev = reps[repIndex].events[eventIndex];
+        if (!ev) return null;
+        if (ev.lane === "text") {
+          const tid = trimCueLinkElementId(ev.linkedTtsElementId);
+          if (!tid) return null;
+          const j = findEventIndexByElementId(repIndex, tid);
+          if (j < 0) return null;
+          const p = reps[repIndex].events[j];
+          if (!p || p.lane !== "tts") return null;
+          if (trimCueLinkElementId(p.linkedTextElementId) !== trimCueLinkElementId(ev.elementId)) return null;
+          return { r: repIndex, i: j, ev: p };
+        }
+        if (ev.lane === "tts") {
+          const tid = trimCueLinkElementId(ev.linkedTextElementId);
+          if (!tid) return null;
+          const j = findEventIndexByElementId(repIndex, tid);
+          if (j < 0) return null;
+          const p = reps[repIndex].events[j];
+          if (!p || p.lane !== "text") return null;
+          if (trimCueLinkElementId(p.linkedTtsElementId) !== trimCueLinkElementId(ev.elementId)) return null;
+          return { r: repIndex, i: j, ev: p };
+        }
+        return null;
+      }
+
+      function clearTextTtsLinkFieldsOnEvent(ev) {
+        if (!ev) return;
+        delete ev.linkedTtsElementId;
+        delete ev.linkedTextElementId;
+        delete ev.linkedSyncStart;
+        delete ev.linkedSyncDuration;
+      }
+
+      let _propagateTextTtsTimingDepth = 0;
+      /** After `start`/`duration` on a Text or TTS cue changes, mirror onto the linked partner when sync flags are on. */
+      function propagateTextTtsLinkedTimingFromEditedCue(repIndex, editedIdx) {
+        if (repIndex < 0 || repIndex >= repCount()) return;
+        if (_propagateTextTtsTimingDepth > 8) return;
+        ensureEvents(repIndex);
+        const ev = reps[repIndex].events[editedIdx];
+        if (!ev || (ev.lane !== "text" && ev.lane !== "tts")) return;
+        const part = getTextTtsLinkedPartner(repIndex, editedIdx);
+        if (!part) return;
+        const syncStart = ev.linkedSyncStart === true || part.ev.linkedSyncStart === true;
+        const syncDur = ev.linkedSyncDuration === true || part.ev.linkedSyncDuration === true;
+        if (!syncStart && !syncDur) return;
+        const pR = part.r;
+        const pIdx = part.i;
+        const pEv = reps[pR].events[pIdx];
+        if (!pEv) return;
+        const excludeKeys = new Set([clipKey(repIndex, editedIdx), clipKey(pR, pIdx)]);
+        _propagateTextTtsTimingDepth++;
+        try {
+          if (syncStart && Math.abs(snapTime(pEv.start) - snapTime(ev.start)) > 1e-9) {
+            if (eventPlacementValidExcludingKeys(pEv.lane, snapTime(ev.start), pEv.duration, excludeKeys)) {
+              pEv.start = snapTime(ev.start);
+            }
+          }
+          if (syncDur && Math.abs(snapTime(pEv.duration) - snapTime(ev.duration)) > 1e-9) {
+            if (eventPlacementValidExcludingKeys(pEv.lane, pEv.start, snapTime(ev.duration), excludeKeys)) {
+              pEv.duration = snapTime(ev.duration);
+            }
+          }
+        } finally {
+          _propagateTextTtsTimingDepth--;
+        }
+      }
+
+      function unlinkTextTtsPart(repIndex, eventIndex) {
+        ensureEvents(repIndex);
+        const ev = reps[repIndex].events[eventIndex];
+        if (!ev) return;
+        const part = getTextTtsLinkedPartner(repIndex, eventIndex);
+        clearTextTtsLinkFieldsOnEvent(ev);
+        if (part) clearTextTtsLinkFieldsOnEvent(part.ev);
+      }
+
+      function establishTextTtsLink(repIndex, textEventIdx, ttsEventIdx) {
+        ensureEvents(repIndex);
+        const textEv = reps[repIndex].events[textEventIdx];
+        const ttsEv = reps[repIndex].events[ttsEventIdx];
+        if (!textEv || !ttsEv || textEv.lane !== "text" || ttsEv.lane !== "tts") return;
+        reseedElementIdCounterFromWorkout();
+        if (!trimCueLinkElementId(textEv.elementId)) textEv.elementId = genElementId();
+        if (!trimCueLinkElementId(ttsEv.elementId)) ttsEv.elementId = genElementId();
+        unlinkTextTtsPart(repIndex, textEventIdx);
+        unlinkTextTtsPart(repIndex, ttsEventIdx);
+        textEv.linkedTtsElementId = trimCueLinkElementId(ttsEv.elementId);
+        ttsEv.linkedTextElementId = trimCueLinkElementId(textEv.elementId);
+      }
+
+      function expandRigidMembersWithHiddenTextTtsPartners(members, excludeKeys) {
+        const seen = new Set(members.map((m) => clipKey(m.r, m.eventIdx)));
+        let added = true;
+        while (added) {
+          added = false;
+          const snapM = members.slice();
+          for (const m of snapM) {
+            const part = getTextTtsLinkedPartner(m.r, m.eventIdx);
+            if (!part) continue;
+            const pk = clipKey(part.r, part.i);
+            if (seen.has(pk)) continue;
+            seen.add(pk);
+            excludeKeys.add(pk);
+            ensureEvents(part.r);
+            const pev = reps[part.r].events[part.i];
+            if (!pev) continue;
+            members.push({
+              r: part.r,
+              eventIdx: part.i,
+              start0: snapTime(pev.start),
+              dur: snapTime(pev.duration),
+              lane: pev.lane,
+            });
+            added = true;
+          }
+        }
+      }
+
+      function repairDanglingTextTtsLinksInRep(repIndex) {
+        if (repIndex < 0 || repIndex >= repCount()) return;
+        ensureEvents(repIndex);
+        const arr = reps[repIndex].events;
+        for (let i = 0; i < arr.length; i++) {
+          const ev = arr[i];
+          if (!ev || (ev.lane !== "text" && ev.lane !== "tts")) continue;
+          if (!getTextTtsLinkedPartner(repIndex, i)) {
+            if (ev.lane === "text") delete ev.linkedTtsElementId;
+            if (ev.lane === "tts") delete ev.linkedTextElementId;
+            if (ev.lane === "text" || ev.lane === "tts") {
+              delete ev.linkedSyncStart;
+              delete ev.linkedSyncDuration;
+            }
+          }
+        }
+      }
+
+      function repairAllTextTtsLinks() {
+        for (let r = 0; r < repCount(); r++) repairDanglingTextTtsLinksInRep(r);
+      }
+
+      function selectionCanLinkTextTtsPair() {
+        if (selectedClipKeys.size !== 2) return false;
+        const keys = [...selectedClipKeys];
+        const a = parseClipKey(keys[0]);
+        const b = parseClipKey(keys[1]);
+        if (a.r !== b.r) return false;
+        ensureEvents(a.r);
+        const evA = reps[a.r].events[a.i];
+        const evB = reps[b.r].events[b.i];
+        if (!evA || !evB) return false;
+        const la = evA.lane;
+        const lb = evB.lane;
+        return (la === "text" && lb === "tts") || (la === "tts" && lb === "text");
+      }
+
+      function selectionHasAnyTextTtsLinkField() {
+        for (const k of selectedClipKeys) {
+          const { r, i } = parseClipKey(k);
+          if (r < 0 || r >= repCount()) continue;
+          const ev = reps[r] && reps[r].events[i];
+          if (ev && (ev.linkedTtsElementId || ev.linkedTextElementId)) return true;
+        }
+        return false;
+      }
+
+      function linkToolbarSelectionTextTts() {
+        if (!selectionCanLinkTextTtsPair()) {
+          showToast("Select exactly one Text and one TTS cue in the same rep.");
+          return;
+        }
+        const keys = [...selectedClipKeys];
+        const a = parseClipKey(keys[0]);
+        const b = parseClipKey(keys[1]);
+        ensureEvents(a.r);
+        const evA = reps[a.r].events[a.i];
+        const evB = reps[b.r].events[b.i];
+        let textIdx = -1;
+        let ttsIdx = -1;
+        if (evA.lane === "text") textIdx = a.i;
+        else if (evA.lane === "tts") ttsIdx = a.i;
+        if (evB.lane === "text") textIdx = b.i;
+        else if (evB.lane === "tts") ttsIdx = b.i;
+        if (textIdx < 0 || ttsIdx < 0) return;
+        pushUndoSnapshot();
+        establishTextTtsLink(a.r, textIdx, ttsIdx);
+        refreshAll();
+        showToast("Linked text and TTS.");
+      }
+
+      function unlinkToolbarSelectionTextTts() {
+        if (selectedClipKeys.size === 0) return;
+        const refs = getSelectedCueRefsSorted();
+        if (!refs.length) return;
+        pushUndoSnapshot();
+        for (const { r, eventIndex } of refs) {
+          const ev2 = reps[r] && reps[r].events[eventIndex];
+          if (ev2 && (ev2.lane === "text" || ev2.lane === "tts")) unlinkTextTtsPart(r, eventIndex);
+        }
+        refreshAll();
+        showToast("Unlinked.");
+      }
+
+      let clipTxtTtsLinkPickProgrammatic = false;
+      function setClipTxtTtsLinkPickValue(pick, value) {
+        if (!pick) return;
+        clipTxtTtsLinkPickProgrammatic = true;
+        pick.value = value;
+        clipTxtTtsLinkPickProgrammatic = false;
+      }
+
+      function onClipTxtTtsLinkPickChange() {
+        const pick = document.getElementById("clipTxtTtsLinkPick");
+        if (!pick || clipTxtTtsLinkPickProgrammatic || !clipEditContext || clipEditContext.libraryEdit) return;
+        const { r, eventIndex } = clipEditContext;
+        ensureEvents(r);
+        const ev = reps[r].events[eventIndex];
+        if (!ev || (ev.lane !== "text" && ev.lane !== "tts")) return;
+        if (!pick.value) {
+          pushUndoSnapshot();
+          unlinkTextTtsPart(r, eventIndex);
+          refreshAll();
+          openClipEditor(r, eventIndex, {
+            activeTab: "link",
+            suppressAutoFocusName: true,
+            refocusId: "clipTxtTtsLinkPick",
+          });
+          showToast("Unlinked.");
+          return;
+        }
+        const wantLane = ev.lane === "text" ? "tts" : "text";
+        const oid = trimCueLinkElementId(pick.value);
+        const j = findEventIndexByElementId(r, oid);
+        if (j < 0) {
+          showToast("Could not find that cue.");
+          syncClipTextTtsLinkModalFromContext();
+          return;
+        }
+        const oev = reps[r].events[j];
+        if (!oev || oev.lane !== wantLane) return;
+        let textIdx = eventIndex;
+        let ttsIdx = j;
+        if (ev.lane === "tts") {
+          textIdx = j;
+          ttsIdx = eventIndex;
+        }
+        pushUndoSnapshot();
+        establishTextTtsLink(r, textIdx, ttsIdx);
+        refreshAll();
+        openClipEditor(r, eventIndex, {
+          activeTab: "link",
+          suppressAutoFocusName: true,
+          refocusId: "clipTxtTtsLinkPick",
+        });
+        showToast("Linked.");
+      }
+
+      function onClipTxtTtsSyncCheckboxChange(domEv) {
+        const syncS = document.getElementById("clipTxtTtsSyncStart");
+        const syncD = document.getElementById("clipTxtTtsSyncDuration");
+        if (!clipEditContext || clipEditContext.libraryEdit || !syncS || !syncD) return;
+        const { r, eventIndex } = clipEditContext;
+        ensureEvents(r);
+        const cueEv = reps[r].events[eventIndex];
+        if (!cueEv || (cueEv.lane !== "text" && cueEv.lane !== "tts")) return;
+        const part = getTextTtsLinkedPartner(r, eventIndex);
+        if (!part) {
+          syncS.checked = false;
+          syncD.checked = false;
+          return;
+        }
+        pushUndoSnapshot();
+        const wantS = !!syncS.checked;
+        const wantD = !!syncD.checked;
+        if (wantS) {
+          cueEv.linkedSyncStart = true;
+          part.ev.linkedSyncStart = true;
+        } else {
+          delete cueEv.linkedSyncStart;
+          delete part.ev.linkedSyncStart;
+        }
+        if (wantD) {
+          cueEv.linkedSyncDuration = true;
+          part.ev.linkedSyncDuration = true;
+        } else {
+          delete cueEv.linkedSyncDuration;
+          delete part.ev.linkedSyncDuration;
+        }
+        propagateTextTtsLinkedTimingFromEditedCue(r, eventIndex);
+        refreshAll();
+        const refId =
+          domEv &&
+          domEv.target &&
+          domEv.target.id &&
+          (domEv.target.id === "clipTxtTtsSyncStart" || domEv.target.id === "clipTxtTtsSyncDuration")
+            ? domEv.target.id
+            : "clipTxtTtsSyncStart";
+        openClipEditor(r, eventIndex, {
+          activeTab: "link",
+          suppressAutoFocusName: true,
+          refocusId: refId,
+        });
+      }
+
       /** Rep column where a cue draws, from global `ev.start` (may differ from the events[] owning rep). */
       function visualRepIndexForEventAt(r, eventIdx) {
         if (r < 0 || r >= repCount()) return -1;
@@ -5353,6 +6080,44 @@
         if (dur < TIME_SNAP_SEC - 1e-9) return false;
         if (st < -1e-9 || st + dur > repEnd + 1e-6) return false;
         if (sameLaneOverlapsWorkoutExcludingKeys(laneId, st, dur, excludeKeys)) return false;
+        return true;
+      }
+
+      /**
+       * Resize placement for cue `(repIndex,idx)` at candidate `editedSt`/`editedDur`.
+       * With Text↔TTS sync, both lanes must accept the implied pair (same idea as group drag: one blocked, both blocked).
+       */
+      function clipResizePlacementValid(repIndex, idx, editedSt, editedDur) {
+        ensureEvents(repIndex);
+        const ev = reps[repIndex].events[idx];
+        if (!ev) return false;
+        const st = snapTime(editedSt);
+        const dur = snapTime(editedDur);
+        const part = getTextTtsLinkedPartner(repIndex, idx);
+        if (!part) return eventPlacementValid(repIndex, ev.lane, st, dur, idx);
+        const syncStart = ev.linkedSyncStart === true || part.ev.linkedSyncStart === true;
+        const syncDur = ev.linkedSyncDuration === true || part.ev.linkedSyncDuration === true;
+        if (!syncStart && !syncDur) return eventPlacementValid(repIndex, ev.lane, st, dur, idx);
+        const exclude = new Set([clipKey(repIndex, idx), clipKey(part.r, part.i)]);
+        let textSt;
+        let textDur;
+        let ttsSt;
+        let ttsDur;
+        if (ev.lane === "text") {
+          textSt = st;
+          textDur = dur;
+          ttsSt = syncStart ? snapTime(st) : snapTime(part.ev.start);
+          ttsDur = syncDur ? snapTime(dur) : snapTime(part.ev.duration);
+        } else if (ev.lane === "tts") {
+          ttsSt = st;
+          ttsDur = dur;
+          textSt = syncStart ? snapTime(st) : snapTime(part.ev.start);
+          textDur = syncDur ? snapTime(dur) : snapTime(part.ev.duration);
+        } else {
+          return eventPlacementValid(repIndex, ev.lane, st, dur, idx);
+        }
+        if (!eventPlacementValidExcludingKeys("text", textSt, textDur, exclude)) return false;
+        if (!eventPlacementValidExcludingKeys("tts", ttsSt, ttsDur, exclude)) return false;
         return true;
       }
 
@@ -5391,23 +6156,41 @@
       }
 
       function buildGroupDragState(r, eventIdx) {
-        if (!(selectedClipKeys.has(clipKey(r, eventIdx)) && selectedClipKeys.size > 1)) return null;
-        const excludeKeys = new Set(selectedClipKeys);
+        const k0 = clipKey(r, eventIdx);
+        const excludeKeys = new Set();
         const members = [];
-        for (const k of selectedClipKeys) {
-          const { r: rr, i } = parseClipKey(k);
-          if (rr < 0 || rr >= repCount()) continue;
-          ensureEvents(rr);
-          const ev = reps[rr].events[i];
-          if (!ev) continue;
+        if (selectedClipKeys.size > 1 && selectedClipKeys.has(k0)) {
+          for (const k of selectedClipKeys) {
+            const { r: rr, i } = parseClipKey(k);
+            if (rr < 0 || rr >= repCount()) continue;
+            ensureEvents(rr);
+            const ev = reps[rr].events[i];
+            if (!ev) continue;
+            excludeKeys.add(k);
+            members.push({
+              r: rr,
+              eventIdx: i,
+              start0: snapTime(ev.start),
+              dur: snapTime(ev.duration),
+              lane: ev.lane,
+            });
+          }
+          if (members.length < 2) return null;
+        } else {
+          excludeKeys.add(k0);
+          if (r < 0 || r >= repCount()) return null;
+          ensureEvents(r);
+          const ev = reps[r].events[eventIdx];
+          if (!ev) return null;
           members.push({
-            r: rr,
-            eventIdx: i,
+            r,
+            eventIdx,
             start0: snapTime(ev.start),
             dur: snapTime(ev.duration),
             lane: ev.lane,
           });
         }
+        expandRigidMembersWithHiddenTextTtsPartners(members, excludeKeys);
         if (members.length < 2) return null;
         return { excludeKeys, members };
       }
@@ -5416,6 +6199,7 @@
         deselectPlayhead();
         selectedClipKeys.clear();
         selectedClipKeys.add(clipKey(r, eventIndex));
+        clipSelectionAnchorKey = clipKey(r, eventIndex);
         syncRepIndicesFromClipSelection();
         maybeClearClipKeyboardResize();
         seekPreviewToActiveRepStart(r);
@@ -5428,17 +6212,24 @@
         for (let j = 0; j < count; j++) {
           selectedClipKeys.add(clipKey(r, startIdx + j));
         }
+        clipSelectionAnchorKey = clipKey(r, startIdx);
         syncRepIndicesFromClipSelection();
         maybeClearClipKeyboardResize();
       }
 
       /** Replace selection with all cues in a rigid group (e.g. after group move). */
-      function selectClipKeysFromGroupMembers(members) {
+      function selectClipKeysFromGroupMembers(members, anchorKey) {
         deselectPlayhead();
         selectedClipKeys.clear();
         for (const m of members) {
           selectedClipKeys.add(clipKey(m.r, m.eventIdx));
         }
+        clipSelectionAnchorKey =
+          anchorKey && selectedClipKeys.has(anchorKey)
+            ? anchorKey
+            : members.length
+              ? clipKey(members[0].r, members[0].eventIdx)
+              : null;
         syncRepIndicesFromClipSelection();
         maybeClearClipKeyboardResize();
       }
@@ -5446,16 +6237,24 @@
       function toggleClipInSelection(r, eventIndex) {
         deselectPlayhead();
         const k = clipKey(r, eventIndex);
-        if (selectedClipKeys.has(k)) selectedClipKeys.delete(k);
-        else selectedClipKeys.add(k);
+        if (selectedClipKeys.has(k)) {
+          selectedClipKeys.delete(k);
+          if (clipSelectionAnchorKey === k) normalizeClipSelectionAnchor();
+        } else {
+          selectedClipKeys.add(k);
+          clipSelectionAnchorKey = k;
+        }
         syncRepIndicesFromClipSelection();
         maybeClearClipKeyboardResize();
       }
 
       function clearClipSelection() {
         selectedClipKeys.clear();
+        clipSelectionAnchorKey = null;
         clipKeyboardResizeMode = null;
-        document.querySelectorAll(".clip.selected").forEach((c) => c.classList.remove("selected"));
+        document.querySelectorAll(".clip").forEach((c) =>
+          c.classList.remove("selected", "clip-linked-partner-highlight")
+        );
         updateCueToolbarState();
         updateSelectedRepLabel();
       }
@@ -5464,11 +6263,47 @@
         return selectedClipKeys.has(clipKey(r, eventIndex));
       }
 
+      /** Keep `clipSelectionAnchorKey` valid whenever `selectedClipKeys` changes in bulk. */
+      function normalizeClipSelectionAnchor() {
+        if (selectedClipKeys.size === 0) {
+          clipSelectionAnchorKey = null;
+          return;
+        }
+        if (clipSelectionAnchorKey && selectedClipKeys.has(clipSelectionAnchorKey)) return;
+        const sorted = [...selectedClipKeys].sort((a, b) => {
+          const A = parseClipKey(a);
+          const B = parseClipKey(b);
+          return A.r - B.r || A.i - B.i;
+        });
+        clipSelectionAnchorKey = sorted[0] || null;
+      }
+
+      /** Dotted ring: partner selected, and this cue is either unselected or the non-anchor in a linked pair. */
+      function clipShowLinkedPartnerDottedRing(r, eventIndex) {
+        const part = getTextTtsLinkedPartner(r, eventIndex);
+        if (!part) return false;
+        const kPart = clipKey(part.r, part.i);
+        if (!clipSelected(part.r, part.i)) return false;
+        if (!clipSelected(r, eventIndex)) return true;
+        if (!clipSelectionAnchorKey || !selectedClipKeys.has(clipSelectionAnchorKey)) {
+          normalizeClipSelectionAnchor();
+        }
+        const a = clipSelectionAnchorKey;
+        return !!a && a === kPart;
+      }
+
+      function clipShowSolidSelectedRing(r, eventIndex) {
+        if (!clipSelected(r, eventIndex)) return false;
+        if (clipShowLinkedPartnerDottedRing(r, eventIndex)) return false;
+        return true;
+      }
+
       function syncClipSelectionClass() {
         document.querySelectorAll(".clip").forEach((c) => {
           const r = parseInt(c.dataset.rep, 10);
           const eventIndex = parseInt(c.dataset.eventIdx, 10);
-          c.classList.toggle("selected", clipSelected(r, eventIndex));
+          c.classList.toggle("selected", clipShowSolidSelectedRing(r, eventIndex));
+          c.classList.toggle("clip-linked-partner-highlight", clipShowLinkedPartnerDottedRing(r, eventIndex));
         });
       }
 
@@ -5530,6 +6365,7 @@
         bindActiveSegmentPointers();
         selectedSegmentIndices.clear();
         selectedClipKeys.clear();
+        clipSelectionAnchorKey = null;
         selectedRepIndices.clear();
         selectedRepIndex = -1;
         partSidebarActiveRingVisible = true;
@@ -5544,6 +6380,8 @@
         const btnCopy = document.getElementById("btnCueCopy");
         const btnCut = document.getElementById("btnCueCut");
         const btnPaste = document.getElementById("btnCuePaste");
+        const btnCueTxtTtsLink = document.getElementById("btnCueTxtTtsLink");
+        const btnCueTxtTtsUnlink = document.getElementById("btnCueTxtTtsUnlink");
         const canCopyParts = canCopyPartsFromSidebar();
         const canCopy = selectedClipKeys.size > 0 || selectedRepIndices.size > 0 || canCopyParts;
         const canCut = selectedClipKeys.size > 0 || selectedRepIndices.size > 0;
@@ -5559,6 +6397,10 @@
           if (!dis && hasCuePaste) dis = !(anchorCue >= 0 && anchorCue < repCount());
           if (!dis && hasRepPaste) dis = !(anchorRepInsert >= 0 && anchorRepInsert < repCount());
           btnPaste.disabled = dis;
+        }
+        if (btnCueTxtTtsLink) btnCueTxtTtsLink.disabled = !selectionCanLinkTextTtsPair();
+        if (btnCueTxtTtsUnlink) {
+          btnCueTxtTtsUnlink.disabled = selectedClipKeys.size === 0 || !selectionHasAnyTextTtsLinkField();
         }
         const btnPartCopy = document.getElementById("btnPartCopy");
         const btnPartPaste = document.getElementById("btnPartPaste");
@@ -6161,16 +7003,6 @@
         repNameInput.select();
       }
 
-      /** VFX modal: timing fields live after color controls; other lanes keep them in the default slot. */
-      function setClipTimingFieldsPlacementForLane(laneId) {
-        const slotTop = document.getElementById("clipTimingSlotTop");
-        const slotVfx = document.getElementById("clipTimingSlotVfxBottom");
-        const wrap = document.getElementById("clipTimingFieldsWrap");
-        if (!slotTop || !slotVfx || !wrap) return;
-        if (laneId === "vfx") slotVfx.appendChild(wrap);
-        else slotTop.appendChild(wrap);
-      }
-
       function openLibraryCueEditor(item, cat, id) {
         const evs = item.data && item.data.events;
         if (!Array.isArray(evs) || !evs.length) {
@@ -6188,30 +7020,34 @@
         }
         clipEditContext = { libraryEdit: { cat, id, eventIndex } };
         const laneLabel = (LANES.find((x) => x.id === cat) || { label: cat }).label;
-        const title = document.getElementById("clipModalTitle");
-        if (title) title.textContent = "Edit " + laneLabel + " · library";
+        const titlePrefix = document.getElementById("clipModalTitlePrefix");
+        if (titlePrefix) titlePrefix.textContent = "Edit " + laneLabel + " (lib) ·";
         if (editCueName) {
           const sk0 = cat === "sfx" ? (ev.sfxKind === "shot" ? "shot" : "split") : undefined;
           editCueName.value =
             String(ev.name || "").trim() || defaultNewCueName(cat, sk0);
         }
+        const startLbl = document.querySelector('label[for="editStart"]');
+        if (startLbl) startLbl.textContent = "Start — rep-relative (s)";
         editStart.value = formatSnapSecForInput(ev.relStart);
         editDuration.value = formatSnapSecForInput(ev.duration);
+        if (vfxEditorWrap) {
+          vfxEditorWrap.hidden = cat !== "vfx";
+          if (cat === "vfx") syncVfxEditorFromEvent(ev);
+        }
+        if (cat !== "vfx" && editVfxCustomColorWrap) editVfxCustomColorWrap.hidden = true;
         editStart.dispatchEvent(new Event("input", { bubbles: true }));
         editDuration.dispatchEvent(new Event("input", { bubbles: true }));
-        sfxKindWrap.hidden = cat !== "sfx";
+        if (sfxKindWrap) sfxKindWrap.hidden = cat !== "sfx";
         if (cat === "sfx") editSfxKind.value = ev.sfxKind === "shot" ? "shot" : "split";
-        if (ttsSpeechWrap) ttsSpeechWrap.hidden = cat !== "tts";
         if (cat === "tts" && editTtsSpeech) {
           editTtsSpeech.value = ev.speech != null ? String(ev.speech) : "";
         } else if (editTtsSpeech) {
           editTtsSpeech.value = "";
         }
-        if (ttsVoiceSlotWrap) ttsVoiceSlotWrap.hidden = cat !== "tts";
         if (cat === "tts" && editTtsVoiceSlot) {
           editTtsVoiceSlot.value = ev.voiceSlot === "b" ? "b" : "a";
         }
-        if (clipTextHeadingBodyWrap) clipTextHeadingBodyWrap.hidden = cat !== "text";
         if (cat === "text" && editCueHeading && editCueBody) {
           editCueHeading.value = ev.heading != null ? String(ev.heading) : "";
           editCueBody.value = ev.body != null ? String(ev.body) : "";
@@ -6219,21 +7055,13 @@
           editCueHeading.value = "";
           editCueBody.value = "";
         }
-        // Milestone checkbox: use explicit value if set, else default based on lane (TTS=true, others=false)
         if (editMilestone) {
           const defaultMilestone = cat === "tts";
           editMilestone.checked = ev.milestone !== undefined ? ev.milestone : defaultMilestone;
         }
-        if (vfxEditorWrap) {
-          vfxEditorWrap.hidden = cat !== "vfx";
-          if (cat === "vfx") syncVfxEditorFromEvent(ev);
-        }
-        setClipTimingFieldsPlacementForLane(cat);
-        if (cat !== "vfx" && editVfxCustomColorWrap) editVfxCustomColorWrap.hidden = true;
-        const startLbl = document.querySelector('label[for="editStart"]');
-        if (startLbl) startLbl.textContent = "Start — rep-relative time (s)";
         const cr = document.getElementById("clipModalRemove");
         if (cr) cr.style.display = "none";
+        setupClipModalTabsForLane(cat, { library: true });
         clipModal.classList.add("open");
         clipModal.setAttribute("aria-hidden", "false");
         if (editCueName) editCueName.focus();
@@ -6646,6 +7474,18 @@
             mergeFireworksVfxPlacementColor(o, ev);
           }
           if (ev.milestone === true || ev.milestone === false) o.milestone = ev.milestone;
+          const eid = trimCueLinkElementId(ev.elementId);
+          if (eid) o.pasteSrcElementId = eid;
+          if (ev.lane === "text" && ev.linkedTtsElementId) {
+            o.linkedTtsElementId = trimCueLinkElementId(ev.linkedTtsElementId);
+          }
+          if (ev.lane === "tts" && ev.linkedTextElementId) {
+            o.linkedTextElementId = trimCueLinkElementId(ev.linkedTextElementId);
+          }
+          if (ev.lane === "text" || ev.lane === "tts") {
+            if (ev.linkedSyncStart === true) o.linkedSyncStart = true;
+            if (ev.linkedSyncDuration === true) o.linkedSyncDuration = true;
+          }
           return o;
         });
         repClipboard = null;
@@ -6738,6 +7578,9 @@
           }
           pushUndoSnapshot();
           buildCueClipboardFromRefs(refs);
+          for (const { r, eventIndex } of refs) {
+            unlinkTextTtsPart(r, eventIndex);
+          }
           const toRemove = refs
             .map(({ r, eventIndex }) => ({ r, i: eventIndex }))
             .sort((a, b) => a.r - b.r || b.i - a.i);
@@ -6867,6 +7710,17 @@
               mergeFireworksVfxPlacementColor(o, item);
             }
             if (item.milestone === true || item.milestone === false) o.milestone = item.milestone;
+            if (item.pasteSrcElementId) o.pasteSrcElementId = trimCueLinkElementId(item.pasteSrcElementId);
+            if (item.lane === "text" && item.linkedTtsElementId) {
+              o.linkedTtsElementId = trimCueLinkElementId(item.linkedTtsElementId);
+            }
+            if (item.lane === "tts" && item.linkedTextElementId) {
+              o.linkedTextElementId = trimCueLinkElementId(item.linkedTextElementId);
+            }
+            if (item.lane === "text" || item.lane === "tts") {
+              if (item.linkedSyncStart === true) o.linkedSyncStart = true;
+              if (item.linkedSyncDuration === true) o.linkedSyncDuration = true;
+            }
             return o;
           });
           if (!plannedNewCuesPlacementValid(planned)) continue;
@@ -6934,6 +7788,7 @@
           return;
         }
         selectedClipKeys.clear();
+        clipSelectionAnchorKey = null;
         selectedRepIndices.clear();
         for (let j = 0; j < toInsert.length; j++) selectedRepIndices.add(insertAt + j);
         selectedRepIndex = insertAt + toInsert.length - 1;
@@ -7005,7 +7860,39 @@
             if (ev.vfxColorMode === "custom" && p.vfxColor) ev.vfxColor = normalizeVfxHex(p.vfxColor);
           }
           if (p.milestone === true || p.milestone === false) ev.milestone = p.milestone;
+          if (p.pasteSrcElementId) ev.pasteSrcElementId = trimCueLinkElementId(p.pasteSrcElementId);
+          if (p.lane === "text" && p.linkedTtsElementId) {
+            ev.linkedTtsElementId = trimCueLinkElementId(p.linkedTtsElementId);
+          }
+          if (p.lane === "tts" && p.linkedTextElementId) {
+            ev.linkedTextElementId = trimCueLinkElementId(p.linkedTextElementId);
+          }
+          if (p.lane === "text" || p.lane === "tts") {
+            if (p.linkedSyncStart === true) ev.linkedSyncStart = true;
+            if (p.linkedSyncDuration === true) ev.linkedSyncDuration = true;
+          }
           reps[rTarget].events.push(ev);
+        }
+        const pasteEndIdx = reps[rTarget].events.length;
+        const idMap = new Map();
+        for (let j = pasteStartIdx; j < pasteEndIdx; j++) {
+          const evX = reps[rTarget].events[j];
+          const old = evX && evX.pasteSrcElementId ? trimCueLinkElementId(evX.pasteSrcElementId) : "";
+          if (old) idMap.set(old, trimCueLinkElementId(evX.elementId));
+        }
+        for (let j = pasteStartIdx; j < pasteEndIdx; j++) {
+          const evX = reps[rTarget].events[j];
+          delete evX.pasteSrcElementId;
+          if (evX.lane === "text" && evX.linkedTtsElementId) {
+            const nu = idMap.get(trimCueLinkElementId(evX.linkedTtsElementId));
+            if (nu) evX.linkedTtsElementId = nu;
+            else delete evX.linkedTtsElementId;
+          }
+          if (evX.lane === "tts" && evX.linkedTextElementId) {
+            const nu = idMap.get(trimCueLinkElementId(evX.linkedTextElementId));
+            if (nu) evX.linkedTextElementId = nu;
+            else delete evX.linkedTextElementId;
+          }
         }
         selectClipRangeOnRep(rTarget, pasteStartIdx, planned.length);
         refreshAll();
@@ -7582,6 +8469,15 @@
         }
         selectedClipKeys.clear();
         for (const x of nk) selectedClipKeys.add(x);
+        if (clipSelectionAnchorKey) {
+          const { r: ar, i: ai } = parseClipKey(clipSelectionAnchorKey);
+          let nar = ar;
+          if (ar === lo) nar = hi;
+          else if (ar === hi) nar = lo;
+          const remapped = clipKey(nar, ai);
+          clipSelectionAnchorKey = nk.has(remapped) ? remapped : null;
+        }
+        if (selectedClipKeys.size > 0) normalizeClipSelectionAnchor();
         const ns = new Set();
         for (const r of selectedRepIndices) {
           let nr = r;
@@ -7612,6 +8508,7 @@
 
         const outer = JSON.parse(JSON.stringify(reps));
         const k0 = new Set(selectedClipKeys);
+        const anchor0 = clipSelectionAnchorKey;
         const r0 = new Set(selectedRepIndices);
         const p0 = selectedRepIndex;
 
@@ -7619,6 +8516,8 @@
           syncSegmentRefsAfterRepsReplace(JSON.parse(JSON.stringify(outer)));
           selectedClipKeys.clear();
           for (const x of k0) selectedClipKeys.add(x);
+          clipSelectionAnchorKey = anchor0 && k0.has(anchor0) ? anchor0 : null;
+          if (selectedClipKeys.size > 0) normalizeClipSelectionAnchor();
           selectedRepIndices.clear();
           for (const x of r0) selectedRepIndices.add(x);
           selectedRepIndex = p0;
@@ -8475,6 +9374,7 @@
         if (!Number.isFinite(n) || n < 1) n = 1;
         n = Math.min(99, n);
         editDuration.value = formatSnapSecForInput(sparksFormDurationFromBurstCount(n));
+        markFieldDirty("editDuration");
       }
 
       function syncSparksRepeatFromDurationField() {
@@ -8485,6 +9385,7 @@
         const d = snapTime(Math.max(TIME_SNAP_SEC, raw));
         const n = sparksEditorBurstCountFromFormDuration(d);
         editVfxRepeat.value = String(n);
+        markFieldDirty("editVfxRepeat");
       }
 
       function syncVfxEditorFromEvent(ev) {
@@ -8567,36 +9468,41 @@
         return L ? L.clipLabel : ev.lane;
       }
 
-      function openClipEditor(r, eventIndex) {
+      function openClipEditor(r, eventIndex, modalOpts) {
         ensureEvents(r);
         const ev = reps[r].events[eventIndex];
         if (!ev) return;
         clipEditContext = { r, eventIndex };
-        const startLbl = document.querySelector('label[for="editStart"]');
-        if (startLbl) startLbl.textContent = "Start — global time (s)";
+        if (ev.lane === "text" && getTextTtsLinkedPartner(r, eventIndex)) {
+          const hb0 = normalizeTextCuePresentationFields(ev.heading, ev.body);
+          clipEditContext.linkedTextHeading0 = hb0.heading || "";
+          clipEditContext.linkedTextBody0 = hb0.body || "";
+        }
         const cr = document.getElementById("clipModalRemove");
         if (cr) cr.style.display = "";
-        const title = document.getElementById("clipModalTitle");
+        const titlePrefix = document.getElementById("clipModalTitlePrefix");
         const laneLabel = (LANES.find((x) => x.id === ev.lane) || { label: ev.lane }).label;
-        title.textContent = "Edit " + laneLabel + " · rep " + (r + 1);
+        if (titlePrefix) titlePrefix.textContent = "Edit " + laneLabel + " ·";
         if (editCueName) editCueName.value = String(ev.name || "").trim() || defaultNewCueName(ev.lane, ev.sfxKind);
         editStart.value = formatSnapSecForInput(ev.start);
         editDuration.value = formatSnapSecForInput(ev.duration);
+        if (vfxEditorWrap) {
+          vfxEditorWrap.hidden = ev.lane !== "vfx";
+          if (ev.lane === "vfx") syncVfxEditorFromEvent(ev);
+        }
+        if (ev.lane !== "vfx" && editVfxCustomColorWrap) editVfxCustomColorWrap.hidden = true;
         editStart.dispatchEvent(new Event("input", { bubbles: true }));
         editDuration.dispatchEvent(new Event("input", { bubbles: true }));
-        sfxKindWrap.hidden = ev.lane !== "sfx";
+        if (sfxKindWrap) sfxKindWrap.hidden = ev.lane !== "sfx";
         if (ev.lane === "sfx") editSfxKind.value = ev.sfxKind === "shot" ? "shot" : "split";
-        if (ttsSpeechWrap) ttsSpeechWrap.hidden = ev.lane !== "tts";
         if (ev.lane === "tts" && editTtsSpeech) {
           editTtsSpeech.value = ev.speech != null ? String(ev.speech) : "";
         } else if (editTtsSpeech) {
           editTtsSpeech.value = "";
         }
-        if (ttsVoiceSlotWrap) ttsVoiceSlotWrap.hidden = ev.lane !== "tts";
         if (ev.lane === "tts" && editTtsVoiceSlot) {
           editTtsVoiceSlot.value = ev.voiceSlot === "b" ? "b" : "a";
         }
-        if (clipTextHeadingBodyWrap) clipTextHeadingBodyWrap.hidden = ev.lane !== "text";
         if (ev.lane === "text" && editCueHeading && editCueBody) {
           editCueHeading.value = ev.heading != null ? String(ev.heading) : "";
           editCueBody.value = ev.body != null ? String(ev.body) : "";
@@ -8604,39 +9510,96 @@
           editCueHeading.value = "";
           editCueBody.value = "";
         }
-        // Milestone checkbox: use explicit value if set, else default based on lane (TTS=true, others=false)
         if (editMilestone) {
           const defaultMilestone = ev.lane === "tts";
           editMilestone.checked = ev.milestone !== undefined ? ev.milestone : defaultMilestone;
         }
-        if (vfxEditorWrap) {
-          vfxEditorWrap.hidden = ev.lane !== "vfx";
-          if (ev.lane === "vfx") syncVfxEditorFromEvent(ev);
-        }
-        setClipTimingFieldsPlacementForLane(ev.lane);
         if (ev.lane !== "vfx") syncEditDurationNumStepperAttrs();
-        if (ev.lane !== "vfx" && editVfxCustomColorWrap) editVfxCustomColorWrap.hidden = true;
         replaceClipSelection(r, eventIndex);
+        setupClipModalTabsForLane(ev.lane, modalOpts);
+        syncClipTextTtsLinkModalFromContext();
         clipModal.classList.add("open");
         clipModal.setAttribute("aria-hidden", "false");
-        if (editCueName) editCueName.focus();
-        else editStart.focus();
+        const modalOptsNorm = modalOpts || {};
+        if (modalOptsNorm.suppressAutoFocusName && modalOptsNorm.refocusId) {
+          requestAnimationFrame(() => {
+            const el = document.getElementById(modalOptsNorm.refocusId);
+            if (
+              el &&
+              clipModal.contains(el) &&
+              typeof el.focus === "function" &&
+              !el.disabled &&
+              el.getAttribute("aria-disabled") !== "true"
+            ) {
+              el.focus();
+            }
+          });
+        } else if (!modalOptsNorm.suppressAutoFocusName) {
+          if (editCueName) editCueName.focus();
+          else editStart.focus();
+        }
+      }
+
+      function syncClipTextTtsLinkModalFromContext() {
+        const pick = document.getElementById("clipTxtTtsLinkPick");
+        const syncS = document.getElementById("clipTxtTtsSyncStart");
+        const syncD = document.getElementById("clipTxtTtsSyncDuration");
+        const syncWrap = document.getElementById("clipTxtTtsSyncFieldsWrap");
+        if (!pick) return;
+        if (!clipEditContext || clipEditContext.libraryEdit) {
+          return;
+        }
+        const { r, eventIndex } = clipEditContext;
+        ensureEvents(r);
+        const ev = reps[r].events[eventIndex];
+        if (!ev || (ev.lane !== "text" && ev.lane !== "tts")) {
+          return;
+        }
+        const part = getTextTtsLinkedPartner(r, eventIndex);
+        const wantLane = ev.lane === "text" ? "tts" : "text";
+        pick.innerHTML = "";
+        const optNone = document.createElement("option");
+        optNone.value = "";
+        optNone.textContent = "None";
+        pick.appendChild(optNone);
+        for (let i = 0; i < reps[r].events.length; i++) {
+          if (i === eventIndex) continue;
+          const oev = reps[r].events[i];
+          if (!oev || oev.lane !== wantLane) continue;
+          const oid = trimCueLinkElementId(oev.elementId);
+          if (!oid) continue;
+          const op = document.createElement("option");
+          op.value = oid;
+          op.textContent =
+            (String(oev.name || "").trim() || oev.lane) + " · " + formatSnapSecForInput(oev.start) + " s";
+          pick.appendChild(op);
+        }
+        let sel = "";
+        if (part) {
+          const pid = trimCueLinkElementId(part.ev.elementId);
+          if (pid) sel = pid;
+        }
+        setClipTxtTtsLinkPickValue(pick, sel);
+        const linked = !!part;
+        if (syncWrap) syncWrap.style.opacity = linked ? "1" : "0.45";
+        if (syncS) {
+          syncS.disabled = !linked;
+          syncS.checked = linked && (ev.linkedSyncStart === true || (part && part.ev.linkedSyncStart === true));
+        }
+        if (syncD) {
+          syncD.disabled = !linked;
+          syncD.checked = linked && (ev.linkedSyncDuration === true || (part && part.ev.linkedSyncDuration === true));
+        }
       }
 
       function closeClipEditor() {
-        const startLbl = document.querySelector('label[for="editStart"]');
-        if (startLbl) startLbl.textContent = "Start — global time (s)";
         const cr = document.getElementById("clipModalRemove");
         if (cr) cr.style.display = "";
         clipModal.classList.remove("open");
         clipModal.setAttribute("aria-hidden", "true");
-        if (ttsSpeechWrap) ttsSpeechWrap.hidden = true;
         if (editTtsSpeech) editTtsSpeech.value = "";
-        if (ttsVoiceSlotWrap) ttsVoiceSlotWrap.hidden = true;
-        if (clipTextHeadingBodyWrap) clipTextHeadingBodyWrap.hidden = true;
         if (editCueHeading) editCueHeading.value = "";
         if (editCueBody) editCueBody.value = "";
-        if (vfxEditorWrap) vfxEditorWrap.hidden = true;
         if (editVfxCustomColorWrap) editVfxCustomColorWrap.hidden = true;
         if (editDuration) {
           editDuration.removeAttribute("step");
@@ -8644,8 +9607,9 @@
           editDuration.removeAttribute("max");
           editDuration.readOnly = false;
         }
-        setClipTimingFieldsPlacementForLane("");
+        clearAllFieldDirty();
         clipEditContext = null;
+        clipModalCurrentLane = null;
       }
 
       /** Enter in a field triggers the modal primary action (Apply / Save). */
@@ -8665,6 +9629,12 @@
       clipModal.addEventListener("click", (e) => {
         if (e.target === clipModal) closeClipEditor();
       });
+      const clipTxtTtsLinkPickEl = document.getElementById("clipTxtTtsLinkPick");
+      if (clipTxtTtsLinkPickEl) clipTxtTtsLinkPickEl.addEventListener("change", onClipTxtTtsLinkPickChange);
+      const clipTxtTtsSyncStartEl = document.getElementById("clipTxtTtsSyncStart");
+      const clipTxtTtsSyncDurationEl = document.getElementById("clipTxtTtsSyncDuration");
+      if (clipTxtTtsSyncStartEl) clipTxtTtsSyncStartEl.addEventListener("change", onClipTxtTtsSyncCheckboxChange);
+      if (clipTxtTtsSyncDurationEl) clipTxtTtsSyncDurationEl.addEventListener("change", onClipTxtTtsSyncCheckboxChange);
       document.getElementById("partEditCancel").addEventListener("click", closePartEditor);
       partEditModal.addEventListener("click", (e) => {
         if (e.target === partEditModal) closePartEditor();
@@ -9253,6 +10223,27 @@
           );
           return;
         }
+        if (ev.lane === "text" && getTextTtsLinkedPartner(r, eventIndex)) {
+          const hb = normalizeTextCuePresentationFields(
+            editCueHeading && editCueHeading.value,
+            editCueBody && editCueBody.value
+          );
+          const hNew = hb.heading || "";
+          const bNew = hb.body || "";
+          const h0 =
+            clipEditContext.linkedTextHeading0 !== undefined ? clipEditContext.linkedTextHeading0 : "";
+          const b0 = clipEditContext.linkedTextBody0 !== undefined ? clipEditContext.linkedTextBody0 : "";
+          if (hNew !== h0 || bNew !== b0) {
+            if (
+              !confirm(
+                "This text cue is linked to TTS. Changing the text does not change what is spoken at playback. Continue?"
+              )
+            ) {
+              discardLastUndoSnapshot();
+              return;
+            }
+          }
+        }
         if (ev.lane === "sfx") {
           ev.sfxKind = editSfxKind.value === "shot" ? "shot" : "split";
         }
@@ -9298,6 +10289,9 @@
         }
         ev.start = st;
         ev.duration = dur;
+        if (ev.lane === "text" || ev.lane === "tts") {
+          propagateTextTtsLinkedTimingFromEditedCue(r, eventIndex);
+        }
         closeClipEditor();
         refreshAll();
         showToast("Updated cue on rep " + (r + 1) + ".");
@@ -9310,11 +10304,26 @@
         ensureEvents(r);
         if (!reps[r].events[eventIndex]) return;
         pushUndoSnapshot();
+        unlinkTextTtsPart(r, eventIndex);
         reps[r].events.splice(eventIndex, 1);
         closeClipEditor();
         refreshAll();
         showToast("Removed cue from rep " + (r + 1) + ".");
       });
+
+      /** Partner timing implied by sync flags while resizing cue `(repIndex, idx)` (same rep). */
+      function textTtsLinkedPartnerPreviewLayout(repIndex, idx, newSt, newDur) {
+        const ev = reps[repIndex].events[idx];
+        if (!ev || (ev.lane !== "text" && ev.lane !== "tts")) return null;
+        const part = getTextTtsLinkedPartner(repIndex, idx);
+        if (!part) return null;
+        const syncStart = ev.linkedSyncStart === true || part.ev.linkedSyncStart === true;
+        const syncDur = ev.linkedSyncDuration === true || part.ev.linkedSyncDuration === true;
+        if (!syncStart && !syncDur) return null;
+        const pSt = syncStart ? snapTime(newSt) : snapTime(part.ev.start);
+        const pDur = syncDur ? snapTime(newDur) : snapTime(part.ev.duration);
+        return { pSt, pDur };
+      }
 
       function attachClipDragHandlers() {
         document.querySelectorAll(".clip").forEach((clip) => {
@@ -9328,40 +10337,41 @@
           let resize = null;
 
           function applyResizePreview(rz, deltaSec) {
-            const { r, eventIdx, edge, start0, dur0, end0 } = rz;
+            const { r, eventIdx, edge, start0, dur0 } = rz;
             ensureEvents(r);
             const ev = reps[r].events[eventIdx];
             if (!ev) return;
-            const cap = totalTimelineSec();
-            let st;
-            let dur;
-            if (edge === "right") {
-              st = start0;
-              dur = snapTime(Math.max(TIME_SNAP_SEC, dur0 + deltaSec));
-              dur = Math.min(dur, snapTime(cap - st));
-              if (isVfxFireballsEvent(ev)) dur = snapFireballsCueDurationSec();
-              else if (isVfxFireworksEvent(ev)) dur = snapFireworksCueDurationSec(dur);
-            } else {
-              const minSpan = isVfxFireballsEvent(ev)
-                ? sparksBurstDurationSec()
-                : isVfxFireworksEvent(ev)
-                  ? sparksBurstDurationSec()
-                  : TIME_SNAP_SEC;
-              st = snapTime(start0 + deltaSec);
-              st = Math.max(0, Math.min(st, end0 - minSpan));
-              dur = snapTime(end0 - st);
-              if (isVfxFireballsEvent(ev)) {
-                dur = snapFireballsCueDurationSec();
-                st = snapTime(end0 - dur);
-              } else if (isVfxFireworksEvent(ev)) {
-                dur = snapFireworksCueDurationSec(dur);
-                st = snapTime(end0 - dur);
-              }
+            const desired =
+              edge === "right"
+                ? snapTime(start0 + dur0 + deltaSec)
+                : snapTime(start0 + deltaSec);
+            const applied =
+              edge === "right"
+                ? applyRightEdgeResize(r, eventIdx, desired)
+                : applyLeftEdgeResize(r, eventIdx, desired);
+            if (applied) {
+              rz.previewSt = snapTime(applied.st);
+              rz.previewDur = snapTime(applied.dur);
             }
+            const st = rz.previewSt;
+            const dur = rz.previewDur;
             const secTotal = totalTimelineSec();
             const { left, width } = clipLayoutPxForGlobalEvent(st, dur, timelineTrackWidthPx, secTotal);
             clip.style.left = left + "px";
             clip.style.width = width + "px";
+            if (resize && resize.linkedPartnerClip) {
+              const plData = textTtsLinkedPartnerPreviewLayout(r, eventIdx, st, dur);
+              if (plData) {
+                const { left: pl, width: pw } = clipLayoutPxForGlobalEvent(
+                  plData.pSt,
+                  plData.pDur,
+                  timelineTrackWidthPx,
+                  secTotal
+                );
+                resize.linkedPartnerClip.style.left = pl + "px";
+                resize.linkedPartnerClip.style.width = pw + "px";
+              }
+            }
           }
 
           function startResize(edge, handleEl, e) {
@@ -9380,6 +10390,13 @@
               return;
             }
 
+            let linkedPartnerClip = null;
+            const lp = getTextTtsLinkedPartner(r, eventIdx);
+            if (lp) {
+              linkedPartnerClip = document.querySelector(
+                '.clip[data-rep="' + lp.r + '"][data-event-idx="' + lp.i + '"]'
+              );
+            }
             resize = {
               edge,
               handle: handleEl,
@@ -9393,9 +10410,13 @@
               start0: ev0.start,
               dur0: ev0.duration,
               end0: snapTime(ev0.start + ev0.duration),
+              linkedPartnerClip,
+              previewSt: snapTime(ev0.start),
+              previewDur: snapTime(ev0.duration),
             };
             clip.classList.add("dragging");
             clip.style.zIndex = "6";
+            if (linkedPartnerClip) linkedPartnerClip.classList.add("dragging");
             handleEl.setPointerCapture(e.pointerId);
           }
 
@@ -9409,6 +10430,7 @@
             clip.style.zIndex = "";
             const rz = resize;
             resize = null;
+            if (rz.linkedPartnerClip) rz.linkedPartnerClip.classList.remove("dragging");
             if (e.type === "pointercancel" || !rz.moved) {
               if (e.type === "pointercancel") {
                 clipKeyboardResizeMode = null;
@@ -9434,14 +10456,13 @@
               rz.edge === "right"
                 ? applyRightEdgeResize(rz.r, rz.eventIdx, rz.start0 + rz.dur0 + deltaSec)
                 : applyLeftEdgeResize(rz.r, rz.eventIdx, rz.start0 + deltaSec);
-            if (!applied) {
-              alert(
-                "Cannot resize that cue — it would overlap another cue on the same lane or extend past the workout timeline."
-              );
-            } else {
+            if (applied) {
               pushUndoSnapshot();
               ev.start = snapTime(applied.st);
               ev.duration = snapTime(applied.dur);
+              if (ev.lane === "text" || ev.lane === "tts") {
+                propagateTextTtsLinkedTimingFromEditedCue(rz.r, rz.eventIdx);
+              }
               replaceClipSelection(rz.r, rz.eventIdx);
             }
             refreshAll();
@@ -9623,7 +10644,13 @@
                 const evG = reps[m.r].events[m.eventIdx];
                 if (evG) evG.start = snapTime(m.start0 + deltaSec);
               }
-              selectClipKeysFromGroupMembers(gd.members);
+              for (const m of gd.members) {
+                const evG = reps[m.r] && reps[m.r].events[m.eventIdx];
+                if (evG && (evG.lane === "text" || evG.lane === "tts")) {
+                  propagateTextTtsLinkedTimingFromEditedCue(m.r, m.eventIdx);
+                }
+              }
+              selectClipKeysFromGroupMembers(gd.members, clipKey(d.r, d.eventIdx));
               refreshAll();
               return;
             }
@@ -9653,6 +10680,9 @@
             }
             pushUndoSnapshot();
             ev.start = snapTime(placed);
+            if (ev.lane === "text" || ev.lane === "tts") {
+              propagateTextTtsLinkedTimingFromEditedCue(d.r, d.eventIdx);
+            }
             replaceClipSelection(d.r, d.eventIdx);
             refreshAll();
           }
@@ -9715,8 +10745,10 @@
             div.appendChild(edgeR);
             div.style.left = left + "px";
             div.style.width = width + "px";
-            if (clipSelected(r, i)) div.classList.add("selected");
+            if (clipShowSolidSelectedRing(r, i)) div.classList.add("selected");
+            if (clipShowLinkedPartnerDottedRing(r, i)) div.classList.add("clip-linked-partner-highlight");
             if (clipGroupMode) div.classList.add("clip-group-hide-edges");
+            if (getTextTtsLinkedPartner(r, i)) div.classList.add("text-tts-linked");
             document.getElementById("lane-" + ev.lane).appendChild(div);
           }
         }
@@ -9739,6 +10771,7 @@
           const { r: sr, i: si } = parseClipKey(k);
           if (sr < 0 || sr >= repCount() || !reps[sr].events[si]) selectedClipKeys.delete(k);
         }
+        normalizeClipSelectionAnchor();
         maybeClearClipKeyboardResize();
         for (const r of [...selectedRepIndices]) {
           if (r < 0 || r >= repCount()) selectedRepIndices.delete(r);
@@ -9755,6 +10788,7 @@
           partSidebarActiveRingVisible = false;
         }
         sanitizeWorkoutSnapTimes();
+        repairAllTextTtsLinks();
         syncDefaultIntervalInput();
         updateSelectedRepLabel();
         syncZoomLabel();
@@ -11162,6 +12196,7 @@
             partSidebarActiveRingVisible = false;
             selectedSegmentIndices.clear();
             selectedClipKeys.clear();
+            clipSelectionAnchorKey = null;
             cueClipboard = null;
             repClipboard = null;
             segmentClipboard = null;
@@ -11244,6 +12279,10 @@
       if (btnCueCopy) btnCueCopy.addEventListener("click", () => copySelectedCuesToClipboard());
       if (btnCueCut) btnCueCut.addEventListener("click", () => cutSelectedCues());
       if (btnCuePaste) btnCuePaste.addEventListener("click", () => pasteFromClipboard());
+      const btnCueTxtTtsLinkEl = document.getElementById("btnCueTxtTtsLink");
+      const btnCueTxtTtsUnlinkEl = document.getElementById("btnCueTxtTtsUnlink");
+      if (btnCueTxtTtsLinkEl) btnCueTxtTtsLinkEl.addEventListener("click", () => linkToolbarSelectionTextTts());
+      if (btnCueTxtTtsUnlinkEl) btnCueTxtTtsUnlinkEl.addEventListener("click", () => unlinkToolbarSelectionTextTts());
       const btnPartCopy = document.getElementById("btnPartCopy");
       const btnPartPaste = document.getElementById("btnPartPaste");
       if (btnPartCopy) btnPartCopy.addEventListener("click", () => copyPartsToClipboard());
