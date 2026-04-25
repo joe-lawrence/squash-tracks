@@ -1792,8 +1792,8 @@
       bottom: 17px;
     }
     /**
-     * Dotted yellow ring for the linked “linkee” cue: partner is selected (or is the anchor while this cue
-     * is also group-selected). Solid `.selected` stays on the anchor only — see `clipShowSolidSelectedRing`.
+     * Dashed yellow ring: the linked partner is selected and this cue is not. When both ends are selected,
+     * both use the solid `.selected` ring — see `clipShowSolidSelectedRing` / `clipShowLinkedPartnerDottedRing`.
      */
     .clip.clip-linked-partner-highlight:not(.selected):not(.dragging) {
       z-index: 5;
@@ -6278,18 +6278,12 @@
         clipSelectionAnchorKey = sorted[0] || null;
       }
 
-      /** Dotted ring: partner selected, and this cue is either unselected or the non-anchor in a linked pair. */
+      /** Dashed ring: partner is selected and this cue is not. If both linked cues are selected, both solid. */
       function clipShowLinkedPartnerDottedRing(r, eventIndex) {
         const part = getTextTtsLinkedPartner(r, eventIndex);
         if (!part) return false;
-        const kPart = clipKey(part.r, part.i);
         if (!clipSelected(part.r, part.i)) return false;
-        if (!clipSelected(r, eventIndex)) return true;
-        if (!clipSelectionAnchorKey || !selectedClipKeys.has(clipSelectionAnchorKey)) {
-          normalizeClipSelectionAnchor();
-        }
-        const a = clipSelectionAnchorKey;
-        return !!a && a === kPart;
+        return !clipSelected(r, eventIndex);
       }
 
       function clipShowSolidSelectedRing(r, eventIndex) {
@@ -9473,11 +9467,6 @@
         const ev = reps[r].events[eventIndex];
         if (!ev) return;
         clipEditContext = { r, eventIndex };
-        if (ev.lane === "text" && getTextTtsLinkedPartner(r, eventIndex)) {
-          const hb0 = normalizeTextCuePresentationFields(ev.heading, ev.body);
-          clipEditContext.linkedTextHeading0 = hb0.heading || "";
-          clipEditContext.linkedTextBody0 = hb0.body || "";
-        }
         const cr = document.getElementById("clipModalRemove");
         if (cr) cr.style.display = "";
         const titlePrefix = document.getElementById("clipModalTitlePrefix");
@@ -10222,27 +10211,6 @@
               " s (global) and cannot overlap another cue on the same lane."
           );
           return;
-        }
-        if (ev.lane === "text" && getTextTtsLinkedPartner(r, eventIndex)) {
-          const hb = normalizeTextCuePresentationFields(
-            editCueHeading && editCueHeading.value,
-            editCueBody && editCueBody.value
-          );
-          const hNew = hb.heading || "";
-          const bNew = hb.body || "";
-          const h0 =
-            clipEditContext.linkedTextHeading0 !== undefined ? clipEditContext.linkedTextHeading0 : "";
-          const b0 = clipEditContext.linkedTextBody0 !== undefined ? clipEditContext.linkedTextBody0 : "";
-          if (hNew !== h0 || bNew !== b0) {
-            if (
-              !confirm(
-                "This text cue is linked to TTS. Changing the text does not change what is spoken at playback. Continue?"
-              )
-            ) {
-              discardLastUndoSnapshot();
-              return;
-            }
-          }
         }
         if (ev.lane === "sfx") {
           ev.sfxKind = editSfxKind.value === "shot" ? "shot" : "split";
