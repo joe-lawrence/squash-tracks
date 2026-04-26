@@ -805,11 +805,37 @@
       const prevOn = gateRoot.getAttribute("data-pres-manual-gate-on") === "1";
       if (on && !prevOn) {
         const gateBtn = doc.getElementById("presManualRepGateBtn");
-        if (gateBtn) gateBtn.classList.remove("presentation-manual-rep-gate__btn--ack-pending");
+        if (gateBtn) {
+          gateBtn.classList.remove(
+            "presentation-manual-rep-gate__btn--ack-pending",
+            "presentation-manual-rep-gate__btn--dragging",
+            "presentation-manual-rep-gate__btn--throwing"
+          );
+          gateBtn.style.setProperty("--pres-manual-gate-dx", "0px");
+          gateBtn.style.setProperty("--pres-manual-gate-dy", "0px");
+          gateBtn.style.setProperty("--pres-manual-gate-throw-dx", "0px");
+          gateBtn.style.setProperty("--pres-manual-gate-throw-dy", "0px");
+          gateBtn.style.setProperty("--pres-manual-gate-throw-target", "0px");
+          gateBtn.style.setProperty("--pres-manual-gate-throw-target-y", "0px");
+          gateBtn.style.setProperty("--pres-manual-gate-scale", "1");
+        }
       }
       if (!on) {
         const gateBtn = doc.getElementById("presManualRepGateBtn");
-        if (gateBtn) gateBtn.classList.remove("presentation-manual-rep-gate__btn--ack-pending");
+        if (gateBtn) {
+          gateBtn.classList.remove(
+            "presentation-manual-rep-gate__btn--ack-pending",
+            "presentation-manual-rep-gate__btn--dragging",
+            "presentation-manual-rep-gate__btn--throwing"
+          );
+          gateBtn.style.setProperty("--pres-manual-gate-dx", "0px");
+          gateBtn.style.setProperty("--pres-manual-gate-dy", "0px");
+          gateBtn.style.setProperty("--pres-manual-gate-throw-dx", "0px");
+          gateBtn.style.setProperty("--pres-manual-gate-throw-dy", "0px");
+          gateBtn.style.setProperty("--pres-manual-gate-throw-target", "0px");
+          gateBtn.style.setProperty("--pres-manual-gate-throw-target-y", "0px");
+          gateBtn.style.setProperty("--pres-manual-gate-scale", "1");
+        }
       }
       gateRoot.setAttribute("data-pres-manual-gate-on", on ? "1" : "0");
       gateRoot.hidden = !on;

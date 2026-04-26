@@ -392,11 +392,18 @@
   let presScrubCaptureEl = null;
   let presScrubCapturePid = -1;
 
-  /** Manual rep `transition`: freeze at that rep’s **end** until user taps circle-check (FF/rew/skip still move time). */
+  /** Manual rep `transition`: freeze at rep end until user swipes the chevron gate (FF/rew/skip still move time). */
   let presManualRepGateAwaiting = false;
   /** While gate is up, presentation/audio stay on this rep until continue (segmentIndex / repIndex of the manual rep). */
   let presManualRepGateMeta = null;
   let presManualGateAckTimer = 0;
+  let presManualGateDragState = null;
+  const PRES_MANUAL_GATE_SWIPE_MIN_PX = 42;
+  const PRES_MANUAL_GATE_LOCK_RATIO = 1.35;
+  const PRES_MANUAL_GATE_MAX_DX_PX = 120;
+  const PRES_MANUAL_GATE_MAX_DY_PX = 120;
+  const PRES_MANUAL_GATE_THROW_MIN_PX = 92;
+  const PRES_MANUAL_GATE_THROW_MAX_PX = 172;
 
   function presResetManualGateButtonUi() {
     if (presManualGateAckTimer) {
@@ -404,7 +411,21 @@
       presManualGateAckTimer = 0;
     }
     const gateBtn = document.getElementById("presManualRepGateBtn");
-    if (gateBtn) gateBtn.classList.remove("presentation-manual-rep-gate__btn--ack-pending");
+    if (gateBtn) {
+      gateBtn.classList.remove(
+        "presentation-manual-rep-gate__btn--ack-pending",
+        "presentation-manual-rep-gate__btn--dragging",
+        "presentation-manual-rep-gate__btn--throwing"
+      );
+      gateBtn.style.setProperty("--pres-manual-gate-dx", "0px");
+      gateBtn.style.setProperty("--pres-manual-gate-dy", "0px");
+      gateBtn.style.setProperty("--pres-manual-gate-throw-dx", "0px");
+      gateBtn.style.setProperty("--pres-manual-gate-throw-dy", "0px");
+      gateBtn.style.setProperty("--pres-manual-gate-throw-target", "0px");
+      gateBtn.style.setProperty("--pres-manual-gate-throw-target-y", "0px");
+      gateBtn.style.setProperty("--pres-manual-gate-scale", "1");
+    }
+    presManualGateDragState = null;
   }
 
   function presClearManualRepGate() {
@@ -1287,18 +1308,120 @@
 
     const gateBtn = document.getElementById("presManualRepGateBtn");
     if (gateBtn) {
+      function presManualGateAckAndDismiss(releaseDxPx, releaseDyPx) {
+        if (!presManualRepGateAwaiting) return;
+        if (gateBtn.classList.contains("presentation-manual-rep-gate__btn--ack-pending")) return;
+        const dx = releaseDxPx || 0;
+        const dy = releaseDyPx || 0;
+        const dist = Math.hypot(dx, dy);
+        const throwMag = Math.max(
+          PRES_MANUAL_GATE_THROW_MIN_PX,
+          Math.min(PRES_MANUAL_GATE_THROW_MAX_PX, Math.round(Math.abs(dx) * 1.45))
+        );
+        const ux = dist > 0.5 ? dx / dist : 1;
+        const uy = dist > 0.5 ? dy / dist : 0;
+        const throwTx = Math.round(throwMag * ux);
+        const throwTy = Math.round(throwMag * uy);
+        gateBtn.classList.remove("presentation-manual-rep-gate__btn--dragging");
+        gateBtn.classList.add("presentation-manual-rep-gate__btn--throwing");
+        gateBtn.style.setProperty("--pres-manual-gate-throw-target", throwTx + "px");
+        gateBtn.style.setProperty("--pres-manual-gate-throw-target-y", throwTy + "px");
+        gateBtn.style.setProperty("--pres-manual-gate-throw-dx", throwTx + "px");
+        gateBtn.style.setProperty("--pres-manual-gate-throw-dy", throwTy + "px");
+        gateBtn.classList.add("presentation-manual-rep-gate__btn--ack-pending");
+        presManualGateAckTimer = window.setTimeout(function () {
+          presManualGateAckTimer = 0;
+          presDismissManualRepGate();
+        }, 420);
+      }
+
+      function presManualGateResetDragVisual() {
+        gateBtn.classList.remove(
+          "presentation-manual-rep-gate__btn--dragging",
+          "presentation-manual-rep-gate__btn--throwing"
+        );
+        gateBtn.style.setProperty("--pres-manual-gate-dx", "0px");
+        gateBtn.style.setProperty("--pres-manual-gate-dy", "0px");
+        gateBtn.style.setProperty("--pres-manual-gate-throw-dx", "0px");
+        gateBtn.style.setProperty("--pres-manual-gate-throw-dy", "0px");
+        gateBtn.style.setProperty("--pres-manual-gate-throw-target", "0px");
+        gateBtn.style.setProperty("--pres-manual-gate-throw-target-y", "0px");
+        gateBtn.style.setProperty("--pres-manual-gate-scale", "1");
+      }
+
       gateBtn.addEventListener(
-        "click",
+        "pointerdown",
         function (e) {
           e.preventDefault();
           e.stopPropagation();
           if (!presManualRepGateAwaiting) return;
           if (gateBtn.classList.contains("presentation-manual-rep-gate__btn--ack-pending")) return;
-          gateBtn.classList.add("presentation-manual-rep-gate__btn--ack-pending");
-          presManualGateAckTimer = window.setTimeout(function () {
-            presManualGateAckTimer = 0;
-            presDismissManualRepGate();
-          }, 520);
+          presManualGateDragState = {
+            pointerId: e.pointerId,
+            x0: e.clientX,
+            y0: e.clientY,
+          };
+          gateBtn.classList.add("presentation-manual-rep-gate__btn--dragging");
+          gateBtn.style.setProperty("--pres-manual-gate-scale", "1.06");
+          if (typeof gateBtn.setPointerCapture === "function") {
+            try {
+              gateBtn.setPointerCapture(e.pointerId);
+            } catch (_) {}
+          }
+        },
+        true
+      );
+
+      gateBtn.addEventListener(
+        "pointermove",
+        function (e) {
+          if (!presManualGateDragState || e.pointerId !== presManualGateDragState.pointerId) return;
+          const dx = e.clientX - presManualGateDragState.x0;
+          const dy = e.clientY - presManualGateDragState.y0;
+          const clamped = Math.max(-PRES_MANUAL_GATE_MAX_DX_PX, Math.min(PRES_MANUAL_GATE_MAX_DX_PX, dx));
+          const clampedY = Math.max(-PRES_MANUAL_GATE_MAX_DY_PX, Math.min(PRES_MANUAL_GATE_MAX_DY_PX, dy));
+          gateBtn.style.setProperty("--pres-manual-gate-dx", Math.round(clamped) + "px");
+          gateBtn.style.setProperty("--pres-manual-gate-dy", Math.round(clampedY) + "px");
+          if (Math.abs(dx) > 6) gateBtn.classList.add("presentation-manual-rep-gate__btn--dragging");
+          else gateBtn.classList.remove("presentation-manual-rep-gate__btn--dragging");
+        },
+        true
+      );
+
+      gateBtn.addEventListener(
+        "pointerup",
+        function (e) {
+          if (!presManualGateDragState || e.pointerId !== presManualGateDragState.pointerId) return;
+          const dx = e.clientX - presManualGateDragState.x0;
+          const dy = e.clientY - presManualGateDragState.y0;
+          const horizontalEnough = dx >= PRES_MANUAL_GATE_SWIPE_MIN_PX;
+          const directionLocked = Math.abs(dx) > Math.abs(dy) * PRES_MANUAL_GATE_LOCK_RATIO;
+          presManualGateDragState = null;
+          if (horizontalEnough && directionLocked) {
+            presManualGateAckAndDismiss(dx, dy);
+          } else {
+            presManualGateResetDragVisual();
+          }
+        },
+        true
+      );
+
+      gateBtn.addEventListener(
+        "pointercancel",
+        function () {
+          presManualGateDragState = null;
+          presManualGateResetDragVisual();
+        },
+        true
+      );
+
+      gateBtn.addEventListener(
+        "lostpointercapture",
+        function () {
+          presManualGateDragState = null;
+          if (!gateBtn.classList.contains("presentation-manual-rep-gate__btn--ack-pending")) {
+            presManualGateResetDragVisual();
+          }
         },
         true
       );

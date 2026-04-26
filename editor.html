@@ -398,7 +398,7 @@
       color: var(--text);
       font: inherit;
     }
-    /** Manual rep transition (preview): idle circle pulse → tap check flash */
+    /** Manual rep transition (preview): draggable chevron gate with swipe-follow + active glow. */
     .presentation-manual-rep-gate {
       --pres-manual-gate-footer: clamp(4.35rem, 15cqmin, 6rem);
       --pres-manual-gate-header: clamp(2.8rem, 10cqmin, 3.5rem);
@@ -414,7 +414,17 @@
       position: absolute;
       left: 50%;
       top: calc((100% - var(--pres-manual-gate-footer) + var(--pres-manual-gate-header)) * 0.5);
-      transform: translate(-50%, -50%);
+      --pres-manual-gate-dx: 0px;
+      --pres-manual-gate-dy: 0px;
+      --pres-manual-gate-throw-dx: 0px;
+      --pres-manual-gate-throw-dy: 0px;
+      --pres-manual-gate-throw-target: 0px;
+      --pres-manual-gate-throw-target-y: 0px;
+      --pres-manual-gate-scale: 1;
+      transform: translate(
+          calc(-50% + var(--pres-manual-gate-dx) + var(--pres-manual-gate-throw-dx)),
+          calc(-50% + var(--pres-manual-gate-dy) + var(--pres-manual-gate-throw-dy))
+        ) scale(var(--pres-manual-gate-scale));
       display: flex;
       align-items: center;
       justify-content: center;
@@ -424,23 +434,28 @@
       margin: 0;
       border: none;
       border-radius: 50%;
-      cursor: pointer;
+      cursor: grab;
       color: var(--lane-sfx);
-      background: color-mix(in srgb, var(--bg) 70%, rgba(30, 30, 35, 0.5));
+      background: color-mix(in srgb, var(--bg) 52%, transparent);
       box-shadow:
-        0 0 0 2px color-mix(in srgb, var(--lane-sfx) 45%, transparent),
-        0 0 26px color-mix(in srgb, var(--lane-sfx) 32%, transparent),
-        0 0 48px color-mix(in srgb, var(--lane-sfx) 20%, transparent);
+        0 0 0 2px color-mix(in srgb, var(--lane-sfx) 48%, transparent),
+        0 0 22px color-mix(in srgb, var(--lane-sfx) 30%, transparent),
+        0 0 40px color-mix(in srgb, var(--lane-sfx) 20%, transparent);
       pointer-events: auto;
       -webkit-tap-highlight-color: transparent;
-      touch-action: manipulation;
+      touch-action: none;
       user-select: none;
+      transition:
+        transform 0.12s ease-out,
+        box-shadow 0.16s ease,
+        filter 0.16s ease,
+        color 0.16s ease;
     }
-    .presentation-manual-rep-gate__btn:not(.presentation-manual-rep-gate__btn--ack-pending) {
-      animation: presentation-manual-rep-gate-idle-editor 2.35s ease-in-out infinite;
+    .presentation-manual-rep-gate__btn:not(.presentation-manual-rep-gate__btn--ack-pending):not(.presentation-manual-rep-gate__btn--dragging) {
+      animation: presentation-manual-rep-gate-idle-editor 1.9s ease-in-out infinite;
     }
     .presentation-manual-rep-gate__btn:hover:not(.presentation-manual-rep-gate__btn--ack-pending) {
-      filter: brightness(1.08);
+      filter: brightness(1.06);
     }
     .presentation-manual-rep-gate__btn:focus-visible {
       outline: 2px solid var(--lane-sfx);
@@ -449,30 +464,46 @@
     @keyframes presentation-manual-rep-gate-idle-editor {
       0%,
       100% {
-        transform: translate(-50%, -50%) scale(1);
         filter: brightness(1);
         box-shadow:
-          0 0 0 2px color-mix(in srgb, var(--lane-sfx) 38%, transparent),
+          0 0 0 2px color-mix(in srgb, var(--lane-sfx) 35%, transparent),
           0 0 18px color-mix(in srgb, var(--lane-sfx) 26%, transparent),
-          0 0 36px color-mix(in srgb, var(--lane-sfx) 14%, transparent),
-          0 0 0 0 rgba(56, 189, 248, 0);
+          0 0 34px color-mix(in srgb, var(--lane-sfx) 14%, transparent),
+          0 0 0 0 color-mix(in srgb, var(--lane-sfx) 0%, transparent);
       }
       50% {
-        transform: translate(-50%, -50%) scale(1.08);
-        filter: brightness(1.12);
+        filter: brightness(1.14);
         box-shadow:
           0 0 0 3px color-mix(in srgb, var(--lane-sfx) 72%, transparent),
           0 0 34px color-mix(in srgb, var(--lane-sfx) 36%, transparent),
-          0 0 72px color-mix(in srgb, var(--lane-sfx) 22%, transparent),
-          0 0 48px color-mix(in srgb, var(--lane-sfx) 18%, transparent);
+          0 0 68px color-mix(in srgb, var(--lane-sfx) 22%, transparent),
+          0 0 46px color-mix(in srgb, var(--lane-sfx) 18%, transparent);
       }
+    }
+    .presentation-manual-rep-gate__btn--dragging {
+      --pres-manual-gate-scale: 1.06;
+      cursor: grabbing;
+      filter: brightness(1.2) saturate(1.1);
+      color: color-mix(in srgb, var(--lane-sfx) 62%, #a7f3d0);
+      box-shadow:
+        0 0 0 4px color-mix(in srgb, var(--lane-sfx) 88%, transparent),
+        0 0 42px color-mix(in srgb, var(--lane-sfx) 42%, transparent),
+        0 0 82px color-mix(in srgb, var(--lane-sfx) 28%, transparent),
+        0 0 64px color-mix(in srgb, var(--lane-sfx) 30%, transparent);
+    }
+    .presentation-manual-rep-gate__btn--throwing {
+      --pres-manual-gate-throw-dx: var(--pres-manual-gate-throw-target);
+      --pres-manual-gate-throw-dy: var(--pres-manual-gate-throw-target-y);
+      --pres-manual-gate-scale: 0.94;
+      transition-duration: 0.28s;
+      transition-timing-function: cubic-bezier(0.22, 0.9, 0.34, 1);
+      filter: brightness(1.24) saturate(1.1);
     }
     .presentation-manual-rep-gate__btn--ack-pending {
       animation: presentation-manual-rep-gate-ack-editor 0.56s cubic-bezier(0.22, 1, 0.36, 1) forwards;
     }
     @keyframes presentation-manual-rep-gate-ack-editor {
       0% {
-        transform: translate(-50%, -50%) scale(1);
         filter: brightness(1);
         box-shadow:
           0 0 0 2px color-mix(in srgb, var(--lane-sfx) 50%, transparent),
@@ -480,7 +511,6 @@
           0 0 52px color-mix(in srgb, var(--lane-sfx) 18%, transparent);
       }
       42% {
-        transform: translate(-50%, -50%) scale(1.16);
         filter: brightness(1.35) saturate(1.12);
         box-shadow:
           0 0 0 4px color-mix(in srgb, var(--lane-sfx) 88%, transparent),
@@ -489,7 +519,6 @@
           0 0 80px color-mix(in srgb, var(--lane-sfx) 28%, transparent);
       }
       100% {
-        transform: translate(-50%, -50%) scale(1.04);
         filter: brightness(1.12);
         box-shadow:
           0 0 0 2px color-mix(in srgb, var(--lane-sfx) 55%, transparent),
@@ -506,27 +535,16 @@
     }
     .pres-manual-gate-svg {
       grid-area: 1 / 1;
-      width: 100%;
-      height: 100%;
-      transition:
-        opacity 0.14s ease,
-        transform 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+      width: 76%;
+      height: 76%;
+      transition: transform 0.12s ease, opacity 0.12s ease;
     }
-    .presentation-manual-rep-gate__btn .pres-manual-gate-svg--idle {
+    .presentation-manual-rep-gate__btn .pres-manual-gate-svg--chevron {
       opacity: 1;
       transform: scale(1);
     }
-    .presentation-manual-rep-gate__btn .pres-manual-gate-svg--ack {
-      opacity: 0;
-      transform: scale(0.86);
-    }
-    .presentation-manual-rep-gate__btn--ack-pending .pres-manual-gate-svg--idle {
-      opacity: 0;
-      transform: scale(0.82);
-    }
-    .presentation-manual-rep-gate__btn--ack-pending .pres-manual-gate-svg--ack {
-      opacity: 1;
-      transform: scale(1.06);
+    .presentation-manual-rep-gate__btn--dragging .pres-manual-gate-svg--chevron {
+      transform: translateX(1px) scale(1.08);
     }
     /** Top bar: workout name | timing (transport lives in `.presentation-panel-footer`). */
     .presentation-panel-header {
@@ -2427,13 +2445,13 @@
               type="button"
               class="presentation-manual-rep-gate__btn"
               id="presManualRepGateBtn"
-              aria-label="Tap circle to continue preview"
-              title="Continue"
+              aria-label="Swipe right to continue preview"
+              title="Swipe right to continue"
             >
               <span class="pres-manual-gate-icon-slot" aria-hidden="true">
-                <!-- Lucide circle — https://lucide.dev/icons/circle (ISC) -->
+                <!-- Lucide chevron-right — https://lucide.dev/icons/chevron-right (ISC) -->
                 <svg
-                  class="pres-manual-gate-svg pres-manual-gate-svg--idle"
+                  class="pres-manual-gate-svg pres-manual-gate-svg--chevron"
                   xmlns="http://www.w3.org/2000/svg"
                   width="96"
                   height="96"
@@ -2444,23 +2462,7 @@
                   stroke-linecap="round"
                   stroke-linejoin="round"
                 >
-                  <circle cx="12" cy="12" r="10" />
-                </svg>
-                <!-- Lucide circle-check-big — https://lucide.dev/icons/circle-check-big (ISC) -->
-                <svg
-                  class="pres-manual-gate-svg pres-manual-gate-svg--ack"
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="96"
-                  height="96"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="1.35"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                >
-                  <path d="M21.801 10A10 10 0 1 1 17 3.335" />
-                  <path d="m9 11 3 3L22 4" />
+                  <polyline points="9 18 15 12 9 6" />
                 </svg>
               </span>
             </button>
@@ -11347,6 +11349,13 @@
       let presManualRepGateAwaiting = false;
       let presManualRepGateMeta = null;
       let presManualGateAckTimer = 0;
+      let presManualGateDragState = null;
+      const PRES_MANUAL_GATE_SWIPE_MIN_PX = 42;
+      const PRES_MANUAL_GATE_LOCK_RATIO = 1.35;
+      const PRES_MANUAL_GATE_MAX_DX_PX = 120;
+      const PRES_MANUAL_GATE_MAX_DY_PX = 120;
+      const PRES_MANUAL_GATE_THROW_MIN_PX = 92;
+      const PRES_MANUAL_GATE_THROW_MAX_PX = 172;
 
       function presResetManualGateButtonUi() {
         if (presManualGateAckTimer) {
@@ -11354,7 +11363,21 @@
           presManualGateAckTimer = 0;
         }
         const gateBtn = document.getElementById("presManualRepGateBtn");
-        if (gateBtn) gateBtn.classList.remove("presentation-manual-rep-gate__btn--ack-pending");
+        if (gateBtn) {
+          gateBtn.classList.remove(
+            "presentation-manual-rep-gate__btn--ack-pending",
+            "presentation-manual-rep-gate__btn--dragging",
+            "presentation-manual-rep-gate__btn--throwing"
+          );
+          gateBtn.style.setProperty("--pres-manual-gate-dx", "0px");
+          gateBtn.style.setProperty("--pres-manual-gate-dy", "0px");
+          gateBtn.style.setProperty("--pres-manual-gate-throw-dx", "0px");
+          gateBtn.style.setProperty("--pres-manual-gate-throw-dy", "0px");
+          gateBtn.style.setProperty("--pres-manual-gate-throw-target", "0px");
+          gateBtn.style.setProperty("--pres-manual-gate-throw-target-y", "0px");
+          gateBtn.style.setProperty("--pres-manual-gate-scale", "1");
+        }
+        presManualGateDragState = null;
       }
 
       function presClearManualRepGate() {
@@ -12320,18 +12343,120 @@
 
         const presManualRepGateBtn = document.getElementById("presManualRepGateBtn");
         if (presManualRepGateBtn) {
+          function presManualGateAckAndDismissPreview(releaseDxPx, releaseDyPx) {
+            if (!presManualRepGateAwaiting) return;
+            if (presManualRepGateBtn.classList.contains("presentation-manual-rep-gate__btn--ack-pending")) return;
+            const dx = releaseDxPx || 0;
+            const dy = releaseDyPx || 0;
+            const dist = Math.hypot(dx, dy);
+            const throwMag = Math.max(
+              PRES_MANUAL_GATE_THROW_MIN_PX,
+              Math.min(PRES_MANUAL_GATE_THROW_MAX_PX, Math.round(Math.abs(dx) * 1.45))
+            );
+            const ux = dist > 0.5 ? dx / dist : 1;
+            const uy = dist > 0.5 ? dy / dist : 0;
+            const throwTx = Math.round(throwMag * ux);
+            const throwTy = Math.round(throwMag * uy);
+            presManualRepGateBtn.classList.remove("presentation-manual-rep-gate__btn--dragging");
+            presManualRepGateBtn.classList.add("presentation-manual-rep-gate__btn--throwing");
+            presManualRepGateBtn.style.setProperty("--pres-manual-gate-throw-target", throwTx + "px");
+            presManualRepGateBtn.style.setProperty("--pres-manual-gate-throw-target-y", throwTy + "px");
+            presManualRepGateBtn.style.setProperty("--pres-manual-gate-throw-dx", throwTx + "px");
+            presManualRepGateBtn.style.setProperty("--pres-manual-gate-throw-dy", throwTy + "px");
+            presManualRepGateBtn.classList.add("presentation-manual-rep-gate__btn--ack-pending");
+            presManualGateAckTimer = window.setTimeout(() => {
+              presManualGateAckTimer = 0;
+              presDismissManualRepGate();
+            }, 420);
+          }
+
+          function presManualGateResetDragVisualPreview() {
+            presManualRepGateBtn.classList.remove(
+              "presentation-manual-rep-gate__btn--dragging",
+              "presentation-manual-rep-gate__btn--throwing"
+            );
+            presManualRepGateBtn.style.setProperty("--pres-manual-gate-dx", "0px");
+            presManualRepGateBtn.style.setProperty("--pres-manual-gate-dy", "0px");
+            presManualRepGateBtn.style.setProperty("--pres-manual-gate-throw-dx", "0px");
+            presManualRepGateBtn.style.setProperty("--pres-manual-gate-throw-dy", "0px");
+            presManualRepGateBtn.style.setProperty("--pres-manual-gate-throw-target", "0px");
+            presManualRepGateBtn.style.setProperty("--pres-manual-gate-throw-target-y", "0px");
+            presManualRepGateBtn.style.setProperty("--pres-manual-gate-scale", "1");
+          }
+
           presManualRepGateBtn.addEventListener(
-            "click",
+            "pointerdown",
             (e) => {
               e.preventDefault();
               e.stopPropagation();
               if (!presManualRepGateAwaiting) return;
               if (presManualRepGateBtn.classList.contains("presentation-manual-rep-gate__btn--ack-pending")) return;
-              presManualRepGateBtn.classList.add("presentation-manual-rep-gate__btn--ack-pending");
-              presManualGateAckTimer = window.setTimeout(() => {
-                presManualGateAckTimer = 0;
-                presDismissManualRepGate();
-              }, 520);
+              presManualGateDragState = {
+                pointerId: e.pointerId,
+                x0: e.clientX,
+                y0: e.clientY,
+              };
+              presManualRepGateBtn.classList.add("presentation-manual-rep-gate__btn--dragging");
+              presManualRepGateBtn.style.setProperty("--pres-manual-gate-scale", "1.06");
+              if (typeof presManualRepGateBtn.setPointerCapture === "function") {
+                try {
+                  presManualRepGateBtn.setPointerCapture(e.pointerId);
+                } catch (_) {}
+              }
+            },
+            true
+          );
+
+          presManualRepGateBtn.addEventListener(
+            "pointermove",
+            (e) => {
+              if (!presManualGateDragState || e.pointerId !== presManualGateDragState.pointerId) return;
+              const dx = e.clientX - presManualGateDragState.x0;
+              const dy = e.clientY - presManualGateDragState.y0;
+              const clamped = Math.max(-PRES_MANUAL_GATE_MAX_DX_PX, Math.min(PRES_MANUAL_GATE_MAX_DX_PX, dx));
+              const clampedY = Math.max(-PRES_MANUAL_GATE_MAX_DY_PX, Math.min(PRES_MANUAL_GATE_MAX_DY_PX, dy));
+              presManualRepGateBtn.style.setProperty("--pres-manual-gate-dx", Math.round(clamped) + "px");
+              presManualRepGateBtn.style.setProperty("--pres-manual-gate-dy", Math.round(clampedY) + "px");
+              if (Math.abs(dx) > 6) presManualRepGateBtn.classList.add("presentation-manual-rep-gate__btn--dragging");
+              else presManualRepGateBtn.classList.remove("presentation-manual-rep-gate__btn--dragging");
+            },
+            true
+          );
+
+          presManualRepGateBtn.addEventListener(
+            "pointerup",
+            (e) => {
+              if (!presManualGateDragState || e.pointerId !== presManualGateDragState.pointerId) return;
+              const dx = e.clientX - presManualGateDragState.x0;
+              const dy = e.clientY - presManualGateDragState.y0;
+              const horizontalEnough = dx >= PRES_MANUAL_GATE_SWIPE_MIN_PX;
+              const directionLocked = Math.abs(dx) > Math.abs(dy) * PRES_MANUAL_GATE_LOCK_RATIO;
+              presManualGateDragState = null;
+              if (horizontalEnough && directionLocked) {
+                presManualGateAckAndDismissPreview(dx, dy);
+              } else {
+                presManualGateResetDragVisualPreview();
+              }
+            },
+            true
+          );
+
+          presManualRepGateBtn.addEventListener(
+            "pointercancel",
+            () => {
+              presManualGateDragState = null;
+              presManualGateResetDragVisualPreview();
+            },
+            true
+          );
+
+          presManualRepGateBtn.addEventListener(
+            "lostpointercapture",
+            () => {
+              presManualGateDragState = null;
+              if (!presManualRepGateBtn.classList.contains("presentation-manual-rep-gate__btn--ack-pending")) {
+                presManualGateResetDragVisualPreview();
+              }
             },
             true
           );

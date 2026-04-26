@@ -53,13 +53,13 @@
               type="button"
               class="presentation-manual-rep-gate__btn"
               id="presManualRepGateBtn"
-              aria-label="Tap circle to continue workout"
-              title="Continue"
+              aria-label="Swipe right to continue workout"
+              title="Swipe right to continue"
             >
               <span class="pres-manual-gate-icon-slot" aria-hidden="true">
-                <!-- Lucide circle — https://lucide.dev/icons/circle (ISC) -->
+                <!-- Lucide chevron-right — https://lucide.dev/icons/chevron-right (ISC) -->
                 <svg
-                  class="pres-manual-gate-svg pres-manual-gate-svg--idle"
+                  class="pres-manual-gate-svg pres-manual-gate-svg--chevron"
                   xmlns="http://www.w3.org/2000/svg"
                   width="96"
                   height="96"
@@ -70,23 +70,7 @@
                   stroke-linecap="round"
                   stroke-linejoin="round"
                 >
-                  <circle cx="12" cy="12" r="10" />
-                </svg>
-                <!-- Lucide circle-check-big — https://lucide.dev/icons/circle-check-big (ISC) -->
-                <svg
-                  class="pres-manual-gate-svg pres-manual-gate-svg--ack"
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="96"
-                  height="96"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="1.35"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                >
-                  <path d="M21.801 10A10 10 0 1 1 17 3.335" />
-                  <path d="m9 11 3 3L22 4" />
+                  <polyline points="9 18 15 12 9 6" />
                 </svg>
               </span>
             </button>
