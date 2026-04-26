@@ -1698,6 +1698,193 @@
       min-height: 100%;
       pointer-events: none;
     }
+    .clip-inner {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      justify-content: flex-start;
+      width: 100%;
+      height: 100%;
+      min-width: 0;
+      padding: 0 3px 0 4px;
+      box-sizing: border-box;
+    }
+    .clip-icon-slot {
+      flex: 0 0 auto;
+      width: 14px;
+      height: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: flex-start;
+    }
+    /* Match toolbar / menu inline Lucide-style SVGs (stroke-width 1.25); lucide-static paths often use 2 */
+    .clip-icon-slot svg,
+    .lucide-icon-preview svg,
+    .lucide-icon-pick-slot svg {
+      stroke-width: 1.25;
+    }
+    .clip-icon-slot svg :where(path, line, polyline, polygon, circle, rect, ellipse),
+    .lucide-icon-preview svg :where(path, line, polyline, polygon, circle, rect, ellipse),
+    .lucide-icon-pick-slot svg :where(path, line, polyline, polygon, circle, rect, ellipse) {
+      stroke-width: 1.25 !important;
+    }
+    #clipModal .modal.modal-wide {
+      overflow: visible;
+      position: relative;
+    }
+    .clip-lucide-main-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 92px;
+      gap: 0.4rem 0.55rem;
+      align-items: center;
+      max-width: 520px;
+    }
+    .clip-lucide-action-btn {
+      width: 92px;
+      justify-self: end;
+    }
+    .clip-lucide-main-results {
+      margin-top: 0;
+      min-width: 0;
+      grid-column: 1 / -1;
+    }
+    .lucide-icon-picker-row {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      gap: 0.45rem;
+      flex-wrap: wrap;
+    }
+    .lucide-icon-preview {
+      width: 32px;
+      height: 32px;
+      flex: 0 0 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      border-radius: 5px;
+      background: rgba(0, 0, 0, 0.22);
+    }
+    #clipLucideIconSearch {
+      flex: 1 1 160px;
+      min-width: 0;
+      width: 100%;
+    }
+    .lucide-icon-row-btn {
+      font-size: 0.8rem;
+      padding: 0.28rem 0.55rem;
+      border-radius: 5px;
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      background: rgba(255, 255, 255, 0.06);
+      color: inherit;
+      cursor: pointer;
+    }
+    .lucide-icon-row-btn:hover {
+      background: rgba(255, 255, 255, 0.1);
+    }
+    .lucide-icon-results {
+      margin-top: 0.45rem;
+      display: flex;
+      flex-direction: row;
+      flex-wrap: nowrap;
+      align-items: center;
+      gap: 6px;
+      padding: 6px;
+      min-height: 48px;
+      max-height: 64px;
+      overflow-x: auto;
+      overflow-y: hidden;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 6px;
+      background: rgba(0, 0, 0, 0.22);
+      scrollbar-width: thin;
+    }
+    #clipLucideIconResults[hidden] {
+      display: flex !important;
+      visibility: hidden;
+      pointer-events: none;
+    }
+    .lucide-icon-results::-webkit-scrollbar {
+      height: 6px;
+    }
+    .lucide-icon-results::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.18);
+      border-radius: 3px;
+    }
+    .lucide-icon-pick {
+      flex: 0 0 auto;
+      width: 28px;
+      height: 28px;
+      padding: 0;
+      margin: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 6px;
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      background: rgba(255, 255, 255, 0.06);
+      color: inherit;
+      cursor: pointer;
+      box-sizing: border-box;
+    }
+    .lucide-icon-pick:hover,
+    .lucide-icon-pick.is-selected,
+    .lucide-icon-pick:focus-visible {
+      border-color: rgba(251, 191, 36, 0.65);
+      background: rgba(251, 191, 36, 0.14);
+      outline: none;
+    }
+    .lucide-icon-pick-slot {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 14px;
+      height: 14px;
+      pointer-events: none;
+    }
+    .lucide-icon-pick-slot svg {
+      color: inherit;
+    }
+    .lucide-icon-results-empty {
+      flex: 1 1 auto;
+      min-width: 4rem;
+      align-self: center;
+      padding: 0 0.35rem;
+      font-size: 0.78rem;
+      font-weight: 500;
+      color: var(--dim, #9ca3af);
+      white-space: nowrap;
+    }
+    #clipLucideIconStatus {
+      margin: 0.35rem 0 0;
+      font-size: 0.78rem;
+      line-height: 1.35;
+      color: var(--dim, #9ca3af);
+      min-height: 1.2em;
+    }
+    #clipLucideIconStatus.lucide-icon-status-error {
+      color: #fecaca;
+    }
+    #clipLucideIconStatus.lucide-icon-status-loading {
+      color: #fde68a;
+    }
+    .lucide-icon-row-btn:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+    .clip-tab-name-section-label {
+      font-size: 0.75rem;
+      color: var(--dim, #9ca3af);
+      margin-bottom: 0.28rem;
+    }
+    .clip-tab-name-name-input {
+      max-width: 340px;
+      width: 100%;
+    }
+    .clip-tab-name-icon-wrap {
+      margin-top: 0.55rem;
+    }
     .clip-edge {
       flex: 0 0 7px;
       width: 7px;
@@ -1803,9 +1990,12 @@
     /* Clip modal tabbed interface */
     .clip-modal-header {
       display: flex;
-      align-items: center;
-      gap: 0.4rem;
+      flex-direction: column;
+      align-items: stretch;
+      gap: 0.35rem;
       margin-bottom: 0.6rem;
+      padding-bottom: 0;
+      border-bottom: none;
     }
     .clip-modal-title-prefix {
       font-size: 0.95rem;
@@ -1814,7 +2004,10 @@
       white-space: nowrap;
     }
     .clip-modal-name-input {
-      flex: 1;
+      width: 100%;
+      min-width: 0;
+      height: 32px;
+      line-height: 1.2;
       padding: 0.3rem 0.45rem !important;
       font-size: 0.88rem !important;
       border: 1px solid var(--line) !important;
@@ -2412,19 +2605,53 @@
   <div class="modal-backdrop" id="clipModal" aria-hidden="true">
     <div class="modal modal-wide" role="dialog" aria-labelledby="clipModalTitle">
       <div class="clip-modal-header">
-        <span class="clip-modal-title-prefix" id="clipModalTitlePrefix">Edit Text ·</span>
-        <input type="text" id="editCueName" class="clip-modal-name-input" maxlength="48" autocomplete="off" spellcheck="false" placeholder="Cue name" />
+        <span class="clip-modal-title-prefix" id="clipModalTitlePrefix">Edit Text</span>
       </div>
       <h3 id="clipModalTitle" class="sr-only">Edit cue</h3>
       <div class="clip-modal-tabs" role="tablist" aria-label="Cue editor tabs">
-        <button type="button" role="tab" class="clip-modal-tab" data-tab="timing" aria-selected="true">Timing</button>
+        <button type="button" role="tab" class="clip-modal-tab" data-tab="name" aria-selected="true">Name</button>
+        <button type="button" role="tab" class="clip-modal-tab" data-tab="timing" aria-selected="false">Timing</button>
         <button type="button" role="tab" class="clip-modal-tab" data-tab="display" aria-selected="false">Display</button>
         <button type="button" role="tab" class="clip-modal-tab" data-tab="voice" aria-selected="false">Voice</button>
         <button type="button" role="tab" class="clip-modal-tab" data-tab="effect" aria-selected="false">Effect</button>
         <button type="button" role="tab" class="clip-modal-tab" id="clipModalTabLink" data-tab="link" aria-selected="false">Link</button>
       </div>
       <div class="clip-modal-tab-panels">
-        <div id="clipTabTiming" class="clip-modal-tab-panel" role="tabpanel">
+        <div id="clipTabName" class="clip-modal-tab-panel" role="tabpanel">
+          <div class="field">
+            <div class="clip-tab-name-section-label">Name</div>
+            <input
+              type="text"
+              id="editCueName"
+              class="clip-modal-name-input clip-tab-name-name-input"
+              maxlength="48"
+              autocomplete="off"
+              spellcheck="false"
+              placeholder="Cue name"
+              aria-label="Cue name"
+            />
+          </div>
+          <div class="field clip-tab-name-icon-wrap">
+            <div class="clip-tab-name-section-label">Icon</div>
+            <div class="clip-lucide-main-grid">
+              <span id="clipLucideIconPreview" class="lucide-icon-preview" aria-hidden="true"></span>
+              <button type="button" id="clipLucideIconRevert" class="lucide-icon-row-btn clip-lucide-action-btn">Revert</button>
+              <input
+                type="search"
+                id="clipLucideIconSearch"
+                autocomplete="off"
+                spellcheck="false"
+                placeholder="Icon search"
+                maxlength="80"
+                aria-label="Lucide icon name"
+              />
+              <button type="button" id="clipLucideIconSearchBtn" class="lucide-icon-row-btn clip-lucide-action-btn">Look up</button>
+              <div id="clipLucideIconResults" class="lucide-icon-results clip-lucide-main-results" hidden role="listbox" aria-label="Matching icons — scroll horizontally"></div>
+            </div>
+            <div id="clipLucideIconStatus" role="status" aria-live="polite"></div>
+          </div>
+        </div>
+        <div id="clipTabTiming" class="clip-modal-tab-panel" role="tabpanel" hidden>
           <div class="field">
             <label for="editStart">Start — global time (s)</label>
             <div class="num-stepper">
@@ -2806,6 +3033,7 @@
   </div>
 
   <script src="js/workoutPresentation.js"></script>
+  <script src="js/lucideCueIcons.js"></script>
   <script src="js/workoutPlaybackEngine.js"></script>
   <script src="js/playerTtsVoices.js"></script>
   <script src="js/playerPlaybackAudio.js"></script>
@@ -3210,12 +3438,13 @@
       const editTtsSpeech = document.getElementById("editTtsSpeech");
 
       const CLIP_MODAL_TABS_BY_LANE = {
-        text: ["timing", "display", "link"],
-        tts: ["timing", "voice", "link"],
-        sfx: ["timing", "effect"],
-        vfx: ["timing", "effect"],
+        text: ["name", "timing", "display", "link"],
+        tts: ["name", "timing", "voice", "link"],
+        sfx: ["name", "timing", "effect"],
+        vfx: ["name", "timing", "effect"],
       };
       const CLIP_MODAL_PANEL_TAB_ID = {
+        clipTabName: "name",
         clipTabTiming: "timing",
         clipTabDisplay: "display",
         clipTabVoice: "voice",
@@ -3225,9 +3454,184 @@
       function clipModalPanelTabId(panelEl) {
         return CLIP_MODAL_PANEL_TAB_ID[panelEl.id] || "";
       }
-      let clipModalCurrentTab = "timing";
+      let clipModalCurrentTab = "name";
       let clipModalCurrentLane = null;
       const clipModalDirtyFields = new Set();
+      let clipModalLucideIconDraft = "";
+      let clipModalLucideIconPendingSelection = "";
+      let clipModalLucideIconBaseline = "";
+      const CLIP_MODAL_DEFAULT_ICON_PLACEHOLDER = "image";
+      function closeClipLucideIconPopover() {}
+
+      function setClipLucideIconStatus(message, kind) {
+        const el = document.getElementById("clipLucideIconStatus");
+        if (!el) return;
+        el.textContent = message || "";
+        el.classList.remove("lucide-icon-status-error", "lucide-icon-status-loading");
+        if (kind === "error") el.classList.add("lucide-icon-status-error");
+        else if (kind === "loading") el.classList.add("lucide-icon-status-loading");
+      }
+
+      function paintClipLucideIconPreviewById(elId, name, size) {
+        const prev = document.getElementById(elId);
+        if (!prev) return;
+        prev.innerHTML = "";
+        if (!window.LucideCueIcons) return;
+        const useName = normalizeCueLucideIcon(name) || CLIP_MODAL_DEFAULT_ICON_PLACEHOLDER;
+        if (useName) {
+          LucideCueIcons.paintIntoElement(prev, useName, size);
+        }
+      }
+
+      function syncClipLucideIconFormFromStored(stored) {
+        clipModalLucideIconDraft = normalizeCueLucideIcon(stored);
+        clipModalLucideIconBaseline = clipModalLucideIconDraft;
+        clipModalLucideIconPendingSelection = "";
+        const inp = document.getElementById("clipLucideIconSearch");
+        const list = document.getElementById("clipLucideIconResults");
+        setClipLucideIconStatus("", null);
+        if (inp) inp.value = clipModalLucideIconDraft ? clipModalLucideIconDraft : "";
+        if (list) {
+          list.innerHTML = "";
+          list.hidden = true;
+        }
+        paintClipLucideIconPreviewById("clipLucideIconPreview", clipModalLucideIconDraft, 20);
+        updateClipLucideIconTriggerA11y();
+        updateClipLucideRevertButtonState();
+        if (window.LucideCueIcons) LucideCueIcons.ensureNameIndex().catch(() => {});
+      }
+
+      function readClipLucideIconFormValue() {
+        return normalizeCueLucideIcon(clipModalLucideIconDraft);
+      }
+
+      function updateClipLucideRevertButtonState() {
+        const rev = document.getElementById("clipLucideIconRevert");
+        if (!rev) return;
+        const baseline = normalizeCueLucideIcon(clipModalLucideIconBaseline);
+        const current = readClipLucideIconFormValue();
+        rev.disabled = baseline === current;
+      }
+
+      function updateClipLucideIconTriggerA11y() {
+        const trig = document.getElementById("clipLucideIconPreview");
+        if (!trig) return;
+        const n = readClipLucideIconFormValue();
+        trig.setAttribute("aria-label", n ? "Cue icon: " + n : "Cue icon: none");
+        trig.title = n ? "Cue icon: " + n : "Cue icon: none";
+      }
+
+      function runClipLucideIconSearchUpdate() {
+        const inp = document.getElementById("clipLucideIconSearch");
+        const list = document.getElementById("clipLucideIconResults");
+        const go = document.getElementById("clipLucideIconSearchBtn");
+        if (!inp || !list) return;
+        if (!window.LucideCueIcons) {
+          setClipLucideIconStatus("Icon helper script (lucideCueIcons.js) is not loaded.", "error");
+          return;
+        }
+        list.innerHTML = "";
+        list.hidden = true;
+        clipModalLucideIconPendingSelection = "";
+        setClipLucideIconStatus("Loading icon list…", "loading");
+        if (go) go.disabled = true;
+        LucideCueIcons.ensureNameIndex()
+          .then(() => {
+            const st = LucideCueIcons.getIndexState();
+            if (!st || !st.ok) {
+              setClipLucideIconStatus(st && st.error ? st.error : "Icon list is not available.", "error");
+              return;
+            }
+            const qRaw = String(inp.value || "").trim();
+            const hits = LucideCueIcons.searchIcons(inp.value, 80);
+            if (!hits.length) {
+              setClipLucideIconStatus("", null);
+              list.hidden = false;
+              const empty = document.createElement("div");
+              empty.className = "lucide-icon-results-empty";
+              empty.textContent = "0 results";
+              empty.setAttribute("role", "status");
+              list.appendChild(empty);
+              return;
+            }
+            setClipLucideIconStatus("", null);
+            list.hidden = false;
+            for (let hi = 0; hi < hits.length; hi++) {
+              const name = hits[hi];
+              const b = document.createElement("button");
+              b.type = "button";
+              b.className = "lucide-icon-pick";
+              b.setAttribute("role", "option");
+              b.setAttribute("aria-label", name);
+              b.title = name;
+              const slot = document.createElement("span");
+              slot.className = "lucide-icon-pick-slot";
+              b.appendChild(slot);
+              LucideCueIcons.paintIntoElement(slot, name, 13);
+              b.addEventListener("click", () => {
+                clipModalLucideIconPendingSelection = name;
+                inp.value = name;
+                list.querySelectorAll(".lucide-icon-pick").forEach((btn) => btn.classList.remove("is-selected"));
+                b.classList.add("is-selected");
+                clipModalLucideIconDraft = name;
+                markFieldDirty("clipLucideIconSearch");
+                paintClipLucideIconPreviewById("clipLucideIconPreview", name, 20);
+                updateClipLucideIconTriggerA11y();
+                updateClipLucideRevertButtonState();
+                setClipLucideIconStatus("", null);
+              });
+              list.appendChild(b);
+            }
+          })
+          .catch((e) => {
+            setClipLucideIconStatus(
+              "Could not load icons: " + (e && e.message ? e.message : String(e)),
+              "error"
+            );
+          })
+          .finally(() => {
+            if (go) go.disabled = false;
+          });
+      }
+
+      function initLucideCueIconPickerUi() {
+        const inp = document.getElementById("clipLucideIconSearch");
+        const rev = document.getElementById("clipLucideIconRevert");
+        const go = document.getElementById("clipLucideIconSearchBtn");
+        if (!inp || inp.dataset.lucidePickerBound === "1") return;
+        inp.dataset.lucidePickerBound = "1";
+        inp.addEventListener("input", () => {
+          const typed = normalizeCueLucideIcon(inp.value.replace(/\s+/g, "-"));
+          clipModalLucideIconPendingSelection = typed;
+        });
+        inp.addEventListener(
+          "keydown",
+          (e) => {
+            if (e.key !== "Enter") return;
+            e.preventDefault();
+            e.stopPropagation();
+            runClipLucideIconSearchUpdate();
+          },
+          true
+        );
+        if (go) {
+          go.addEventListener("click", () => {
+            runClipLucideIconSearchUpdate();
+          });
+        }
+        if (rev) {
+          updateClipLucideRevertButtonState();
+          rev.addEventListener("click", () => {
+            clipModalLucideIconDraft = clipModalLucideIconBaseline;
+            clipModalLucideIconPendingSelection = "";
+            markFieldDirty("clipLucideIconSearch");
+            setClipLucideIconStatus("", null);
+            paintClipLucideIconPreviewById("clipLucideIconPreview", clipModalLucideIconDraft, 20);
+            updateClipLucideIconTriggerA11y();
+            updateClipLucideRevertButtonState();
+          });
+        }
+      }
 
       function switchClipModalTab(tabId) {
         const tabs = document.querySelectorAll(".clip-modal-tab");
@@ -3296,14 +3700,14 @@
         const defaultTab =
           opts && opts.activeTab && allowedTabs.includes(opts.activeTab)
             ? opts.activeTab
-            : allowedTabs.length > 1
-              ? allowedTabs[1]
-              : allowedTabs[0];
+            : allowedTabs[0];
         switchClipModalTab(defaultTab);
       }
 
       function getTabForField(fieldId) {
         const fieldTabMap = {
+          editCueName: "name",
+          clipLucideIconSearch: "name",
           editStart: "timing",
           editDuration: "timing",
           editMilestone: "timing",
@@ -3365,7 +3769,9 @@
 
       function initClipModalDirtyFieldListeners() {
         const fieldIds = [
+          "editCueName",
           "editStart", "editDuration", "editMilestone",
+          "clipLucideIconSearch",
           "editCueHeading", "editCueBody",
           "editTtsVoiceSlot", "editTtsSpeech",
           "editSfxKind",
@@ -3731,6 +4137,17 @@
           .slice(0, TEXT_CUE_HEADING_BODY_MAX);
       }
 
+      function normalizeCueLucideIcon(raw) {
+        if (raw == null) return "";
+        const t = String(raw)
+          .trim()
+          .toLowerCase()
+          .replace(/\s+/g, "-");
+        if (t.length > 80) return "";
+        if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(t)) return "";
+        return t;
+      }
+
       function normalizeEvent(e) {
         if (!e || typeof e !== "object") return null;
         const lane = e.lane;
@@ -3784,6 +4201,8 @@
           if (e.linkedSyncStart === true) out.linkedSyncStart = true;
           if (e.linkedSyncDuration === true) out.linkedSyncDuration = true;
         }
+        const lucideIc = normalizeCueLucideIcon(e.lucideIcon);
+        if (lucideIc) out.lucideIcon = lucideIc;
         // Milestone property: explicit true/false is preserved, undefined uses lane default (TTS=true, others=false)
         if (e.milestone === true || e.milestone === false) {
           out.milestone = e.milestone;
@@ -6612,6 +7031,8 @@
               if (hb.body) o.body = hb.body;
             }
             if (ev.milestone === true || ev.milestone === false) o.milestone = ev.milestone;
+            const lic = normalizeCueLucideIcon(ev.lucideIcon);
+            if (lic) o.lucideIcon = lic;
             return o;
           });
           return {
@@ -6670,6 +7091,8 @@
                 if (hb.body) o.body = hb.body;
               }
               if (e.milestone === true || e.milestone === false) o.milestone = e.milestone;
+              const lic = normalizeCueLucideIcon(e.lucideIcon);
+              if (lic) o.lucideIcon = lic;
               return o;
             }),
           };
@@ -7015,7 +7438,7 @@
         clipEditContext = { libraryEdit: { cat, id, eventIndex } };
         const laneLabel = (LANES.find((x) => x.id === cat) || { label: cat }).label;
         const titlePrefix = document.getElementById("clipModalTitlePrefix");
-        if (titlePrefix) titlePrefix.textContent = "Edit " + laneLabel + " (lib) ·";
+        if (titlePrefix) titlePrefix.textContent = "Edit " + laneLabel + " (lib)";
         if (editCueName) {
           const sk0 = cat === "sfx" ? (ev.sfxKind === "shot" ? "shot" : "split") : undefined;
           editCueName.value =
@@ -7053,6 +7476,8 @@
           const defaultMilestone = cat === "tts";
           editMilestone.checked = ev.milestone !== undefined ? ev.milestone : defaultMilestone;
         }
+        initLucideCueIconPickerUi();
+        syncClipLucideIconFormFromStored(ev.lucideIcon);
         const cr = document.getElementById("clipModalRemove");
         if (cr) cr.style.display = "none";
         setupClipModalTabsForLane(cat, { library: true });
@@ -7300,6 +7725,8 @@
                   if (hb.body) o.body = hb.body;
                 }
                 if (e.milestone === true || e.milestone === false) o.milestone = e.milestone;
+                const licIns = normalizeCueLucideIcon(e.lucideIcon);
+                if (licIns) o.lucideIcon = licIns;
                 return o;
               }),
             };
@@ -7480,6 +7907,8 @@
             if (ev.linkedSyncStart === true) o.linkedSyncStart = true;
             if (ev.linkedSyncDuration === true) o.linkedSyncDuration = true;
           }
+          const lic = normalizeCueLucideIcon(ev.lucideIcon);
+          if (lic) o.lucideIcon = lic;
           return o;
         });
         repClipboard = null;
@@ -7865,6 +8294,8 @@
             if (p.linkedSyncStart === true) ev.linkedSyncStart = true;
             if (p.linkedSyncDuration === true) ev.linkedSyncDuration = true;
           }
+          const licP = normalizeCueLucideIcon(p.lucideIcon);
+          if (licP) ev.lucideIcon = licP;
           reps[rTarget].events.push(ev);
         }
         const pasteEndIdx = reps[rTarget].events.length;
@@ -9471,7 +9902,7 @@
         if (cr) cr.style.display = "";
         const titlePrefix = document.getElementById("clipModalTitlePrefix");
         const laneLabel = (LANES.find((x) => x.id === ev.lane) || { label: ev.lane }).label;
-        if (titlePrefix) titlePrefix.textContent = "Edit " + laneLabel + " ·";
+        if (titlePrefix) titlePrefix.textContent = "Edit " + laneLabel;
         if (editCueName) editCueName.value = String(ev.name || "").trim() || defaultNewCueName(ev.lane, ev.sfxKind);
         editStart.value = formatSnapSecForInput(ev.start);
         editDuration.value = formatSnapSecForInput(ev.duration);
@@ -9503,6 +9934,10 @@
           const defaultMilestone = ev.lane === "tts";
           editMilestone.checked = ev.milestone !== undefined ? ev.milestone : defaultMilestone;
         }
+        const startLblOpen = document.querySelector('label[for="editStart"]');
+        if (startLblOpen) startLblOpen.textContent = "Start — global time (s)";
+        initLucideCueIconPickerUi();
+        syncClipLucideIconFormFromStored(ev.lucideIcon);
         if (ev.lane !== "vfx") syncEditDurationNumStepperAttrs();
         replaceClipSelection(r, eventIndex);
         setupClipModalTabsForLane(ev.lane, modalOpts);
@@ -9582,6 +10017,7 @@
       }
 
       function closeClipEditor() {
+        closeClipLucideIconPopover();
         const cr = document.getElementById("clipModalRemove");
         if (cr) cr.style.display = "";
         clipModal.classList.remove("open");
@@ -9596,6 +10032,9 @@
           editDuration.removeAttribute("max");
           editDuration.readOnly = false;
         }
+        const startLblClose = document.querySelector('label[for="editStart"]');
+        if (startLblClose) startLblClose.textContent = "Start — global time (s)";
+        syncClipLucideIconFormFromStored("");
         clearAllFieldDirty();
         clipEditContext = null;
         clipModalCurrentLane = null;
@@ -9743,6 +10182,8 @@
       bindEnterKeyAppliesPrimary("repNameModalSave", repNameInput, repIntervalInput, repTransitionSelect);
 
       bindEnterKeyAppliesPrimary("clipModalSave", editCueName, editStart, editDuration, editVfxRepeat);
+
+      initLucideCueIconPickerUi();
 
       if (editVfxColorMode && editVfxCustomColorWrap) {
         editVfxColorMode.addEventListener("change", function () {
@@ -9954,7 +10395,9 @@
           deselectPlayhead();
           return;
         }
-        if (clipModal.classList.contains("open")) closeClipEditor();
+        if (clipModal.classList.contains("open")) {
+          closeClipEditor();
+        }
       });
 
       window.addEventListener("keyup", (e) => {
@@ -10145,6 +10588,9 @@
               delete ev.milestone;
             }
           }
+          const licLib = readClipLucideIconFormValue();
+          if (licLib) ev.lucideIcon = licLib;
+          else delete ev.lucideIcon;
           ev.relStart = st;
           ev.duration = dur;
           let validated;
@@ -10255,6 +10701,9 @@
             delete ev.milestone;
           }
         }
+        const licCue = readClipLucideIconFormValue();
+        if (licCue) ev.lucideIcon = licCue;
+        else delete ev.lucideIcon;
         ev.start = st;
         ev.duration = dur;
         if (ev.lane === "text" || ev.lane === "tts") {
@@ -10705,6 +11154,17 @@
             const body = document.createElement("div");
             body.className = "clip-body";
             body.setAttribute("aria-hidden", "true");
+            const lic = normalizeCueLucideIcon(ev.lucideIcon);
+            if (lic) {
+              const inner = document.createElement("div");
+              inner.className = "clip-inner";
+              const iconSlot = document.createElement("span");
+              iconSlot.className = "clip-icon-slot";
+              iconSlot.setAttribute("aria-hidden", "true");
+              iconSlot.setAttribute("data-lucide-icon", lic);
+              inner.appendChild(iconSlot);
+              body.appendChild(inner);
+            }
             const edgeR = document.createElement("div");
             edgeR.className = "clip-edge clip-edge-right";
             edgeR.title = "Drag to change duration · click edge to resize with ← → (Esc / Enter clears)";
@@ -10723,6 +11183,16 @@
 
         attachClipDragHandlers();
         syncClipKeyboardResizePulse();
+        if (window.LucideCueIcons) {
+          LucideCueIcons.ensureNameIndex()
+            .then(() => {
+              LucideCueIcons.prefetchIconsForWorkout(reps);
+            })
+            .catch(() => {})
+            .finally(() => {
+              LucideCueIcons.schedulePaintAllTimelineSlots();
+            });
+        }
       }
 
       function refreshAll() {
