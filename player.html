@@ -49,6 +49,12 @@
           <canvas class="presentation-vfx-sparks-canvas" id="presVfxSparksCanvas" hidden aria-hidden="true"></canvas>
           <div class="presentation-manual-rep-gate" id="presManualRepGate" hidden aria-hidden="true">
             <div class="presentation-manual-rep-gate__shade" aria-hidden="true"></div>
+            <p
+              class="presentation-manual-rep-gate__header presentation-cue-heading"
+              id="presManualRepGateHeader"
+              hidden
+              aria-hidden="true"
+            ></p>
             <button
               type="button"
               class="presentation-manual-rep-gate__btn"
@@ -66,7 +72,7 @@
                   viewBox="0 0 24 24"
                   fill="none"
                   stroke="currentColor"
-                  stroke-width="1.35"
+                  stroke-width="2"
                   stroke-linecap="round"
                   stroke-linejoin="round"
                 >
@@ -439,7 +445,7 @@
           <div class="presentation-cue-wrap">
             <div class="presentation-cue-stack" aria-live="polite">
               <p class="presentation-cue-heading" id="presCueHeading" hidden></p>
-              <p class="presentation-cue-body presentation-cue-placeholder" id="presCueBody">—</p>
+              <p class="presentation-cue-body" id="presCueBody" hidden></p>
             </div>
           </div>
           <div class="presentation-meta-row">

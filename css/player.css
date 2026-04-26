@@ -777,11 +777,9 @@ body.player-menu-open .player-menu-anchor {
 }
 
 /**
- * Manual rep transition: draggable chevron gate with swipe-follow movement and active glow.
+ * Manual rep transition: optional header + draggable chevron; portrait vs landscape via @container presdev.
  */
 .presentation-manual-rep-gate {
-  --pres-manual-gate-footer: clamp(4.35rem, 15cqmin, 6rem);
-  --pres-manual-gate-header: clamp(2.8rem, 10cqmin, 3.5rem);
   position: absolute;
   inset: 0;
   z-index: 8;
@@ -792,16 +790,35 @@ body.player-menu-open .player-menu-anchor {
   display: none;
 }
 
+.presentation-manual-rep-gate__header {
+  position: absolute;
+  z-index: 1;
+  left: 50%;
+  top: 33.333%;
+  transform: translate(-50%, -50%);
+  box-sizing: border-box;
+  width: min(92%, 26rem);
+  max-height: 38%;
+  margin: 0;
+  padding: 0 clamp(0.5rem, 3cqmin, 1rem);
+  overflow: hidden;
+  text-align: center;
+  text-wrap: balance;
+  pointer-events: none;
+}
+
 .presentation-manual-rep-gate__btn {
   position: absolute;
+  z-index: 2;
   left: 50%;
-  top: calc((100% - var(--pres-manual-gate-footer) + var(--pres-manual-gate-header)) * 0.5);
+  top: 66.666%;
   --pres-manual-gate-dx: 0px;
   --pres-manual-gate-dy: 0px;
   --pres-manual-gate-throw-dx: 0px;
   --pres-manual-gate-throw-dy: 0px;
   --pres-manual-gate-throw-target: 0px;
   --pres-manual-gate-throw-target-y: 0px;
+  --pres-manual-gate-forward: 0;
   --pres-manual-gate-scale: 1;
   transform: translate(
       calc(-50% + var(--pres-manual-gate-dx) + var(--pres-manual-gate-throw-dx)),
@@ -933,16 +950,37 @@ body.player-menu-open .player-menu-anchor {
   grid-area: 1 / 1;
   width: 76%;
   height: 76%;
-  transition: transform 0.12s ease, opacity 0.12s ease;
+  transition:
+    transform 0.12s ease,
+    filter 0.14s ease;
 }
 
 .presentation-manual-rep-gate__btn .pres-manual-gate-svg--chevron {
   opacity: 1;
-  transform: scale(1);
+  filter: brightness(calc(1 + var(--pres-manual-gate-forward) * 0.34))
+    saturate(calc(1 + var(--pres-manual-gate-forward) * 0.14));
+  transform: translateX(calc(var(--pres-manual-gate-forward) * 3px)) scale(1);
 }
 
 .presentation-manual-rep-gate__btn--dragging .pres-manual-gate-svg--chevron {
-  transform: translateX(1px) scale(1.08);
+  transform: translateX(calc(1px + var(--pres-manual-gate-forward) * 4px))
+    scale(calc(1.06 + var(--pres-manual-gate-forward) * 0.1));
+}
+
+/* Wide preview / landscape phone: header at ⅓ width, chevron at ⅔; tall / portrait: ⅓ & ⅔ height. */
+@container presdev (min-aspect-ratio: 1.001 / 1) {
+  .presentation-manual-rep-gate__header {
+    left: 33.333%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: min(38cqw, 14rem);
+    max-height: 72%;
+  }
+
+  .presentation-manual-rep-gate__btn {
+    left: 66.666%;
+    top: 50%;
+  }
 }
 
 .presentation-panel-header {

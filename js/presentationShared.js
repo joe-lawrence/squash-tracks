@@ -683,6 +683,7 @@
    * @param {number} [opts.vfxVisualSalt] — optional 32-bit salt for fireworks RNG (shell manages salt if omitted).
    * @param {boolean} [opts.manualRepTransitionAwaiting] — show full-screen “tap to continue” gate at a manual rep’s **end** (player / editor preview).
    * @param {{ segmentIndex: number, repIndex: number } | null} [opts.holdManualRep] — keep cues/rep UI on the finishing rep until the gate clears.
+   * @param {string} [opts.manualRepTransitionHeader] — optional heading above the chevron on the manual gate (rep `manualTransitionHeader`).
    */
   function renderPresentationIntoDocument(doc, opts) {
     const WP = global.WorkoutPresentation;
@@ -767,13 +768,11 @@
         cueBodyEl.textContent = "";
         cueBodyEl.hidden = true;
       } else if (!cueActive) {
-        cueBodyEl.textContent = "—";
-        cueBodyEl.hidden = false;
-        cueBodyEl.classList.add("presentation-cue-placeholder");
+        cueBodyEl.textContent = "";
+        cueBodyEl.hidden = true;
       } else if (!ch && !cb) {
-        cueBodyEl.textContent = "—";
-        cueBodyEl.hidden = false;
-        cueBodyEl.classList.add("presentation-cue-placeholder");
+        cueBodyEl.textContent = "";
+        cueBodyEl.hidden = true;
       } else if (ch && !cb) {
         cueBodyEl.textContent = "";
         cueBodyEl.hidden = true;
@@ -802,6 +801,20 @@
     const gateRoot = doc.getElementById("presManualRepGate");
     if (gateRoot) {
       const on = !!opts.manualRepTransitionAwaiting;
+      const headerEl = doc.getElementById("presManualRepGateHeader");
+      if (headerEl) {
+        const raw = opts.manualRepTransitionHeader != null ? String(opts.manualRepTransitionHeader) : "";
+        const text = raw.trim();
+        if (on && text) {
+          headerEl.textContent = text;
+          headerEl.hidden = false;
+          headerEl.removeAttribute("aria-hidden");
+        } else {
+          headerEl.textContent = "";
+          headerEl.hidden = true;
+          headerEl.setAttribute("aria-hidden", "true");
+        }
+      }
       const prevOn = gateRoot.getAttribute("data-pres-manual-gate-on") === "1";
       if (on && !prevOn) {
         const gateBtn = doc.getElementById("presManualRepGateBtn");
@@ -817,6 +830,7 @@
           gateBtn.style.setProperty("--pres-manual-gate-throw-dy", "0px");
           gateBtn.style.setProperty("--pres-manual-gate-throw-target", "0px");
           gateBtn.style.setProperty("--pres-manual-gate-throw-target-y", "0px");
+          gateBtn.style.setProperty("--pres-manual-gate-forward", "0");
           gateBtn.style.setProperty("--pres-manual-gate-scale", "1");
         }
       }
@@ -834,6 +848,7 @@
           gateBtn.style.setProperty("--pres-manual-gate-throw-dy", "0px");
           gateBtn.style.setProperty("--pres-manual-gate-throw-target", "0px");
           gateBtn.style.setProperty("--pres-manual-gate-throw-target-y", "0px");
+          gateBtn.style.setProperty("--pres-manual-gate-forward", "0");
           gateBtn.style.setProperty("--pres-manual-gate-scale", "1");
         }
       }

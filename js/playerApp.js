@@ -401,9 +401,23 @@
   const PRES_MANUAL_GATE_SWIPE_MIN_PX = 42;
   const PRES_MANUAL_GATE_LOCK_RATIO = 1.35;
   const PRES_MANUAL_GATE_MAX_DX_PX = 120;
-  const PRES_MANUAL_GATE_MAX_DY_PX = 120;
+  const PRES_MANUAL_GATE_MAX_DY_PX = 72;
+  /** Finger Y is scaled before clamp so vertical motion feels subtler than horizontal. */
+  const PRES_MANUAL_GATE_VERTICAL_DRAG_SENS = 0.3;
   const PRES_MANUAL_GATE_THROW_MIN_PX = 92;
   const PRES_MANUAL_GATE_THROW_MAX_PX = 172;
+
+  function presManualRepTransitionHeaderText() {
+    if (!presManualRepGateAwaiting || !presManualRepGateMeta || !Array.isArray(segments)) return "";
+    const si = presManualRepGateMeta.segmentIndex | 0;
+    const ri = presManualRepGateMeta.repIndex | 0;
+    const seg = segments[si];
+    const repsArr = seg && Array.isArray(seg.reps) ? seg.reps : [];
+    const rep = repsArr[ri];
+    if (!rep || typeof rep !== "object") return "";
+    const h = rep.manualTransitionHeader != null ? String(rep.manualTransitionHeader).trim() : "";
+    return h ? h.slice(0, 240) : "";
+  }
 
   function presResetManualGateButtonUi() {
     if (presManualGateAckTimer) {
@@ -423,6 +437,7 @@
       gateBtn.style.setProperty("--pres-manual-gate-throw-dy", "0px");
       gateBtn.style.setProperty("--pres-manual-gate-throw-target", "0px");
       gateBtn.style.setProperty("--pres-manual-gate-throw-target-y", "0px");
+      gateBtn.style.setProperty("--pres-manual-gate-forward", "0");
       gateBtn.style.setProperty("--pres-manual-gate-scale", "1");
     }
     presManualGateDragState = null;
@@ -914,6 +929,7 @@
       defaultWorkoutName: DEFAULT_WORKOUT_NAME,
       timeSec: presTimeSec,
       manualRepTransitionAwaiting: presManualRepGateAwaiting,
+      manualRepTransitionHeader: presManualRepTransitionHeaderText(),
       holdManualRep:
         presManualRepGateAwaiting && presManualRepGateMeta
           ? {
@@ -1313,13 +1329,14 @@
         if (gateBtn.classList.contains("presentation-manual-rep-gate__btn--ack-pending")) return;
         const dx = releaseDxPx || 0;
         const dy = releaseDyPx || 0;
-        const dist = Math.hypot(dx, dy);
+        const dyDir = dy * PRES_MANUAL_GATE_VERTICAL_DRAG_SENS;
+        const dist = Math.hypot(dx, dyDir);
         const throwMag = Math.max(
           PRES_MANUAL_GATE_THROW_MIN_PX,
           Math.min(PRES_MANUAL_GATE_THROW_MAX_PX, Math.round(Math.abs(dx) * 1.45))
         );
         const ux = dist > 0.5 ? dx / dist : 1;
-        const uy = dist > 0.5 ? dy / dist : 0;
+        const uy = dist > 0.5 ? dyDir / dist : 0;
         const throwTx = Math.round(throwMag * ux);
         const throwTy = Math.round(throwMag * uy);
         gateBtn.classList.remove("presentation-manual-rep-gate__btn--dragging");
@@ -1328,6 +1345,7 @@
         gateBtn.style.setProperty("--pres-manual-gate-throw-target-y", throwTy + "px");
         gateBtn.style.setProperty("--pres-manual-gate-throw-dx", throwTx + "px");
         gateBtn.style.setProperty("--pres-manual-gate-throw-dy", throwTy + "px");
+        gateBtn.style.setProperty("--pres-manual-gate-forward", "1");
         gateBtn.classList.add("presentation-manual-rep-gate__btn--ack-pending");
         presManualGateAckTimer = window.setTimeout(function () {
           presManualGateAckTimer = 0;
@@ -1346,6 +1364,7 @@
         gateBtn.style.setProperty("--pres-manual-gate-throw-dy", "0px");
         gateBtn.style.setProperty("--pres-manual-gate-throw-target", "0px");
         gateBtn.style.setProperty("--pres-manual-gate-throw-target-y", "0px");
+        gateBtn.style.setProperty("--pres-manual-gate-forward", "0");
         gateBtn.style.setProperty("--pres-manual-gate-scale", "1");
       }
 
@@ -1363,6 +1382,7 @@
           };
           gateBtn.classList.add("presentation-manual-rep-gate__btn--dragging");
           gateBtn.style.setProperty("--pres-manual-gate-scale", "1.06");
+          gateBtn.style.setProperty("--pres-manual-gate-forward", "0");
           if (typeof gateBtn.setPointerCapture === "function") {
             try {
               gateBtn.setPointerCapture(e.pointerId);
@@ -1379,9 +1399,12 @@
           const dx = e.clientX - presManualGateDragState.x0;
           const dy = e.clientY - presManualGateDragState.y0;
           const clamped = Math.max(-PRES_MANUAL_GATE_MAX_DX_PX, Math.min(PRES_MANUAL_GATE_MAX_DX_PX, dx));
-          const clampedY = Math.max(-PRES_MANUAL_GATE_MAX_DY_PX, Math.min(PRES_MANUAL_GATE_MAX_DY_PX, dy));
+          const dampY = dy * PRES_MANUAL_GATE_VERTICAL_DRAG_SENS;
+          const clampedY = Math.max(-PRES_MANUAL_GATE_MAX_DY_PX, Math.min(PRES_MANUAL_GATE_MAX_DY_PX, dampY));
+          const forward01 = Math.min(1, Math.max(0, Math.max(0, clamped) / (PRES_MANUAL_GATE_SWIPE_MIN_PX * 1.15)));
           gateBtn.style.setProperty("--pres-manual-gate-dx", Math.round(clamped) + "px");
           gateBtn.style.setProperty("--pres-manual-gate-dy", Math.round(clampedY) + "px");
+          gateBtn.style.setProperty("--pres-manual-gate-forward", forward01.toFixed(3));
           if (Math.abs(dx) > 6) gateBtn.classList.add("presentation-manual-rep-gate__btn--dragging");
           else gateBtn.classList.remove("presentation-manual-rep-gate__btn--dragging");
         },
