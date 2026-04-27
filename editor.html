@@ -1223,8 +1223,18 @@
       min-width: 0;
       min-height: 0;
     }
+    /**
+     * Two-column grid: sticky label cells (col 1) vs track (col 2). `display: contents` on
+     * `.timeline-row` hoists gutters and lane bodies as direct grid children so full-height
+     * overlays (playhead, rep selection) can live in col 2 only — they never share a stacking
+     * layer with the label column (fixes paint over + Add … / + Add rep).
+     */
     .timeline-wide {
       position: relative;
+      display: grid;
+      grid-template-columns: var(--lane-label-w) minmax(0, 1fr);
+      grid-auto-flow: row;
+      align-items: stretch;
       min-width: 100%;
       background: var(--rail);
     }
@@ -1234,20 +1244,28 @@
      * label + track px, which mis-scales `calc(…%… * fr)` vs the fixed-width ruler.
      */
     /**
-     * Clip the playhead to the track region only. The playhead is a direct child of
-     * .timeline-wide with a high z-index so it stays above clips; row-local gutter
-     * z-index cannot paint over it, so we physically clip (and overflow-hide glow)
-     * instead of relying on stacking under the sticky label column.
+     * Clip the playhead to the track region only. JS positions the line using
+     * getBoundingClientRect (same as hit-testing) so page zoom does not skew vs offsetLeft.
+     * overflow:hidden suppresses ::after glow past the track strip.
      */
+    /**
+     * Shared track-column placement (ruler + 4 cue lanes). Without this, auto grid flow would
+     * place these after the last lane row and paint them in column 1 over the label stack.
+     */
+    .timeline-wide > .timeline-track-overlay {
+      grid-column: 2;
+      grid-row: 1 / span 5;
+    }
     .timeline-playback-playhead-clip {
       position: absolute;
       top: 0;
       bottom: 0;
-      left: var(--lane-label-w);
+      left: 0;
       right: 0;
       z-index: 19;
       overflow: hidden;
       pointer-events: none;
+      isolation: isolate;
     }
     .timeline-playback-playhead-clip[hidden] {
       display: none;
@@ -1304,7 +1322,7 @@
     }
     .timeline-grid-overlay {
       position: absolute;
-      left: var(--lane-label-w);
+      left: 0;
       top: 0;
       bottom: 0;
       pointer-events: none;
@@ -1313,7 +1331,7 @@
     /** Full-height subtle tint for reps that will shift during rep-name drag (under selection ring). */
     .rep-displace-hint-overlay {
       position: absolute;
-      left: var(--lane-label-w);
+      left: 0;
       top: 0;
       bottom: 0;
       pointer-events: none;
@@ -1331,7 +1349,7 @@
     /** Full-height rep selection (matches .clip selected ring). */
     .rep-selection-overlay {
       position: absolute;
-      left: var(--lane-label-w);
+      left: 0;
       top: 0;
       bottom: 0;
       pointer-events: none;
@@ -1394,7 +1412,7 @@
     }
     .rep-drag-preview-host {
       position: absolute;
-      left: var(--lane-label-w);
+      left: 0;
       top: 0;
       bottom: 0;
       pointer-events: none;
@@ -1443,15 +1461,16 @@
       z-index: 3;
     }
     .timeline-row {
-      position: relative;
-      z-index: 2;
-      display: flex;
-      flex-direction: row;
-      align-items: stretch;
-      width: 100%;
+      display: contents;
+    }
+    .timeline-wide > .timeline-gutter,
+    .timeline-wide > .lane-body.ruler-inner,
+    .timeline-wide > .lane-body.lane-track {
       border-bottom: 1px solid var(--line);
     }
-    .timeline-row:last-child {
+    /** Last content row (VFX gutter + lane) — keep single bottom edge on the shell. */
+    .timeline-wide > .timeline-gutter:nth-child(9),
+    .timeline-wide > .lane-body.lane-track:nth-child(10) {
       border-bottom: none;
     }
     .timeline-gutter {
@@ -2641,11 +2660,11 @@
           <div class="timeline-gutter lane-label"><span class="dot" style="background:var(--lane-vfx)"></span>+ Add VFX</div>
           <div class="lane-body lane-track" id="lane-vfx"></div>
         </div>
-        <div class="timeline-grid-overlay" id="timeline-grid-overlay" aria-hidden="true"></div>
-        <div class="rep-displace-hint-overlay" id="rep-displace-hint-overlay" aria-hidden="true"></div>
-        <div class="rep-selection-overlay" id="rep-selection-overlay" aria-hidden="true"></div>
-        <div class="rep-drag-preview-host" id="rep-drag-preview-host" aria-hidden="true"></div>
-        <div class="timeline-playback-playhead-clip" id="timelinePlaybackPlayheadClip" hidden>
+        <div class="timeline-grid-overlay timeline-track-overlay" id="timeline-grid-overlay" aria-hidden="true"></div>
+        <div class="rep-displace-hint-overlay timeline-track-overlay" id="rep-displace-hint-overlay" aria-hidden="true"></div>
+        <div class="rep-selection-overlay timeline-track-overlay" id="rep-selection-overlay" aria-hidden="true"></div>
+        <div class="rep-drag-preview-host timeline-track-overlay" id="rep-drag-preview-host" aria-hidden="true"></div>
+        <div class="timeline-playback-playhead-clip timeline-track-overlay" id="timelinePlaybackPlayheadClip" hidden>
           <div
             class="timeline-playback-playhead"
             id="timelinePlaybackPlayhead"
@@ -12436,10 +12455,10 @@
       }
 
       /**
-       * Position playhead using layout coordinates (CSS pixels, unaffected by CSS zoom).
-       * The ruler is inside .ruler-row (position: relative), so we compute the ruler's
-       * left edge relative to #timeline-wide by walking up the offset chain.
-       * CSS applies `transform: translateX(-50%)` so the line centers on x.
+       * Position playhead using viewport rects (same basis as trackPointerFromClientX).
+       * offsetLeft/offsetParent diverge from painted layout under html { zoom: … }, which
+       * placed the line in the sticky label column while the ruler ticks stayed correct.
+       * CSS applies `transform: translateX(-50%)` on the line so the center sits on x.
        */
       function layoutPlaybackPlayhead() {
         const line = document.getElementById("timelinePlaybackPlayhead");
@@ -12452,25 +12471,22 @@
           if (clip) clip.hidden = true;
           return;
         }
+        if (clip) clip.hidden = false;
+        const wideRect = wide.getBoundingClientRect();
+        const rulerRect = rulerEl.getBoundingClientRect();
+        const clipRect = clip ? clip.getBoundingClientRect() : null;
         const WP = WorkoutPresentation;
         const g0 = WP.cumulativeSegmentStart(segments, activeSegmentIndex);
         const local = Math.max(0, Math.min(presTimeSec - g0, total));
         const fr = local / total;
-        let rulerLeftInWide = 0;
-        let el = rulerEl;
-        while (el && el !== wide) {
-          rulerLeftInWide += el.offsetLeft;
-          el = el.offsetParent;
-        }
-        const rw = Math.max(0, rulerEl.offsetWidth);
+        const rulerLeftInWide = rulerRect.left - wideRect.left;
+        const rw = Math.max(0, rulerRect.width);
         const half = 5;
         const xRaw = rulerLeftInWide + fr * rw;
-        /* Keep the 10px playhead (translateX(-50%)) from extending left into the sticky label column. */
+        /* Keep the 10px playhead (translateX(-50%)) from extending left past the ruler track. */
         const xc = Math.min(Math.max(xRaw, rulerLeftInWide + half), rulerLeftInWide + Math.max(rw, 2 * half) - half);
-        const labelPx = parseFloat(getComputedStyle(wide).getPropertyValue("--lane-label-w")) || 140;
-        /* xc is in #timeline-wide coordinates; clip starts at --lane-label-w. */
-        line.style.left = xc - labelPx + "px";
-        if (clip) clip.hidden = false;
+        const clipLeftInWide = clipRect ? clipRect.left - wideRect.left : rulerLeftInWide;
+        line.style.left = xc - clipLeftInWide + "px";
         line.hidden = false;
         line.setAttribute("aria-hidden", "false");
       }
