@@ -1129,7 +1129,8 @@ body.player-menu-open .player-menu-anchor {
 .presentation-cue-stack {
   display: flex;
   flex-direction: column;
-  align-items: center;
+  /* Stretch cue text blocks so short phrases do not wrap from shrink-to-fit sizing. */
+  align-items: stretch;
   justify-content: center;
   gap: 0.28rem;
   max-width: 100%;
