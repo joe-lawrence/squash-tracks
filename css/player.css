@@ -1225,6 +1225,8 @@ body.player-menu-open .player-menu-anchor {
   font-size: clamp(1.44rem, min(10.4cqmin, 7.8vmin), 2.28rem);
   line-height: 1.38;
   max-width: min(36rem, 92%);
+  /* With max-width < full cue width, flex cross-axis start-alignment was shifting centered text left (obvious in landscape). */
+  margin-inline: auto;
 }
 
 .player-page .presentation-cue-wrap {
