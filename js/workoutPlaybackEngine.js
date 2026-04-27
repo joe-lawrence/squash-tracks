@@ -32,6 +32,10 @@
       const urlRaw = ev.sfxUrl != null ? String(ev.sfxUrl).trim() : "";
       const cmd = { type: "sfx", kind, sourceId: ev.id };
       if (urlRaw) cmd.url = urlRaw;
+      if (kind === "split") {
+        const sp = ev.sfxSplitSpeed != null ? String(ev.sfxSplitSpeed).trim().toLowerCase() : "";
+        cmd.sfxSplitSpeed = sp === "slow" || sp === "fast" ? sp : "medium";
+      }
       return cmd;
     }
     if (ev.lane === "tts") {
@@ -87,6 +91,7 @@
             heading: raw.heading,
             body: raw.body,
             sfxKind: raw.sfxKind,
+            sfxSplitSpeed: raw.sfxSplitSpeed,
             sfxUrl: raw.sfxUrl != null ? String(raw.sfxUrl) : "",
             elementId: raw.elementId != null ? String(raw.elementId) : "",
             milestone: raw.milestone,

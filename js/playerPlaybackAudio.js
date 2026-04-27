@@ -370,44 +370,123 @@
       activeNodes.length = 0;
     }
 
-    /** Short synthetic beep — distinct profiles for shot vs split. */
-    /** @param {string} kind @param {string|undefined} url */
-    function playSfx(kind, url) {
+    function removeOscillatorsFromActive(batch) {
+      for (let b = 0; b < batch.length; b++) {
+        const o = batch[b];
+        const j = activeNodes.indexOf(o);
+        if (j >= 0) activeNodes.splice(j, 1);
+      }
+    }
+
+    /**
+     * Synthetic SFX aligned with squash-ghoster-full `scripts.js`:
+     * `playShotSound` (1000 Hz sine, 0.1 s, linear gain 3 → exponential decay) and
+     * Split: same sequence as squash-ghoster `playSplitStepPowerUp` (8 × triangle, 440×1.15^i), with total
+     * duration 0.7s / 0.5s / 0.3s (slow / medium / fast) so cues align to the editor’s 0.1s grid.
+     * @param {string} kind "shot" | "split"
+     * @param {string|undefined} url optional sample URL
+     * @param {string|undefined} sfxSplitSpeed "slow" | "medium" | "fast" (split only; ignored for shot / URL)
+     */
+    function playSfx(kind, url, sfxSplitSpeed) {
       if (url) {
         try {
           const a = new global.Audio(url);
           a.preload = "auto";
           void a.play().catch(function () {
-            playSfx(kind, undefined);
+            playSfx(kind, undefined, sfxSplitSpeed);
           });
         } catch (_) {
-          playSfx(kind, undefined);
+          playSfx(kind, undefined, sfxSplitSpeed);
         }
         return;
       }
       const c = ensureCtx();
       if (!c || c.state !== "running") return;
-      const t0 = c.currentTime;
-      const osc = c.createOscillator();
-      const gain = c.createGain();
-      osc.type = "sine";
-      const isShot = kind === "shot";
-      const f0 = isShot ? 1400 : 520;
-      const f1 = isShot ? 1100 : 380;
-      const dur = isShot ? 0.07 : 0.11;
-      osc.frequency.setValueAtTime(f0, t0);
-      osc.frequency.exponentialRampToValueAtTime(Math.max(80, f1), t0 + dur);
-      gain.gain.setValueAtTime(0.0001, t0);
-      gain.gain.exponentialRampToValueAtTime(0.11, t0 + 0.012);
-      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
-      osc.connect(gain).connect(c.destination);
-      osc.start(t0);
-      osc.stop(t0 + dur + 0.02);
-      activeNodes.push(osc);
+      const now = c.currentTime;
+
+      if (kind === "shot") {
+        const duration = 0.1;
+        const frequency = 1000;
+        const volume = 3.0;
+        const oscillator = c.createOscillator();
+        const gainNode = c.createGain();
+        oscillator.connect(gainNode);
+        gainNode.connect(c.destination);
+        oscillator.type = "sine";
+        oscillator.frequency.setValueAtTime(frequency, now);
+        gainNode.gain.setValueAtTime(volume, now);
+        oscillator.start(now);
+        gainNode.gain.exponentialRampToValueAtTime(0.00001, now + duration);
+        oscillator.stop(now + duration);
+        activeNodes.push(oscillator);
+        global.setTimeout(function () {
+          removeOscillatorsFromActive([oscillator]);
+        }, Math.ceil((duration + 0.02) * 1000));
+        return;
+      }
+
+      /* Ghoster `pitch` arg defaults to 'medium' (440 Hz); low/high are unused in timeline playback. */
+      const baseFrequency = 440;
+
+      const rawSpeed = sfxSplitSpeed != null ? String(sfxSplitSpeed).trim() : "medium";
+      const normalizedSpeed = rawSpeed.toLowerCase();
+      const numberOfSteps = 8;
+      let totalSplitSec;
+      switch (normalizedSpeed) {
+        case "slow":
+          totalSplitSec = 0.7;
+          break;
+        case "medium":
+          totalSplitSec = 0.5;
+          break;
+        case "fast":
+          totalSplitSec = 0.3;
+          break;
+        case "auto-scale":
+          totalSplitSec = 0.5;
+          break;
+        default:
+          return;
+      }
+      const durationPerStep = totalSplitSec / numberOfSteps;
+
+      /* Ghoster uses attack 0.01 + decay 0.05; scale both (fixed ratio) if a step is shorter than 0.06 s. */
+      const ghostEnvSec = 0.06;
+      const envSpan = Math.min(ghostEnvSec, durationPerStep * 0.99);
+      const attack = (0.01 / ghostEnvSec) * envSpan;
+      const decay = (0.05 / ghostEnvSec) * envSpan;
+      const oscillatorType = "triangle";
+      const volume = 0.8;
+      const batch = [];
+
+      for (let i = 0; i < numberOfSteps; i++) {
+        const startTime = now + i * durationPerStep;
+        const frequency = baseFrequency * Math.pow(1.15, i);
+        const oscillator = c.createOscillator();
+        const gainNode = c.createGain();
+        oscillator.connect(gainNode);
+        gainNode.connect(c.destination);
+        oscillator.type = oscillatorType;
+        oscillator.frequency.setValueAtTime(frequency, startTime);
+        gainNode.gain.setValueAtTime(0, startTime);
+        gainNode.gain.linearRampToValueAtTime(volume, startTime + attack);
+        gainNode.gain.linearRampToValueAtTime(0, startTime + attack + decay);
+        oscillator.start(startTime);
+        oscillator.stop(startTime + durationPerStep);
+        batch.push(oscillator);
+        activeNodes.push(oscillator);
+        oscillator.onended = function () {
+          try {
+            oscillator.disconnect();
+            gainNode.disconnect();
+          } catch (_) {}
+        };
+      }
+
+      const totalSec = numberOfSteps * durationPerStep + 0.05;
       global.setTimeout(function () {
-        const j = activeNodes.indexOf(osc);
-        if (j >= 0) activeNodes.splice(j, 1);
-      }, Math.ceil((dur + 0.05) * 1000));
+        removeOscillatorsFromActive(batch);
+      }, Math.ceil(totalSec * 1000));
     }
 
     /**
@@ -460,7 +539,7 @@
         const cmd = cmds[i];
         if (!cmd || typeof cmd !== "object") continue;
         if (cmd.type === "sfx")
-          playSfx(cmd.kind === "shot" ? "shot" : "split", cmd.url);
+          playSfx(cmd.kind === "shot" ? "shot" : "split", cmd.url, cmd.sfxSplitSpeed);
         else if (cmd.type === "tts") {
           const gs = cmd.globalStartSec;
           speakTts(

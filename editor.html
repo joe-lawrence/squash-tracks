@@ -1856,6 +1856,28 @@
       border-radius: 5px;
       background: rgba(0, 0, 0, 0.22);
     }
+    button.sfx-preview-play-btn.lucide-icon-preview {
+      font: inherit;
+      color: inherit;
+      appearance: none;
+      padding: 0;
+      cursor: pointer;
+    }
+    button.sfx-preview-play-btn.lucide-icon-preview:hover {
+      background: rgba(255, 255, 255, 0.08);
+    }
+    button.sfx-preview-play-btn.lucide-icon-preview:focus-visible {
+      outline: 2px solid var(--lane-sfx, #2dd4bf);
+      outline-offset: 1px;
+    }
+    button.sfx-preview-play-btn.lucide-icon-preview svg {
+      width: 18px;
+      height: 18px;
+      display: block;
+    }
+    .clip-sfx-preview-field {
+      margin-bottom: 0.55rem;
+    }
     #clipLucideIconSearch {
       flex: 1 1 160px;
       min-width: 0;
@@ -2741,7 +2763,11 @@
             </div>
           </div>
           <div class="field">
-            <label for="editDuration">Duration (s)</label>
+            <label
+              for="editDuration"
+              title="Split-step SFX: snaps to 0.7s / 0.5s / 0.3s (slow/medium/fast) and pairs with Effect → Split-step speed; changing either marks Timing + Effect like Fireworks bursts vs duration."
+              >Duration (s)</label
+            >
             <div class="num-stepper">
               <button type="button" class="num-stepper-btn" data-stepper-down aria-label="Decrease duration">−</button>
               <input type="text" inputmode="decimal" class="num-stepper-val" id="editDuration" min="0.1" step="0.1" autocomplete="off" spellcheck="false" />
@@ -2780,11 +2806,45 @@
         </div>
         <div id="clipTabEffect" class="clip-modal-tab-panel" role="tabpanel" hidden>
           <div id="sfxKindWrap">
+            <div class="field clip-sfx-preview-field">
+              <div class="clip-tab-name-section-label">Preview</div>
+              <button
+                type="button"
+                id="editSfxPreviewBtn"
+                class="lucide-icon-preview sfx-preview-play-btn"
+                title="Play this sound (split speed if applicable)"
+                aria-label="Play sound effect preview"
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2.5"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <polygon points="6 3 20 12 6 21 6 3" />
+                </svg>
+              </button>
+            </div>
             <div class="field">
               <label for="editSfxKind">Sound effect</label>
               <select id="editSfxKind">
                 <option value="split">Split-step</option>
                 <option value="shot">Shot</option>
+              </select>
+            </div>
+            <div id="sfxSplitSpeedWrap" class="field" hidden>
+              <label
+                for="editSfxSplitSpeed"
+                title="Slow / medium / fast sets cue length to 0.7s / 0.5s / 0.3s; editing duration in Timing snaps to those lengths and updates speed."
+                >Split-step speed</label
+              >
+              <select id="editSfxSplitSpeed">
+                <option value="slow">Slow</option>
+                <option value="medium">Medium</option>
+                <option value="fast">Fast</option>
               </select>
             </div>
           </div>
@@ -3192,6 +3252,169 @@
         return L ? L.clipLabel : String(lane);
       }
 
+      /** Split-step cadence for SFX lane (squash-ghoster: slow / medium / fast; other → medium). */
+      function normalizeSfxSplitSpeed(raw) {
+        const s = raw != null ? String(raw).trim().toLowerCase() : "";
+        if (s === "slow" || s === "medium" || s === "fast") return s;
+        return "medium";
+      }
+
+      /** Total synthetic split-step length (matches `playerPlaybackAudio.js`); 0.1s-grid friendly. */
+      const SPLIT_STEP_SFX_TOTAL_SEC = { slow: 0.7, medium: 0.5, fast: 0.3 };
+      const SPLIT_STEP_SFX_SPEED_ORDER = ["slow", "medium", "fast"];
+      /** Sorted duration values for split-step SFX (ascending: fast to slow). */
+      const SPLIT_STEP_SFX_DURATIONS_ASC = [0.3, 0.5, 0.7];
+
+      /** Step split-step duration to next valid value (sign: +1 = slower/longer, -1 = faster/shorter). */
+      function stepSplitSfxDuration(currentDur, sign) {
+        const cur = snapSplitSfxCueDurationSec(currentDur);
+        let idx = -1;
+        for (let i = 0; i < SPLIT_STEP_SFX_DURATIONS_ASC.length; i++) {
+          if (Math.abs(SPLIT_STEP_SFX_DURATIONS_ASC[i] - cur) < 1e-9) { idx = i; break; }
+        }
+        if (idx < 0) return cur;
+        const newIdx = Math.max(0, Math.min(SPLIT_STEP_SFX_DURATIONS_ASC.length - 1, idx + sign));
+        return SPLIT_STEP_SFX_DURATIONS_ASC[newIdx];
+      }
+      /** While duration→speed sync assigns `editSfxSplitSpeed`, ignore select listeners so speed→duration does not re-enter (clamps / “locks” the field on some browsers). */
+      let sfxSplitSkipSelectDurationSync = false;
+
+      function splitSfxDurationSecForSpeed(speed) {
+        const s = normalizeSfxSplitSpeed(speed);
+        const t = SPLIT_STEP_SFX_TOTAL_SEC[s] != null ? SPLIT_STEP_SFX_TOTAL_SEC[s] : SPLIT_STEP_SFX_TOTAL_SEC.medium;
+        return snapTime(t);
+      }
+
+      /** Snap cue duration to {0.3, 0.5, 0.7} s; ties favor medium. */
+      function snapSplitSfxCueDurationSec(durSec) {
+        const d = snapTime(Math.max(TIME_SNAP_SEC, Number(durSec) || 0));
+        let best = splitSfxDurationSecForSpeed("medium");
+        let bestDist = Infinity;
+        for (let i = 0; i < SPLIT_STEP_SFX_SPEED_ORDER.length; i++) {
+          const sp = SPLIT_STEP_SFX_SPEED_ORDER[i];
+          const cand = snapTime(SPLIT_STEP_SFX_TOTAL_SEC[sp]);
+          const dist = Math.abs(d - cand);
+          if (dist < bestDist - 1e-9) {
+            bestDist = dist;
+            best = cand;
+          } else if (Math.abs(dist - bestDist) < 1e-9 && sp === "medium") {
+            best = cand;
+          }
+        }
+        return best;
+      }
+
+      function splitSfxSpeedFromSnappedDurationSec(durSec) {
+        const d = snapSplitSfxCueDurationSec(durSec);
+        for (let i = 0; i < SPLIT_STEP_SFX_SPEED_ORDER.length; i++) {
+          const sp = SPLIT_STEP_SFX_SPEED_ORDER[i];
+          if (Math.abs(d - snapTime(SPLIT_STEP_SFX_TOTAL_SEC[sp])) < 1e-9) return sp;
+        }
+        return "medium";
+      }
+
+      function isSfxSplitEvent(ev) {
+        return !!(ev && ev.lane === "sfx" && ev.sfxKind !== "shot");
+      }
+
+      /** Last accepted split-step speed + duration pair for dirty highlighting (mirrors VFX fireworks bursts/duration). */
+      function syncSfxSplitDurPairBaselineFromInputs() {
+        if (!editSfxSplitSpeed || !editDuration || !editSfxKind) return;
+        if (editSfxKind.value !== "split") return;
+        if (editSfxSplitSpeed.value === "__mixed__") return;
+        editSfxSplitSpeed.dataset.sfxSplitDurPairSp = String(editSfxSplitSpeed.value);
+        editSfxSplitSpeed.dataset.sfxSplitDurPairDur = String(editDuration.value);
+      }
+
+      function sfxSplitDurPairMatchesBaseline(spStr, durStr) {
+        if (!editSfxSplitSpeed) return false;
+        const bs = editSfxSplitSpeed.dataset.sfxSplitDurPairSp;
+        const bd = editSfxSplitSpeed.dataset.sfxSplitDurPairDur;
+        if (bs == null || bd == null) return false;
+        const sCur = normalizeSfxSplitSpeed(spStr);
+        const sBase = normalizeSfxSplitSpeed(bs);
+        if (sCur !== sBase) return false;
+        const dCur = parseFloat(numStepperSanitizeRaw(String(durStr)));
+        const dBase = parseFloat(numStepperSanitizeRaw(String(bd)));
+        if (!Number.isFinite(dCur) || !Number.isFinite(dBase)) return false;
+        return Math.abs(snapTime(dCur) - snapTime(dBase)) < 1e-6;
+      }
+
+      /**
+       * Mark only the side-effect field dirty for SFX split-step speed/duration pair.
+       * @param {"speed"|"duration"} userEdited - which field the user directly changed
+       */
+      function applySfxSplitDirtyForUserEdit(userEdited) {
+        if (!editSfxSplitSpeed || !editDuration || !editSfxKind) return;
+        if (editSfxKind.value !== "split") return;
+        if (editSfxSplitSpeed.value === "__mixed__") return;
+        const sp = String(editSfxSplitSpeed.value);
+        const durTxt = String(editDuration.value);
+        if (sfxSplitDurPairMatchesBaseline(sp, durTxt)) {
+          clearFieldDirty("editSfxSplitSpeed");
+          clearFieldDirty("editDuration");
+        } else {
+          /* Only mark the side-effect field dirty, not the one the user edited. */
+          if (userEdited === "speed") {
+            clearFieldDirty("editSfxSplitSpeed");
+            markFieldDirty("editDuration");
+          } else {
+            markFieldDirty("editSfxSplitSpeed");
+            clearFieldDirty("editDuration");
+          }
+        }
+      }
+
+      function syncSfxDurationFromSplitSpeedOnly() {
+        if (!editDuration || !editSfxKind || editSfxKind.value !== "split") return;
+        if (!editSfxSplitSpeed || editSfxSplitSpeed.value === "__mixed__") return;
+        editDuration.value = formatSnapSecForInput(splitSfxDurationSecForSpeed(editSfxSplitSpeed.value));
+      }
+
+      function syncSfxDurationFromSplitSpeed() {
+        syncSfxDurationFromSplitSpeedOnly();
+        applySfxSplitDirtyForUserEdit("speed");
+      }
+
+      function syncSfxSplitSpeedFromDurationField() {
+        if (!editDuration || !editSfxSplitSpeed || !editSfxKind || editSfxKind.value !== "split") return;
+        const rawText = numStepperSanitizeRaw(editDuration.value);
+        let rawVal = parseFloat(rawText);
+        if (!Number.isFinite(rawVal) || rawText === "" || rawText === ".") rawVal = 0.5;
+        rawVal = snapTime(Math.max(TIME_SNAP_SEC, rawVal));
+        const d = snapSplitSfxCueDurationSec(rawVal);
+        editDuration.value = formatSnapSecForInput(d);
+        if (editSfxSplitSpeed.value !== "__mixed__") {
+          sfxSplitSkipSelectDurationSync = true;
+          try {
+            editSfxSplitSpeed.value = splitSfxSpeedFromSnappedDurationSec(d);
+          } finally {
+            sfxSplitSkipSelectDurationSync = false;
+          }
+        }
+        applySfxSplitDirtyForUserEdit("duration");
+      }
+
+      function syncSfxSplitSpeedFromDurationFieldIfSfxSplitModal() {
+        if (!clipEditContext || clipEditContext.groupEdit || !editDuration || !editSfxKind || !editSfxSplitSpeed)
+          return;
+        const ce = clipEditContext;
+        if (ce.libraryEdit) {
+          if (ce.libraryEdit.cat !== "sfx") return;
+        } else {
+          const ev = reps[ce.r] && reps[ce.r].events[ce.eventIndex];
+          if (!ev || ev.lane !== "sfx") return;
+        }
+        if (editSfxKind.value !== "split") return;
+        syncSfxSplitSpeedFromDurationField();
+      }
+
+      function syncSfxSplitSpeedFormVisibility() {
+        if (!sfxSplitSpeedWrap || !editSfxKind) return;
+        const show = (!sfxKindWrap || !sfxKindWrap.hidden) && editSfxKind.value === "split";
+        sfxSplitSpeedWrap.hidden = !show;
+      }
+
       function normalizeVfxHex(h) {
         let s = String(h || "").trim();
         if (!s) return "#ef4444";
@@ -3345,7 +3568,7 @@
       }
 
       const CUE_DEFAULT_DURATIONS_STORAGE_KEY = "repEditorCueDefaultDurations";
-      const CUE_DEFAULT_DURATIONS_FALLBACK = { text: 0.35, tts: 1.15, sfx: 0.4, vfx: 1.0 };
+      const CUE_DEFAULT_DURATIONS_FALLBACK = { text: 0.35, tts: 1.15, sfx: 0.2, vfx: 1.0 };
 
       function loadCueDefaultDurations() {
         try {
@@ -3457,7 +3680,12 @@
           function bump(sign) {
             let v = parseFloat(numStepperSanitizeRaw(input.value));
             if (!Number.isFinite(v)) v = numStepperReadMin(input) != null ? numStepperReadMin(input) : 0;
-            v = numStepperSnapValue(v + sign * numStepperReadStep(input), input);
+            /* Split-step SFX duration uses discrete steps {0.3, 0.5, 0.7} instead of 0.1 increments. */
+            if (input.id === "editDuration" && editSfxKind && editSfxKind.value === "split" && sfxKindWrap && !sfxKindWrap.hidden) {
+              v = stepSplitSfxDuration(v, sign);
+            } else {
+              v = numStepperSnapValue(v + sign * numStepperReadStep(input), input);
+            }
             input.value = numStepperFormatDisplay(v);
             syncDisabled();
           }
@@ -3525,7 +3753,10 @@
       const editStart = document.getElementById("editStart");
       const editDuration = document.getElementById("editDuration");
       const editSfxKind = document.getElementById("editSfxKind");
+      const editSfxPreviewBtn = document.getElementById("editSfxPreviewBtn");
       const sfxKindWrap = document.getElementById("sfxKindWrap");
+      const editSfxSplitSpeed = document.getElementById("editSfxSplitSpeed");
+      const sfxSplitSpeedWrap = document.getElementById("sfxSplitSpeedWrap");
       const editTtsVoiceSlot = document.getElementById("editTtsVoiceSlot");
       const editMilestone = document.getElementById("editMilestone");
       const editTtsSpeech = document.getElementById("editTtsSpeech");
@@ -3818,6 +4049,7 @@
           editTtsVoiceSlot: "voice",
           editTtsSpeech: "voice",
           editSfxKind: "effect",
+          editSfxSplitSpeed: "effect",
           editVfxEffectType: "effect",
           editVfxBgMode: "effect",
           editVfxRepeat: "effect",
@@ -3851,6 +4083,18 @@
         const field = el.closest(".field");
         if (field) field.classList.remove("field-dirty");
         clipModalDirtyFields.delete(fieldId);
+        /* Recalculate tab dirty state: clear if no remaining dirty fields on that tab. */
+        const tab = getTabForField(fieldId);
+        if (tab) {
+          let tabStillDirty = false;
+          for (const fid of clipModalDirtyFields) {
+            if (getTabForField(fid) === tab) { tabStillDirty = true; break; }
+          }
+          if (!tabStillDirty) {
+            const tabBtn = document.querySelector('.clip-modal-tab[data-tab="' + tab + '"]');
+            if (tabBtn) tabBtn.classList.remove("tab-dirty");
+          }
+        }
       }
 
       function clearAllFieldDirty() {
@@ -3877,6 +4121,7 @@
           "editCueHeading", "editCueBody",
           "editTtsVoiceSlot", "editTtsSpeech",
           "editSfxKind",
+          "editSfxSplitSpeed",
           "editVfxEffectType", "editVfxBgMode", "editVfxRepeat",
           "editVfxColorMode", "editVfxColor",
           "editVfxFireworksPlacement", "editVfxFireworksColor",
@@ -3899,6 +4144,50 @@
         }
       }
       initClipModalDirtyFieldListeners();
+      if (editSfxKind) {
+        editSfxKind.addEventListener("change", function () {
+          syncSfxSplitSpeedFormVisibility();
+          if (editSfxKind.value === "split") {
+            syncSfxDurationFromSplitSpeedOnly();
+            syncSfxSplitDurPairBaselineFromInputs();
+          } else if (editSfxKind.value === "shot" && editDuration) {
+            if (editSfxSplitSpeed) {
+              delete editSfxSplitSpeed.dataset.sfxSplitDurPairSp;
+              delete editSfxSplitSpeed.dataset.sfxSplitDurPairDur;
+            }
+            editDuration.value = formatSnapSecForInput(
+              snapTime(defaultCueDurations.sfx || CUE_DEFAULT_DURATIONS_FALLBACK.sfx)
+            );
+          }
+        });
+      }
+      if (editSfxSplitSpeed) {
+        ["input", "change"].forEach(function (evtName) {
+          editSfxSplitSpeed.addEventListener(evtName, function () {
+            if (editSfxSplitSpeed.value === "__mixed__") return;
+            if (sfxSplitSkipSelectDurationSync) return;
+            syncSfxDurationFromSplitSpeed();
+          });
+        });
+      }
+      function playClipEditorSfxPreview() {
+        if (!presPreviewAudio || typeof presPreviewAudio.executeCommands !== "function") return;
+        if (!editSfxKind) return;
+        const rawK = editSfxKind.value;
+        if (rawK === "__mixed__") return;
+        void presPreviewAudio.resumeIfNeeded().catch(function () {});
+        const kind = rawK === "shot" ? "shot" : "split";
+        const sp =
+          kind === "split" && editSfxSplitSpeed
+            ? normalizeSfxSplitSpeed(editSfxSplitSpeed.value)
+            : "medium";
+        presPreviewAudio.executeCommands([{ type: "sfx", kind: kind, sfxSplitSpeed: sp }], {});
+      }
+      if (editSfxPreviewBtn) {
+        editSfxPreviewBtn.addEventListener("click", function () {
+          playClipEditorSfxPreview();
+        });
+      }
       const vfxEditorWrap = document.getElementById("vfxEditorWrap");
       const vfxFireworksOptionsWrap = document.getElementById("vfxFireworksOptionsWrap");
       const editVfxFireworksPlacement = document.getElementById("editVfxFireworksPlacement");
@@ -3928,6 +4217,8 @@
       const btnZoomOut = document.getElementById("btnZoomOut");
 
       function editVfxParticleBurstEffectSelected() {
+        /* Must require the VFX panel to be visible: effect-type `<select>` keeps its last value when editing other lanes, which wrongly routed SFX duration `input` through fireworks/sparks sync and “locked” split-step durations. */
+        if (!vfxEditorWrap || vfxEditorWrap.hidden) return false;
         const v = editVfxEffectType && editVfxEffectType.value;
         const t = v != null ? String(v).trim().toLowerCase() : "";
         return t === "fireworks" || t === "sparks" || t === "fireballs" || t === "trail";
@@ -3941,7 +4232,16 @@
 
       /** Fireworks duration field: step/min = one burst; other cues use default 0.1 s stepper. */
       function syncEditDurationNumStepperAttrs() {
-        if (!editDuration || !clipEditContext || clipEditContext.libraryEdit) return;
+        if (!editDuration || !clipEditContext) return;
+        if (clipEditContext.libraryEdit) {
+          const cat = clipEditContext.libraryEdit.cat;
+          if (cat !== "vfx") {
+            editDuration.removeAttribute("step");
+            editDuration.removeAttribute("min");
+            editDuration.removeAttribute("max");
+          }
+          return;
+        }
         let r;
         let eventIndex;
         if (clipEditContext.groupEdit) {
@@ -3957,6 +4257,7 @@
         if (!evDn || evDn.lane !== "vfx") {
           editDuration.removeAttribute("step");
           editDuration.removeAttribute("min");
+          editDuration.removeAttribute("max");
           return;
         }
         const rawFx =
@@ -4284,7 +4585,10 @@
         if (start < 0) start = 0;
         const sfxK = lane === "sfx" ? (e.sfxKind === "shot" ? "shot" : "split") : null;
         const out = { lane, start: snapTime(start), duration: snapTime(duration) };
-        if (lane === "sfx") out.sfxKind = sfxK;
+        if (lane === "sfx") {
+          out.sfxKind = sfxK;
+          if (sfxK === "split") out.sfxSplitSpeed = normalizeSfxSplitSpeed(e.sfxSplitSpeed);
+        }
         if (lane === "vfx") {
           out.vfxKind = "bg_fade";
           let rc = Math.floor(Number(e.vfxRepeatCount));
@@ -4595,7 +4899,13 @@
           const st = snapTime(start);
           const d = snapTime(dur);
           const ev = { lane, start: st, duration: d };
-          if (lane === "sfx") ev.sfxKind = sfx === "shot" ? "shot" : "split";
+          if (lane === "sfx") {
+            ev.sfxKind = sfx === "shot" ? "shot" : "split";
+            if (ev.sfxKind === "split") {
+              ev.sfxSplitSpeed = "medium";
+              ev.duration = splitSfxDurationSecForSpeed(ev.sfxSplitSpeed);
+            }
+          }
           if (lane === "tts") ev.voiceSlot = "a";
           ev.elementId = genElementId();
           ev.name = defaultNewCueName(ev.lane, ev.sfxKind);
@@ -4605,7 +4915,7 @@
         x.events = [
           mkEv("text", c + 0.4, 0.4),
           mkEv("tts", c + 0.9, 1.2),
-          mkEv("sfx", c + 2.1, 0.4, "split"),
+          mkEv("sfx", c + 2.1, 0.5, "split"),
         ];
         return [r0, x];
       }
@@ -5424,6 +5734,8 @@
             for (const ev of rep.events) {
               if (!ev || typeof ev !== "object") continue;
               if (ev.lane === "sfx" && !ev.sfxKind) ev.sfxKind = "split";
+              if (ev.lane === "sfx" && ev.sfxKind === "split") ev.sfxSplitSpeed = normalizeSfxSplitSpeed(ev.sfxSplitSpeed);
+              if (ev.lane === "sfx" && ev.sfxKind === "shot") delete ev.sfxSplitSpeed;
               if (ev.lane === "tts" && ev.voiceSlot !== "a" && ev.voiceSlot !== "b") ev.voiceSlot = "a";
               if (shouldMigrateWorkoutElementId(ev.elementId)) ev.elementId = genElementId();
               else ev.elementId = String(ev.elementId).trim();
@@ -5458,6 +5770,8 @@
           ev.elementId = genElementId();
           if (oldId) oldToNew.set(oldId, ev.elementId);
           if (ev.lane === "sfx" && !ev.sfxKind) ev.sfxKind = "split";
+          if (ev.lane === "sfx" && ev.sfxKind === "split") ev.sfxSplitSpeed = normalizeSfxSplitSpeed(ev.sfxSplitSpeed);
+          if (ev.lane === "sfx" && ev.sfxKind === "shot") delete ev.sfxSplitSpeed;
           if (ev.lane === "tts" && ev.voiceSlot !== "a" && ev.voiceSlot !== "b") ev.voiceSlot = "a";
           if (ev.name == null || !String(ev.name).trim()) {
             ev.name = defaultNewCueName(ev.lane, ev.sfxKind);
@@ -5747,6 +6061,14 @@
           if (clipResizePlacementValid(r, idx, st, dur)) return { st, dur };
           return null;
         }
+        if (isSfxSplitEvent(ev)) {
+          let dur = snapTime(desiredEndInRep - st);
+          dur = snapSplitSfxCueDurationSec(dur);
+          dur = Math.min(dur, cap);
+          dur = snapSplitSfxCueDurationSec(dur);
+          if (clipResizePlacementValid(r, idx, st, dur)) return { st, dur };
+          return null;
+        }
         let dur = snapTime(desiredEndInRep - st);
         dur = Math.max(TIME_SNAP_SEC, dur);
         dur = Math.min(dur, cap);
@@ -5777,6 +6099,17 @@
           if (Math.abs(dur - durSnap) > 1e-6) return null;
           if (dur < B - 1e-9) return null;
           st = snapTime(end - dur);
+          if (clipResizePlacementValid(r, idx, st, dur)) return { st, dur };
+          return null;
+        }
+        if (isSfxSplitEvent(ev)) {
+          const minD = snapTime(SPLIT_STEP_SFX_TOTAL_SEC.fast);
+          const want = snapTime(desiredStartInRep);
+          let st = Math.max(0, Math.min(want, snapTime(end - minD)));
+          let dur = snapTime(end - st);
+          dur = snapSplitSfxCueDurationSec(dur);
+          st = snapTime(end - dur);
+          st = Math.max(0, Math.min(st, snapTime(totalTimelineSec() - dur)));
           if (clipResizePlacementValid(r, idx, st, dur)) return { st, dur };
           return null;
         }
@@ -7206,7 +7539,10 @@
               relStart: snapTime(snapTime(ev.start) - tMin),
               duration: snapTime(ev.duration),
             };
-            if (ev.lane === "sfx") o.sfxKind = ev.sfxKind === "shot" ? "shot" : "split";
+            if (ev.lane === "sfx") {
+              o.sfxKind = ev.sfxKind === "shot" ? "shot" : "split";
+              if (o.sfxKind === "split") o.sfxSplitSpeed = normalizeSfxSplitSpeed(ev.sfxSplitSpeed);
+            }
             if (ev.lane === "tts") {
               o.voiceSlot = ev.voiceSlot === "b" ? "b" : "a";
               const sp = normalizeTtsSpeech(ev.speech);
@@ -7267,7 +7603,10 @@
                 relStart: snapTime(Number(e.relStart)),
                 duration: snapTime(Number(e.duration)),
               };
-              if (cat === "sfx") o.sfxKind = e.sfxKind === "shot" ? "shot" : "split";
+              if (cat === "sfx") {
+                o.sfxKind = e.sfxKind === "shot" ? "shot" : "split";
+                if (o.sfxKind === "split") o.sfxSplitSpeed = normalizeSfxSplitSpeed(e.sfxSplitSpeed);
+              }
               if (cat === "tts") {
                 o.voiceSlot = String(e.voiceSlot || "").toLowerCase() === "b" ? "b" : "a";
                 const sp = normalizeTtsSpeech(e.speech);
@@ -7643,6 +7982,8 @@
           return;
         }
         clipEditContext = { libraryEdit: { cat, id, eventIndex } };
+        /* Clear stale VFX-only step/min/max early so num-stepper doesn't clamp SFX durations. */
+        syncEditDurationNumStepperAttrs();
         const laneLabel = (LANES.find((x) => x.id === cat) || { label: cat }).label;
         const titlePrefix = document.getElementById("clipModalTitlePrefix");
         if (titlePrefix) titlePrefix.textContent = "Edit " + laneLabel + " (lib)";
@@ -7665,6 +8006,16 @@
         editDuration.dispatchEvent(new Event("input", { bubbles: true }));
         if (sfxKindWrap) sfxKindWrap.hidden = cat !== "sfx";
         if (cat === "sfx") editSfxKind.value = ev.sfxKind === "shot" ? "shot" : "split";
+        if (cat === "sfx" && editSfxSplitSpeed) {
+          editSfxSplitSpeed.value = normalizeSfxSplitSpeed(ev.sfxSplitSpeed);
+        }
+        syncSfxSplitSpeedFormVisibility();
+        if (cat === "sfx" && ev.sfxKind !== "shot") {
+          const spd = normalizeSfxSplitSpeed(ev.sfxSplitSpeed);
+          if (editSfxSplitSpeed) editSfxSplitSpeed.value = spd;
+          editDuration.value = formatSnapSecForInput(splitSfxDurationSecForSpeed(spd));
+          syncSfxSplitDurPairBaselineFromInputs();
+        }
         if (cat === "tts" && editTtsSpeech) {
           editTtsSpeech.value = ev.speech != null ? String(ev.speech) : "";
         } else if (editTtsSpeech) {
@@ -7907,7 +8258,14 @@
                   lane: cat,
                   relStart: snapTime(Number(e.relStart)),
                   duration: snapTime(Number(e.duration)),
-                  ...(cat === "sfx" ? { sfxKind: e.sfxKind === "shot" ? "shot" : "split" } : {}),
+                  ...(cat === "sfx"
+                    ? {
+                        sfxKind: e.sfxKind === "shot" ? "shot" : "split",
+                        ...(e.sfxKind !== "shot" && (e.sfxKind === "split" || !e.sfxKind)
+                          ? { sfxSplitSpeed: normalizeSfxSplitSpeed(e.sfxSplitSpeed) }
+                          : {}),
+                      }
+                    : {}),
                 };
                 const nm = e.name != null ? String(e.name).trim() : "";
                 if (nm) o.name = nm.slice(0, 48);
@@ -8078,7 +8436,10 @@
             relStart: snapTime(snapTime(ev.start) - tMin),
             duration: snapTime(ev.duration),
           };
-          if (ev.lane === "sfx") o.sfxKind = ev.sfxKind === "shot" ? "shot" : "split";
+          if (ev.lane === "sfx") {
+            o.sfxKind = ev.sfxKind === "shot" ? "shot" : "split";
+            if (o.sfxKind === "split") o.sfxSplitSpeed = normalizeSfxSplitSpeed(ev.sfxSplitSpeed);
+          }
           if (ev.lane === "tts") {
             o.voiceSlot = ev.voiceSlot === "b" ? "b" : "a";
             const sp = normalizeTtsSpeech(ev.speech);
@@ -8316,7 +8677,10 @@
               start: snapTime(T0 + item.relStart),
               duration: snapTime(item.duration),
             };
-            if (item.lane === "sfx") o.sfxKind = item.sfxKind === "shot" ? "shot" : "split";
+            if (item.lane === "sfx") {
+              o.sfxKind = item.sfxKind === "shot" ? "shot" : "split";
+              if (o.sfxKind === "split") o.sfxSplitSpeed = normalizeSfxSplitSpeed(item.sfxSplitSpeed);
+            }
             const nm = item.name != null ? String(item.name).trim() : "";
             if (nm) o.name = nm.slice(0, 48);
             if (item.lane === "tts") {
@@ -8466,7 +8830,11 @@
         const pasteStartIdx = reps[rTarget].events.length;
         for (const p of planned) {
           const ev = { lane: p.lane, start: p.start, duration: p.duration };
-          if (p.lane === "sfx") ev.sfxKind = p.sfxKind === "shot" ? "shot" : "split";
+          if (p.lane === "sfx") {
+            ev.sfxKind = p.sfxKind === "shot" ? "shot" : "split";
+            if (ev.sfxKind === "split") ev.sfxSplitSpeed = normalizeSfxSplitSpeed(p.sfxSplitSpeed);
+            else delete ev.sfxSplitSpeed;
+          }
           ev.elementId = genElementId();
           const nm = p.name != null && String(p.name).trim() ? String(p.name).trim().slice(0, 48) : "";
           ev.name = nm || defaultNewCueName(ev.lane, ev.sfxKind);
@@ -8566,7 +8934,10 @@
           return;
         }
         ensureEvents(r);
-        const dur = defaultDurationForNewCue(laneId);
+        let dur = defaultDurationForNewCue(laneId);
+        if (laneId === "sfx" && reps[r].sfxKind !== "shot") {
+          dur = splitSfxDurationSecForSpeed("medium");
+        }
         const st = suggestedStartForNewCue(r, laneId, dur);
         if (st == null) {
           alert(
@@ -8577,7 +8948,13 @@
         pushUndoSnapshot();
         reseedElementIdCounterFromWorkout();
         const ev = { lane: laneId, start: snapTime(st), duration: snapTime(dur) };
-        if (laneId === "sfx") ev.sfxKind = reps[r].sfxKind === "shot" ? "shot" : "split";
+        if (laneId === "sfx") {
+          ev.sfxKind = reps[r].sfxKind === "shot" ? "shot" : "split";
+          if (ev.sfxKind === "split") {
+            ev.sfxSplitSpeed = "medium";
+            ev.duration = splitSfxDurationSecForSpeed(ev.sfxSplitSpeed);
+          }
+        }
         if (laneId === "tts") ev.voiceSlot = "a";
         if (laneId === "vfx") {
           ev.vfxKind = "bg_fade";
@@ -10026,6 +10403,26 @@
         return Math.abs(snapTime(dCur) - snapTime(dBase)) < 1e-6;
       }
 
+      /**
+       * Mark only the side-effect field dirty for VFX fireworks bursts/duration pair.
+       * @param {"bursts"|"duration"} userEdited - which field the user directly changed
+       */
+      function applyVfxBurstsDirtyForUserEdit(userEdited, burstStr, durStr) {
+        if (vfxBurstDurPairMatchesBaseline(burstStr, durStr)) {
+          clearFieldDirty("editVfxRepeat");
+          clearFieldDirty("editDuration");
+        } else {
+          /* Only mark the side-effect field dirty, not the one the user edited. */
+          if (userEdited === "bursts") {
+            clearFieldDirty("editVfxRepeat");
+            markFieldDirty("editDuration");
+          } else {
+            markFieldDirty("editVfxRepeat");
+            clearFieldDirty("editDuration");
+          }
+        }
+      }
+
       function syncSparksBurstFromRepeatField() {
         if (!editVfxParticleBurstEffectSelected() || editVfxFireballsSelected() || !editDuration || !editVfxRepeat)
           return;
@@ -10041,14 +10438,7 @@
         }
         editVfxRepeat.value = String(n);
         editDuration.value = formatSnapSecForInput(dur);
-        if (vfxBurstDurPairMatchesBaseline(String(n), String(editDuration.value))) {
-          clearFieldDirty("editVfxRepeat");
-          clearFieldDirty("editDuration");
-        } else {
-          markFieldDirty("editVfxRepeat");
-          markFieldDirty("editDuration");
-          syncVfxFireworksBurstDirtyBaselineFromInputs();
-        }
+        applyVfxBurstsDirtyForUserEdit("bursts", String(n), String(editDuration.value));
       }
 
       function syncSparksRepeatFromDurationField() {
@@ -10065,14 +10455,7 @@
         const n = sparksEditorBurstCountFromFormDuration(d);
         editVfxRepeat.value = String(n);
         editDuration.value = formatSnapSecForInput(d);
-        if (vfxBurstDurPairMatchesBaseline(String(n), String(editDuration.value))) {
-          clearFieldDirty("editVfxRepeat");
-          clearFieldDirty("editDuration");
-        } else {
-          markFieldDirty("editVfxRepeat");
-          markFieldDirty("editDuration");
-          syncVfxFireworksBurstDirtyBaselineFromInputs();
-        }
+        applyVfxBurstsDirtyForUserEdit("duration", String(n), String(editDuration.value));
       }
 
       function syncVfxEditorFromEvent(ev) {
@@ -10228,7 +10611,9 @@
             const ev = reps[ref.r] && reps[ref.r].events[ref.eventIndex];
             if (!ev) return null;
             let d = snapTime(dUniform);
-            if (ev.lane === "vfx") {
+            if (ev.lane === "sfx" && ev.sfxKind !== "shot") {
+              d = snapSplitSfxCueDurationSec(d);
+            } else if (ev.lane === "vfx") {
               const fx = normalizeVfxEffectType(ev);
               if (fx === "fireworks" || fx === "sparks") d = snapFireworksCueDurationSec(d);
               else if (fx === "fireballs") d = snapFireballsCueDurationSec();
@@ -10293,7 +10678,9 @@
           const ev = reps[ref.r] && reps[ref.r].events[ref.eventIndex];
           if (!ev) return null;
           let dur = snapTime(dUniform);
-          if (ev.lane === "vfx") {
+          if (ev.lane === "sfx" && ev.sfxKind !== "shot") {
+            dur = snapSplitSfxCueDurationSec(dur);
+          } else if (ev.lane === "vfx") {
             const fx = normalizeVfxEffectType(ev);
             if (fx === "fireworks" || fx === "sparks") dur = snapFireworksCueDurationSec(dur);
             else if (fx === "fireballs") dur = snapFireballsCueDurationSec();
@@ -10318,6 +10705,9 @@
           const vfxN = normalizeVfxEffectType(vfxFormDirty ? trial : ev0);
           if (vfxN === "fireworks") dur = snapFireworksCueDurationSec(dur);
           if (vfxN === "fireballs") dur = snapFireballsCueDurationSec();
+        }
+        if (lane === "sfx" && ev0.sfxKind !== "shot") {
+          dur = snapSplitSfxCueDurationSec(dur);
         }
         return snapTime(dur);
       }
@@ -10389,6 +10779,16 @@
           newSfxKind = sk === "shot" ? "shot" : "split";
         }
 
+        let newSfxSplitSpeed = null;
+        if (lane === "sfx" && dirty.has("editSfxSplitSpeed") && editSfxSplitSpeed) {
+          const sp = editSfxSplitSpeed.value;
+          if (sp === "__mixed__") {
+            alert("Choose Slow, Medium, or Fast for split-step.");
+            return;
+          }
+          newSfxSplitSpeed = normalizeSfxSplitSpeed(sp);
+        }
+
         const willTouchDurations = newDurByKey != null || (lane === "vfx" && vfxFormDirty);
         let groupEditFinalDurByKey = null;
         if (willTouchDurations) {
@@ -10451,6 +10851,16 @@
 
           if (newSfxKind !== null && ev.lane === "sfx") {
             ev.sfxKind = newSfxKind;
+            if (newSfxKind === "shot") {
+              delete ev.sfxSplitSpeed;
+            } else {
+              ev.sfxSplitSpeed =
+                newSfxSplitSpeed !== null
+                  ? newSfxSplitSpeed
+                  : normalizeSfxSplitSpeed(editSfxSplitSpeed && editSfxSplitSpeed.value);
+            }
+          } else if (newSfxSplitSpeed !== null && ev.lane === "sfx" && ev.sfxKind === "split") {
+            ev.sfxSplitSpeed = newSfxSplitSpeed;
           }
 
           if (newName !== null) {
@@ -10470,6 +10880,27 @@
                 ev.vfxRepeatCount = sparksEditorBurstCountFromFormDuration(ev.duration);
               }
               if (vfxN === "fireballs") ev.vfxRepeatCount = 1;
+            }
+          }
+
+          if (
+            lane === "sfx" &&
+            newSfxKind === "shot" &&
+            dirty.has("editSfxKind") &&
+            !(durationFieldDirty && willTouchDurations && groupEditFinalDurByKey)
+          ) {
+            ev.duration = snapTime(defaultCueDurations.sfx || CUE_DEFAULT_DURATIONS_FALLBACK.sfx);
+          }
+          if (lane === "sfx" && ev.sfxKind === "split") {
+            if (durationFieldDirty && willTouchDurations && groupEditFinalDurByKey) {
+              ev.sfxSplitSpeed = splitSfxSpeedFromSnappedDurationSec(ev.duration);
+            } else if (
+              newSfxSplitSpeed !== null ||
+              (newSfxKind !== null && newSfxKind === "split") ||
+              dirty.has("editSfxSplitSpeed") ||
+              dirty.has("editSfxKind")
+            ) {
+              ev.duration = splitSfxDurationSecForSpeed(normalizeSfxSplitSpeed(ev.sfxSplitSpeed));
             }
           }
 
@@ -10511,6 +10942,8 @@
           return;
         }
         clipEditContext = { groupEdit: { lane, refs: refs.map((x) => ({ r: x.r, eventIndex: x.eventIndex })) } };
+        /* Clear stale VFX-only step/min/max early so num-stepper doesn't clamp SFX durations. */
+        syncEditDurationNumStepperAttrs();
         clipGroupEditListenerCleanups = [];
         const cr = document.getElementById("clipModalRemove");
         if (cr) cr.style.display = "none";
@@ -10603,10 +11036,37 @@
             editSfxKind.insertBefore(mixedOptSfx, editSfxKind.firstChild);
           }
           editSfxKind.value = uniqK == null ? "__mixed__" : uniqK;
+
+          if (editSfxSplitSpeed) {
+            if (uniqK === "split") {
+              const speeds = refs
+                .filter(({ ev }) => ev.sfxKind !== "shot")
+                .map(({ ev }) => normalizeSfxSplitSpeed(ev.sfxSplitSpeed));
+              const uniqSp =
+                speeds.length > 0 && speeds.every((x) => x === speeds[0]) ? speeds[0] : null;
+              let mixedSp = editSfxSplitSpeed.querySelector("option[data-group-mixed-sfx-spd='1']");
+              if (!mixedSp) {
+                mixedSp = document.createElement("option");
+                mixedSp.value = "__mixed__";
+                mixedSp.textContent = "Mixed…";
+                mixedSp.setAttribute("data-group-mixed-sfx-spd", "1");
+                editSfxSplitSpeed.insertBefore(mixedSp, editSfxSplitSpeed.firstChild);
+              }
+              editSfxSplitSpeed.value = uniqSp == null ? "__mixed__" : uniqSp;
+            } else {
+              const mixedSp = editSfxSplitSpeed.querySelector("option[data-group-mixed-sfx-spd='1']");
+              if (mixedSp) mixedSp.remove();
+              editSfxSplitSpeed.value = "medium";
+            }
+          }
         }
+        if (lane === "sfx") syncSfxSplitSpeedFormVisibility();
 
         if (editDuration && uniqDur != null) {
           editDuration.value = formatSnapSecForInput(uniqDur);
+        }
+        if (lane === "sfx" && editSfxKind && editSfxKind.value === "split" && editSfxSplitSpeed && editSfxSplitSpeed.value !== "__mixed__") {
+          editDuration.value = formatSnapSecForInput(splitSfxDurationSecForSpeed(editSfxSplitSpeed.value));
         }
         if (lane === "vfx") syncVfxFireworksBurstDirtyBaselineFromInputs();
         if (editDuration) editDuration.dispatchEvent(new Event("input", { bubbles: true }));
@@ -10629,7 +11089,10 @@
 
         const groupMarkIds = ["editCueName", "editMilestone", "clipLucideIconSearch"];
         if (lane === "tts") groupMarkIds.push("editTtsVoiceSlot");
-        if (lane === "sfx") groupMarkIds.push("editSfxKind");
+        if (lane === "sfx") {
+          groupMarkIds.push("editSfxKind");
+          groupMarkIds.push("editSfxSplitSpeed");
+        }
         if (lane === "vfx") groupMarkIds.push(...CLIP_GROUP_EDIT_VFX_FORM_FIELD_IDS);
         for (const fid of groupMarkIds) {
           const el = document.getElementById(fid);
@@ -10642,6 +11105,14 @@
               lane === "vfx" &&
               editVfxParticleBurstEffectSelected() &&
               (fid === "editVfxRepeat" || fid === "editDuration")
+            ) {
+              return;
+            }
+            if (
+              lane === "sfx" &&
+              editSfxKind &&
+              editSfxKind.value === "split" &&
+              (fid === "editSfxSplitSpeed" || fid === "editDuration")
             ) {
               return;
             }
@@ -10668,13 +11139,21 @@
             let durIn = normalizeNumStepperInput(editDuration);
             if (!Number.isFinite(durIn)) return;
             durIn = snapTime(Math.max(TIME_SNAP_SEC, durIn));
+            if (lane === "sfx" && editSfxKind && editSfxKind.value === "split") {
+              durIn = snapSplitSfxCueDurationSec(durIn);
+              if (editSfxSplitSpeed && editSfxSplitSpeed.value !== "__mixed__") {
+                editSfxSplitSpeed.value = splitSfxSpeedFromSnappedDurationSec(durIn);
+              }
+            }
             const durByKey = new Map();
             for (const ref of refs) {
               const k = clipKey(ref.r, ref.eventIndex);
               const ev = reps[ref.r] && reps[ref.r].events[ref.eventIndex];
               if (!ev) return;
               let dur = durIn;
-              if (ev.lane === "vfx") {
+              if (ev.lane === "sfx" && ev.sfxKind !== "shot") {
+                dur = snapSplitSfxCueDurationSec(durIn);
+              } else if (ev.lane === "vfx") {
                 const fx = normalizeVfxEffectType(ev);
                 if (fx === "fireworks" || fx === "sparks") dur = snapFireworksCueDurationSec(dur);
                 else if (fx === "fireballs") dur = snapFireballsCueDurationSec();
@@ -10694,7 +11173,9 @@
                 const ev = reps[ref.r] && reps[ref.r].events[ref.eventIndex];
                 if (!ev) return;
                 let dur = durIn;
-                if (ev.lane === "vfx") {
+                if (ev.lane === "sfx" && ev.sfxKind !== "shot") {
+                  dur = snapSplitSfxCueDurationSec(durIn);
+                } else if (ev.lane === "vfx") {
                   const fx = normalizeVfxEffectType(ev);
                   if (fx === "fireworks" || fx === "sparks") dur = snapFireworksCueDurationSec(dur);
                   else if (fx === "fireballs") dur = snapFireballsCueDurationSec();
@@ -10706,14 +11187,35 @@
                 return;
               }
             }
+            if (lane === "sfx" && editSfxKind && editSfxKind.value === "split" && editSfxSplitSpeed && editSfxSplitSpeed.value !== "__mixed__") {
+              durIn = snapSplitSfxCueDurationSec(durIn);
+              editSfxSplitSpeed.value = splitSfxSpeedFromSnappedDurationSec(durIn);
+            }
             const normalizedText = formatSnapSecForInput(durIn);
             const prevGood = lastGoodDurationText;
             editDuration.value = normalizedText;
             lastGoodDurationText = normalizedText;
             if (lane === "vfx" && editVfxParticleBurstEffectSelected()) {
               const nNow = editVfxRepeat ? String(editVfxRepeat.value) : "";
+              /* User edited duration: only mark bursts (side-effect) dirty. */
               if (vfxBurstDurPairMatchesBaseline(nNow, normalizedText)) {
+                clearFieldDirty("editVfxRepeat");
                 clearFieldDirty("editDuration");
+              } else {
+                markFieldDirty("editVfxRepeat");
+                clearFieldDirty("editDuration");
+              }
+            } else if (lane === "sfx" && editSfxKind && editSfxKind.value === "split") {
+              const spNow = editSfxSplitSpeed ? String(editSfxSplitSpeed.value) : "";
+              /* User edited duration: only mark speed (side-effect) dirty. */
+              if (editSfxSplitSpeed && editSfxSplitSpeed.value !== "__mixed__") {
+                if (sfxSplitDurPairMatchesBaseline(spNow, normalizedText)) {
+                  clearFieldDirty("editDuration");
+                  clearFieldDirty("editSfxSplitSpeed");
+                } else {
+                  markFieldDirty("editSfxSplitSpeed");
+                  clearFieldDirty("editDuration");
+                }
               } else {
                 markFieldDirty("editDuration");
               }
@@ -10731,6 +11233,28 @@
           });
         }
 
+        if (lane === "sfx" && editSfxSplitSpeed) {
+          const onGroupSfxSplitSp = () => {
+            if (!clipEditContext || !clipEditContext.groupEdit) return;
+            if (!editSfxKind || editSfxKind.value !== "split") return;
+            if (editSfxSplitSpeed.value === "__mixed__") return;
+            syncSfxDurationFromSplitSpeed();
+          };
+          ["input", "change"].forEach(function (evName) {
+            editSfxSplitSpeed.addEventListener(evName, onGroupSfxSplitSp);
+          });
+          clipGroupEditListenerCleanups.push(function () {
+            ["input", "change"].forEach(function (evName) {
+              editSfxSplitSpeed.removeEventListener(evName, onGroupSfxSplitSp);
+            });
+          });
+        }
+
+        if (lane === "sfx" && editSfxKind && editSfxKind.value === "split" && editSfxSplitSpeed && editSfxSplitSpeed.value !== "__mixed__") {
+          syncSfxSplitDurPairBaselineFromInputs();
+        }
+
+        if (lane === "sfx") syncSfxSplitSpeedFormVisibility();
         clipModal.classList.add("open");
         clipModal.setAttribute("aria-hidden", "false");
         syncEditDurationNumStepperAttrs();
@@ -10738,7 +11262,10 @@
       }
 
       function clipLabelText(ev) {
-        if (ev.lane === "sfx") return ev.sfxKind === "shot" ? "shot" : "split";
+        if (ev.lane === "sfx") {
+          if (ev.sfxKind === "shot") return "shot";
+          return "split · " + normalizeSfxSplitSpeed(ev.sfxSplitSpeed);
+        }
         if (ev.lane === "tts") {
           const L = LANES.find((x) => x.id === "tts");
           const base = L ? L.clipLabel : "TTS";
@@ -10753,6 +11280,8 @@
         const ev = reps[r].events[eventIndex];
         if (!ev) return;
         clipEditContext = { r, eventIndex };
+        /* Clear stale VFX-only step/min/max BEFORE any input events so num-stepper doesn't clamp SFX durations. */
+        syncEditDurationNumStepperAttrs();
         const cr = document.getElementById("clipModalRemove");
         if (cr) cr.style.display = "";
         const titlePrefix = document.getElementById("clipModalTitlePrefix");
@@ -10771,6 +11300,16 @@
         editDuration.dispatchEvent(new Event("input", { bubbles: true }));
         if (sfxKindWrap) sfxKindWrap.hidden = ev.lane !== "sfx";
         if (ev.lane === "sfx") editSfxKind.value = ev.sfxKind === "shot" ? "shot" : "split";
+        if (ev.lane === "sfx" && editSfxSplitSpeed) {
+          editSfxSplitSpeed.value = normalizeSfxSplitSpeed(ev.sfxSplitSpeed);
+        }
+        syncSfxSplitSpeedFormVisibility();
+        if (ev.lane === "sfx" && ev.sfxKind !== "shot") {
+          const spd = normalizeSfxSplitSpeed(ev.sfxSplitSpeed);
+          if (editSfxSplitSpeed) editSfxSplitSpeed.value = spd;
+          editDuration.value = formatSnapSecForInput(splitSfxDurationSecForSpeed(spd));
+          syncSfxSplitDurPairBaselineFromInputs();
+        }
         if (ev.lane === "tts" && editTtsSpeech) {
           editTtsSpeech.value = ev.speech != null ? String(ev.speech) : "";
         } else if (editTtsSpeech) {
@@ -10794,7 +11333,6 @@
         if (startLblOpen) startLblOpen.textContent = "Start — global time (s)";
         initLucideCueIconPickerUi();
         syncClipLucideIconFormFromStored(ev.lucideIcon);
-        if (ev.lane !== "vfx") syncEditDurationNumStepperAttrs();
         replaceClipSelection(r, eventIndex);
         setupClipModalTabsForLane(ev.lane, modalOpts);
         syncClipTextTtsLinkModalFromContext();
@@ -10897,6 +11435,12 @@
         if (editSfxKind) {
           const moS = editSfxKind.querySelector("option[data-group-mixed-sfx='1']");
           if (moS) moS.remove();
+        }
+        if (editSfxSplitSpeed) {
+          const moSp = editSfxSplitSpeed.querySelector("option[data-group-mixed-sfx-spd='1']");
+          if (moSp) moSp.remove();
+          delete editSfxSplitSpeed.dataset.sfxSplitDurPairSp;
+          delete editSfxSplitSpeed.dataset.sfxSplitDurPairDur;
         }
         const speechWrap = editTtsSpeech ? editTtsSpeech.closest(".field") : null;
         if (speechWrap) speechWrap.hidden = false;
@@ -11144,6 +11688,7 @@
       if (editDuration) {
         editDuration.addEventListener("input", function () {
           if (editVfxParticleBurstEffectSelected()) syncSparksRepeatFromDurationField();
+          else syncSfxSplitSpeedFromDurationFieldIfSfxSplitModal();
         });
       }
 
@@ -11474,6 +12019,9 @@
           if (cat === "vfx" && (libFxForm === "fireballs" || libFxForm === "trail")) {
             dur = snapFireballsCueDurationSec();
           }
+          if (cat === "sfx" && editSfxKind && editSfxKind.value === "split" && editSfxSplitSpeed) {
+            dur = splitSfxDurationSecForSpeed(normalizeSfxSplitSpeed(editSfxSplitSpeed.value));
+          }
           const trial = JSON.parse(JSON.stringify(item.data));
           const evs = trial.events;
           if (!libraryCueEventsPlacementValid(evs, cat, eventIndex, st, dur)) {
@@ -11483,7 +12031,11 @@
             return;
           }
           const ev = evs[eventIndex];
-          if (cat === "sfx") ev.sfxKind = editSfxKind.value === "shot" ? "shot" : "split";
+          if (cat === "sfx") {
+            ev.sfxKind = editSfxKind.value === "shot" ? "shot" : "split";
+            if (ev.sfxKind === "shot") delete ev.sfxSplitSpeed;
+            else if (editSfxSplitSpeed) ev.sfxSplitSpeed = normalizeSfxSplitSpeed(editSfxSplitSpeed.value);
+          }
           if (cat === "tts" && editTtsVoiceSlot) ev.voiceSlot = editTtsVoiceSlot.value === "b" ? "b" : "a";
           if (cat === "tts" && editTtsSpeech) {
             const sp = normalizeTtsSpeech(editTtsSpeech.value);
@@ -11589,6 +12141,9 @@
         if (ev.lane === "vfx" && (timelineFxForm === "fireballs" || timelineFxForm === "trail")) {
           dur = snapFireballsCueDurationSec();
         }
+        if (ev.lane === "sfx" && editSfxKind && editSfxKind.value === "split" && editSfxSplitSpeed) {
+          dur = splitSfxDurationSecForSpeed(normalizeSfxSplitSpeed(editSfxSplitSpeed.value));
+        }
 
         if (!eventPlacementValid(r, ev.lane, st, dur, eventIndex)) {
           discardLastUndoSnapshot();
@@ -11601,6 +12156,8 @@
         }
         if (ev.lane === "sfx") {
           ev.sfxKind = editSfxKind.value === "shot" ? "shot" : "split";
+          if (ev.sfxKind === "shot") delete ev.sfxSplitSpeed;
+          else if (editSfxSplitSpeed) ev.sfxSplitSpeed = normalizeSfxSplitSpeed(editSfxSplitSpeed.value);
         }
         if (ev.lane === "tts" && editTtsVoiceSlot) {
           ev.voiceSlot = editTtsVoiceSlot.value === "b" ? "b" : "a";
@@ -12099,6 +12656,8 @@
           for (let i = 0; i < reps[r].events.length; i++) {
             const ev = reps[r].events[i];
             if (ev.lane === "sfx" && !ev.sfxKind) ev.sfxKind = "split";
+            if (ev.lane === "sfx" && ev.sfxKind === "split") ev.sfxSplitSpeed = normalizeSfxSplitSpeed(ev.sfxSplitSpeed);
+            if (ev.lane === "sfx" && ev.sfxKind === "shot") delete ev.sfxSplitSpeed;
             const d = ev.duration;
             if (d <= 0) continue;
             const t0 = ev.start;
