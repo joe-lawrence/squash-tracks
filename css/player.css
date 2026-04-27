@@ -1120,8 +1120,13 @@ body.player-menu-open .player-menu-anchor {
   flex: 1 1 auto;
   min-height: 0;
   display: flex;
-  align-items: center;
+  /* One child (`.presentation-cue-stack`). Row layout let the stack shrink to max-content width, so a
+   * short heading ("Rest") narrowed the body line box and split short phrases ("Two minutes"). */
+  flex-direction: column;
+  align-items: stretch;
   justify-content: center;
+  width: 100%;
+  min-width: 0;
   margin: 0.12rem 0 0.3rem;
   padding: 0.1rem 0;
 }
@@ -1129,11 +1134,12 @@ body.player-menu-open .player-menu-anchor {
 .presentation-cue-stack {
   display: flex;
   flex-direction: column;
-  /* Stretch cue text blocks so short phrases do not wrap from shrink-to-fit sizing. */
   align-items: stretch;
   justify-content: center;
   gap: 0.28rem;
+  width: 100%;
   max-width: 100%;
+  min-width: 0;
   text-align: center;
 }
 

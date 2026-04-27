@@ -718,8 +718,11 @@
       flex: 1 1 auto;
       min-height: 0;
       display: flex;
-      align-items: center;
+      flex-direction: column;
+      align-items: stretch;
       justify-content: center;
+      width: 100%;
+      min-width: 0;
       margin: 0.12rem 0 0.3rem;
       padding: 0.1rem 0;
       border-radius: 1rem;
@@ -727,10 +730,12 @@
     .presentation-cue-stack {
       display: flex;
       flex-direction: column;
-      align-items: center;
+      align-items: stretch;
       justify-content: center;
       gap: 0.28rem;
+      width: 100%;
       max-width: 100%;
+      min-width: 0;
       text-align: center;
     }
     .presentation-cue-heading {
