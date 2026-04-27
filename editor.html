@@ -2713,7 +2713,7 @@
           </div>
         </div>
         <div id="clipTabTiming" class="clip-modal-tab-panel" role="tabpanel" hidden>
-          <div class="field">
+          <div class="field" id="clipEditStartField">
             <label for="editStart">Start — global time (s)</label>
             <div class="num-stepper">
               <button type="button" class="num-stepper-btn" data-stepper-down aria-label="Decrease start">−</button>
@@ -3471,10 +3471,12 @@
           });
 
           down.addEventListener("click", () => {
+            if (input.disabled || input.readOnly) return;
             bump(-1);
             input.dispatchEvent(new Event("input", { bubbles: true }));
           });
           up.addEventListener("click", () => {
+            if (input.disabled || input.readOnly) return;
             bump(1);
             input.dispatchEvent(new Event("input", { bubbles: true }));
           });
@@ -3738,6 +3740,15 @@
 
       function setupClipModalTabsForLane(lane, opts) {
         let allowedTabs = (CLIP_MODAL_TABS_BY_LANE[lane] || ["timing"]).slice();
+        if (opts && opts.groupEdit) {
+          const gMap = {
+            text: ["name", "timing"],
+            tts: ["name", "timing", "voice"],
+            sfx: ["name", "timing", "effect"],
+            vfx: ["name", "timing", "effect"],
+          };
+          allowedTabs = (gMap[lane] || ["name", "timing"]).slice();
+        }
         if (opts && opts.library) {
           allowedTabs = allowedTabs.filter((tabId) => tabId !== "link");
         }
@@ -3857,7 +3868,11 @@
         for (const fid of fieldIds) {
           const el = document.getElementById(fid);
           if (!el) continue;
-          const clearFn = () => clearFieldDirty(fid);
+          const clearFn = () => {
+            /* Group edit is dirty-field-only: do not auto-clear on focus/input/change or Apply sees "No changes." */
+            if (clipEditContext && clipEditContext.groupEdit) return;
+            clearFieldDirty(fid);
+          };
           el.addEventListener("focus", clearFn);
           el.addEventListener("click", clearFn);
           el.addEventListener("input", clearFn);
@@ -3908,7 +3923,16 @@
       /** Fireworks duration field: step/min = one burst; other cues use default 0.1 s stepper. */
       function syncEditDurationNumStepperAttrs() {
         if (!editDuration || !clipEditContext || clipEditContext.libraryEdit) return;
-        const { r, eventIndex } = clipEditContext;
+        let r;
+        let eventIndex;
+        if (clipEditContext.groupEdit) {
+          const ref0 = clipEditContext.groupEdit.refs[0];
+          r = ref0.r;
+          eventIndex = ref0.eventIndex;
+        } else {
+          r = clipEditContext.r;
+          eventIndex = clipEditContext.eventIndex;
+        }
         ensureEvents(r);
         const evDn = reps[r].events[eventIndex];
         if (!evDn || evDn.lane !== "vfx") {
@@ -3935,6 +3959,8 @@
       }
 
       let clipEditContext = null;
+      /** Non-null while `clipEditContext.groupEdit` is open: teardown fns for extra input listeners. */
+      let clipGroupEditListenerCleanups = null;
       /** `{ i }` — segment index being edited in the part modal. */
       let partEditContext = null;
       let repRenameContext = null;
@@ -5490,6 +5516,82 @@
         return true;
       }
 
+      /**
+       * Largest fireworks/sparks duration ≤ durPreferred (burst-snapped) that still fits the active
+       * clip-modal placement rules: timeline cue, library cue (rep-relative), or same-lane group edit.
+       */
+      function clipModalCapFireworksOrSparksDuration(durPreferred) {
+        let dur = snapFireworksCueDurationSec(durPreferred);
+        const rawFx =
+          editVfxEffectType && editVfxEffectType.value ? String(editVfxEffectType.value).trim().toLowerCase() : "";
+        if (rawFx !== "fireworks" && rawFx !== "sparks") return dur;
+
+        if (clipEditContext && clipEditContext.groupEdit) {
+          const ge = clipEditContext.groupEdit;
+          if (ge.lane !== "vfx" || !ge.refs || ge.refs.length < 2) return dur;
+          const refs = ge.refs;
+          const lane = ge.lane;
+          const tryUniformDur = (dTry) => {
+            const d0 = snapFireworksCueDurationSec(dTry);
+            const m = new Map();
+            for (const ref of refs) {
+              m.set(clipKey(ref.r, ref.eventIndex), d0);
+            }
+            return groupEditProposedDurationsValidOnSameLane(refs, lane, m);
+          };
+          let n = Math.max(1, sparksEditorBurstCountFromFormDuration(dur));
+          while (n >= 1) {
+            const d = sparksFormDurationFromBurstCount(n);
+            if (tryUniformDur(d)) return snapFireworksCueDurationSec(d);
+            n--;
+          }
+          return snapFireworksCueDurationSec(sparksFormDurationFromBurstCount(1));
+        }
+
+        if (clipEditContext && clipEditContext.libraryEdit) {
+          const ctx = clipEditContext.libraryEdit;
+          const { cat, id, eventIndex } = ctx;
+          const arr = libraryStore[cat];
+          const item = arr && arr.find((x) => x.id === id);
+          const evs = item && item.data && item.data.events;
+          if (!Array.isArray(evs) || eventIndex < 0 || eventIndex >= evs.length) return dur;
+          let relSt = normalizeNumStepperInput(editStart);
+          if (!Number.isFinite(relSt)) {
+            const ev0 = evs[eventIndex];
+            relSt = ev0 && Number.isFinite(Number(ev0.relStart)) ? snapTime(ev0.relStart) : 0;
+          } else relSt = snapTime(relSt);
+          let n = Math.max(1, sparksEditorBurstCountFromFormDuration(dur));
+          while (n >= 1) {
+            const d = sparksFormDurationFromBurstCount(n);
+            const dSnap = snapFireworksCueDurationSec(d);
+            if (libraryCueEventsPlacementValid(evs, cat, eventIndex, relSt, dSnap)) return dSnap;
+            n--;
+          }
+          return snapFireworksCueDurationSec(sparksFormDurationFromBurstCount(1));
+        }
+
+        if (clipEditContext && clipEditContext.r != null && clipEditContext.eventIndex != null) {
+          const r = clipEditContext.r;
+          const eventIndex = clipEditContext.eventIndex;
+          ensureEvents(r);
+          const ev = reps[r].events[eventIndex];
+          if (!ev || ev.lane !== "vfx") return dur;
+          let st = normalizeNumStepperInput(editStart);
+          if (!Number.isFinite(st)) st = snapTime(ev.start);
+          else st = snapTime(st);
+          let n = Math.max(1, sparksEditorBurstCountFromFormDuration(dur));
+          while (n >= 1) {
+            const d = sparksFormDurationFromBurstCount(n);
+            const dSnap = snapFireworksCueDurationSec(d);
+            if (eventPlacementValid(r, ev.lane, st, dSnap, eventIndex)) return dSnap;
+            n--;
+          }
+          return snapFireworksCueDurationSec(sparksFormDurationFromBurstCount(1));
+        }
+
+        return dur;
+      }
+
       /** Busy union on one lane across the workout (same-lane gaps). */
       function mergedSameLaneBusyIntervalsWorkout(laneId, skipRep, skipIdx) {
         const iv = [];
@@ -6456,7 +6558,8 @@
 
       function onClipTxtTtsLinkPickChange() {
         const pick = document.getElementById("clipTxtTtsLinkPick");
-        if (!pick || clipTxtTtsLinkPickProgrammatic || !clipEditContext || clipEditContext.libraryEdit) return;
+        if (!pick || clipTxtTtsLinkPickProgrammatic || !clipEditContext || clipEditContext.libraryEdit || clipEditContext.groupEdit)
+          return;
         const { r, eventIndex } = clipEditContext;
         ensureEvents(r);
         const ev = reps[r].events[eventIndex];
@@ -6503,7 +6606,7 @@
       function onClipTxtTtsSyncCheckboxChange(domEv) {
         const syncS = document.getElementById("clipTxtTtsSyncStart");
         const syncD = document.getElementById("clipTxtTtsSyncDuration");
-        if (!clipEditContext || clipEditContext.libraryEdit || !syncS || !syncD) return;
+        if (!clipEditContext || clipEditContext.libraryEdit || clipEditContext.groupEdit || !syncS || !syncD) return;
         const { r, eventIndex } = clipEditContext;
         ensureEvents(r);
         const cueEv = reps[r].events[eventIndex];
@@ -7538,6 +7641,7 @@
           if (cat === "vfx") syncVfxEditorFromEvent(ev);
         }
         if (cat !== "vfx" && editVfxCustomColorWrap) editVfxCustomColorWrap.hidden = true;
+        if (cat === "vfx") syncVfxFireworksBurstDirtyBaselineFromInputs();
         editStart.dispatchEvent(new Event("input", { bubbles: true }));
         editDuration.dispatchEvent(new Event("input", { bubbles: true }));
         if (sfxKindWrap) sfxKindWrap.hidden = cat !== "sfx";
@@ -9878,14 +9982,54 @@
         if (editDuration) editDuration.readOnly = !!fb;
       }
 
+      /** Last accepted fireworks/sparks burst+duration pair for dirty highlighting (see syncSparks*). */
+      function syncVfxFireworksBurstDirtyBaselineFromInputs() {
+        if (!editVfxRepeat || !editDuration) return;
+        if (!editVfxParticleBurstEffectSelected() || editVfxFireballsSelected()) return;
+        const rawFx =
+          editVfxEffectType && editVfxEffectType.value ? String(editVfxEffectType.value).trim().toLowerCase() : "";
+        if (rawFx !== "fireworks" && rawFx !== "sparks") return;
+        editVfxRepeat.dataset.vfxBurstDurPairRep = String(editVfxRepeat.value);
+        editVfxRepeat.dataset.vfxBurstDurPairDur = String(editDuration.value);
+      }
+
+      function vfxBurstDurPairMatchesBaseline(repStr, durStr) {
+        if (!editVfxRepeat) return false;
+        const br = editVfxRepeat.dataset.vfxBurstDurPairRep;
+        const bd = editVfxRepeat.dataset.vfxBurstDurPairDur;
+        if (br == null || bd == null) return false;
+        const nCur = parseInt(String(repStr).trim(), 10);
+        const nBase = parseInt(String(br).trim(), 10);
+        if (!Number.isFinite(nCur) || !Number.isFinite(nBase) || nCur !== nBase) return false;
+        const dCur = parseFloat(numStepperSanitizeRaw(String(durStr)));
+        const dBase = parseFloat(numStepperSanitizeRaw(String(bd)));
+        if (!Number.isFinite(dCur) || !Number.isFinite(dBase)) return false;
+        return Math.abs(snapTime(dCur) - snapTime(dBase)) < 1e-6;
+      }
+
       function syncSparksBurstFromRepeatField() {
         if (!editVfxParticleBurstEffectSelected() || editVfxFireballsSelected() || !editDuration || !editVfxRepeat)
           return;
         let n = parseInt(editVfxRepeat.value, 10);
         if (!Number.isFinite(n) || n < 1) n = 1;
         n = Math.min(99, n);
-        editDuration.value = formatSnapSecForInput(sparksFormDurationFromBurstCount(n));
-        markFieldDirty("editDuration");
+        let dur = sparksFormDurationFromBurstCount(n);
+        const rawFx =
+          editVfxEffectType && editVfxEffectType.value ? String(editVfxEffectType.value).trim().toLowerCase() : "";
+        if (rawFx === "fireworks" || rawFx === "sparks") {
+          dur = clipModalCapFireworksOrSparksDuration(dur);
+          n = sparksEditorBurstCountFromFormDuration(dur);
+        }
+        editVfxRepeat.value = String(n);
+        editDuration.value = formatSnapSecForInput(dur);
+        if (vfxBurstDurPairMatchesBaseline(String(n), String(editDuration.value))) {
+          clearFieldDirty("editVfxRepeat");
+          clearFieldDirty("editDuration");
+        } else {
+          markFieldDirty("editVfxRepeat");
+          markFieldDirty("editDuration");
+          syncVfxFireworksBurstDirtyBaselineFromInputs();
+        }
       }
 
       function syncSparksRepeatFromDurationField() {
@@ -9893,10 +10037,23 @@
           return;
         const raw = normalizeNumStepperInput(editDuration);
         if (!Number.isFinite(raw)) return;
-        const d = snapTime(Math.max(TIME_SNAP_SEC, raw));
+        let d = snapTime(Math.max(TIME_SNAP_SEC, raw));
+        const rawFx =
+          editVfxEffectType && editVfxEffectType.value ? String(editVfxEffectType.value).trim().toLowerCase() : "";
+        if (rawFx === "fireworks" || rawFx === "sparks") {
+          d = clipModalCapFireworksOrSparksDuration(d);
+        }
         const n = sparksEditorBurstCountFromFormDuration(d);
         editVfxRepeat.value = String(n);
-        markFieldDirty("editVfxRepeat");
+        editDuration.value = formatSnapSecForInput(d);
+        if (vfxBurstDurPairMatchesBaseline(String(n), String(editDuration.value))) {
+          clearFieldDirty("editVfxRepeat");
+          clearFieldDirty("editDuration");
+        } else {
+          markFieldDirty("editVfxRepeat");
+          markFieldDirty("editDuration");
+          syncVfxFireworksBurstDirtyBaselineFromInputs();
+        }
       }
 
       function syncVfxEditorFromEvent(ev) {
@@ -9968,6 +10125,599 @@
         if (ev.vfxFadeInOnly !== undefined) delete ev.vfxFadeInOnly;
       }
 
+      function clipGroupEditTeardownExtraListeners() {
+        if (!clipGroupEditListenerCleanups) return;
+        for (const fn of clipGroupEditListenerCleanups) {
+          try {
+            fn();
+          } catch (_) {}
+        }
+        clipGroupEditListenerCleanups = null;
+      }
+
+      function groupEditCueRefsHomogeneousLane(refs) {
+        if (!refs || refs.length < 2) return null;
+        const lane0 = refs[0].ev && refs[0].ev.lane;
+        if (!LANES.some((L) => L.id === lane0)) return null;
+        for (const ref of refs) {
+          if (!ref.ev || ref.ev.lane !== lane0) return null;
+        }
+        return lane0;
+      }
+
+      function groupEditProposedDurationsValidOnSameLane(refs, lane, durByKey) {
+        const keys = new Set(refs.map((ref) => clipKey(ref.r, ref.eventIndex)));
+        const ivs = [];
+        for (const ref of refs) {
+          const k = clipKey(ref.r, ref.eventIndex);
+          const ev = reps[ref.r] && reps[ref.r].events[ref.eventIndex];
+          if (!ev) return false;
+          const st = snapTime(ev.start);
+          const durS = durByKey.get(k);
+          if (!Number.isFinite(durS)) return false;
+          const dur = snapTime(durS);
+          if (dur < TIME_SNAP_SEC - 1e-9) return false;
+          if (st < -1e-9 || st + dur > totalTimelineSec() + 1e-6) return false;
+          ivs.push({ st, dur });
+        }
+        for (let i = 0; i < ivs.length; i++) {
+          for (let j = i + 1; j < ivs.length; j++) {
+            if (timeRangesOverlap(ivs[i].st, ivs[i].st + ivs[i].dur, ivs[j].st, ivs[j].st + ivs[j].dur)) return false;
+          }
+        }
+        for (const ref of refs) {
+          const k = clipKey(ref.r, ref.eventIndex);
+          const ev = reps[ref.r].events[ref.eventIndex];
+          const st = snapTime(ev.start);
+          const dur = snapTime(durByKey.get(k));
+          if (sameLaneOverlapsWorkoutExcludingKeys(lane, st, dur, keys)) return false;
+        }
+        return true;
+      }
+
+      /**
+       * Largest uniform snapped duration ≤ `durIn` that is valid for every selected cue simultaneously.
+       * Used so group-edit duration changes “take” up to the constraint boundary instead of snapping all the way back.
+       */
+      function groupEditMaxUniformSnappedDurationLeqWithMapFn(refs, lane, durIn, durMapForUniform) {
+        if (!refs || !refs.length || !Number.isFinite(durIn) || typeof durMapForUniform !== "function") return null;
+        let hi = snapTime(Math.max(TIME_SNAP_SEC, durIn));
+        if (groupEditProposedDurationsValidOnSameLane(refs, lane, durMapForUniform(hi))) return hi;
+        let lo = TIME_SNAP_SEC;
+        if (!groupEditProposedDurationsValidOnSameLane(refs, lane, durMapForUniform(lo))) return null;
+        for (let iter = 0; iter < 48; iter++) {
+          const mid = snapTime((lo + hi) * 0.5);
+          if (mid <= lo + TIME_SNAP_SEC * 0.05) break;
+          if (groupEditProposedDurationsValidOnSameLane(refs, lane, durMapForUniform(mid))) lo = mid;
+          else hi = mid;
+        }
+        let best = lo;
+        for (let k = 0; k < 24; k++) {
+          const cand = snapTime(best + TIME_SNAP_SEC);
+          if (cand > durIn + 1e-9) break;
+          if (!groupEditProposedDurationsValidOnSameLane(refs, lane, durMapForUniform(cand))) break;
+          best = cand;
+        }
+        return best;
+      }
+
+      function groupEditMaxUniformSnappedDurationLeq(refs, lane, durIn) {
+        const durMapForUniform = (dUniform) => {
+          const m = new Map();
+          for (const ref of refs) {
+            const k = clipKey(ref.r, ref.eventIndex);
+            const ev = reps[ref.r] && reps[ref.r].events[ref.eventIndex];
+            if (!ev) return null;
+            let d = snapTime(dUniform);
+            if (ev.lane === "vfx") {
+              const fx = normalizeVfxEffectType(ev);
+              if (fx === "fireworks" || fx === "sparks") d = snapFireworksCueDurationSec(d);
+              else if (fx === "fireballs") d = snapFireballsCueDurationSec();
+            }
+            m.set(k, d);
+          }
+          return m;
+        };
+        return groupEditMaxUniformSnappedDurationLeqWithMapFn(refs, lane, durIn, durMapForUniform);
+      }
+
+      const CLIP_GROUP_EDIT_VFX_FORM_FIELD_IDS = [
+        "editVfxEffectType",
+        "editVfxBgMode",
+        "editVfxRepeat",
+        "editVfxColorMode",
+        "editVfxColor",
+        "editVfxFireworksPlacement",
+        "editVfxFireworksColor",
+      ];
+
+      function clipGroupEditVfxFormIsDirty(dirty) {
+        for (const id of CLIP_GROUP_EDIT_VFX_FORM_FIELD_IDS) {
+          if (dirty.has(id)) return true;
+        }
+        return false;
+      }
+
+      /** Matches single-cue clip save: duration tweaks from the Effect-type controls before applying VFX fields to the event. */
+      function groupEditDurPipelineFromFormVfxTimeline(durIn) {
+        let dur = snapTime(Math.max(TIME_SNAP_SEC, durIn));
+        const timelineFxForm =
+          editVfxEffectType && editVfxEffectType.value ? String(editVfxEffectType.value).trim().toLowerCase() : "";
+        if (editVfxParticleBurstEffectSelected()) {
+          if (timelineFxForm !== "fireballs" && timelineFxForm !== "trail") {
+            const nSp = sparksEditorBurstCountFromFormDuration(dur);
+            dur = sparksFormDurationFromBurstCount(nSp);
+          }
+        }
+        if (timelineFxForm === "fireworks" || timelineFxForm === "sparks") {
+          dur = snapFireworksCueDurationSec(dur);
+        }
+        if (timelineFxForm === "fireballs" || timelineFxForm === "trail") {
+          dur = snapFireballsCueDurationSec();
+        }
+        return snapTime(dur);
+      }
+
+      function groupEditUniformDurMapFromFormVfxTimeline(refs, dUniform) {
+        const d = groupEditDurPipelineFromFormVfxTimeline(dUniform);
+        const m = new Map();
+        for (const ref of refs) {
+          m.set(clipKey(ref.r, ref.eventIndex), d);
+        }
+        return m;
+      }
+
+      function groupEditBuildUniformDurMapPerCueStoredVfx(refs, dUniform) {
+        const m = new Map();
+        for (const ref of refs) {
+          const k = clipKey(ref.r, ref.eventIndex);
+          const ev = reps[ref.r] && reps[ref.r].events[ref.eventIndex];
+          if (!ev) return null;
+          let dur = snapTime(dUniform);
+          if (ev.lane === "vfx") {
+            const fx = normalizeVfxEffectType(ev);
+            if (fx === "fireworks" || fx === "sparks") dur = snapFireworksCueDurationSec(dur);
+            else if (fx === "fireballs") dur = snapFireballsCueDurationSec();
+          }
+          m.set(k, dur);
+        }
+        return m;
+      }
+
+      function groupEditFinalDurationForCue(ref, ev0, newDurByKey, lane, vfxFormDirty) {
+        const k = clipKey(ref.r, ref.eventIndex);
+        let dur = newDurByKey ? snapTime(newDurByKey.get(k)) : snapTime(ev0.duration);
+
+        if (lane === "vfx" && vfxFormDirty && !newDurByKey) {
+          dur = groupEditDurPipelineFromFormVfxTimeline(dur);
+        }
+
+        const trial = JSON.parse(JSON.stringify(ev0));
+        if (vfxFormDirty) applyVfxEditorToEvent(trial);
+
+        if (lane === "vfx") {
+          const vfxN = normalizeVfxEffectType(vfxFormDirty ? trial : ev0);
+          if (vfxN === "fireworks") dur = snapFireworksCueDurationSec(dur);
+          if (vfxN === "fireballs") dur = snapFireballsCueDurationSec();
+        }
+        return snapTime(dur);
+      }
+
+      function applyClipGroupEditFromModal() {
+        const ge = clipEditContext && clipEditContext.groupEdit;
+        if (!ge || !ge.refs || ge.refs.length < 2) return;
+        const { lane, refs } = ge;
+        if (clipModalDirtyFields.size === 0) {
+          showToast("No changes.");
+          return;
+        }
+        const dirty = clipModalDirtyFields;
+
+        let newName = null;
+        if (dirty.has("editCueName")) {
+          newName = editCueName ? String(editCueName.value || "").trim().slice(0, 48) : "";
+        }
+
+        const vfxFormDirty = lane === "vfx" && clipGroupEditVfxFormIsDirty(dirty);
+        const durationFieldDirty = dirty.has("editDuration");
+
+        let newDurByKey = null;
+        if (durationFieldDirty || (lane === "vfx" && vfxFormDirty)) {
+          let durIn = normalizeNumStepperInput(editDuration);
+          if (!Number.isFinite(durIn)) {
+            durIn =
+              defaultCueDurations[lane] ||
+              CUE_DEFAULT_DURATIONS_FALLBACK[lane] ||
+              CUE_DEFAULT_DURATIONS_FALLBACK.text;
+          }
+          durIn = snapTime(Math.max(TIME_SNAP_SEC, durIn));
+          const buildMap =
+            lane === "vfx" && vfxFormDirty
+              ? (du) => groupEditUniformDurMapFromFormVfxTimeline(refs, du)
+              : (du) => groupEditBuildUniformDurMapPerCueStoredVfx(refs, lane, du);
+          newDurByKey = buildMap(durIn);
+          if (!newDurByKey) {
+            alert("Group edit failed — a selected cue is missing.");
+            return;
+          }
+          if (!groupEditProposedDurationsValidOnSameLane(refs, lane, newDurByKey)) {
+            const mapFn =
+              lane === "vfx" && vfxFormDirty
+                ? (du) => groupEditUniformDurMapFromFormVfxTimeline(refs, du)
+                : (du) => groupEditBuildUniformDurMapPerCueStoredVfx(refs, lane, du);
+            const clamped = groupEditMaxUniformSnappedDurationLeqWithMapFn(refs, lane, durIn, mapFn);
+            if (clamped == null) {
+              showToast("No uniform duration fits all selected cues.");
+              return;
+            }
+            durIn = clamped;
+            newDurByKey = buildMap(durIn);
+            if (!newDurByKey || !groupEditProposedDurationsValidOnSameLane(refs, lane, newDurByKey)) {
+              showToast("Duration still won’t fit all selected cues.");
+              return;
+            }
+            if (editDuration) editDuration.value = formatSnapSecForInput(durIn);
+          }
+        }
+
+        let newSfxKind = null;
+        if (lane === "sfx" && dirty.has("editSfxKind") && editSfxKind) {
+          const sk = editSfxKind.value;
+          if (sk === "__mixed__") {
+            alert("Choose Split-step or Shot to apply to all selected cues.");
+            return;
+          }
+          newSfxKind = sk === "shot" ? "shot" : "split";
+        }
+
+        const willTouchDurations = newDurByKey != null || (lane === "vfx" && vfxFormDirty);
+        let groupEditFinalDurByKey = null;
+        if (willTouchDurations) {
+          groupEditFinalDurByKey = new Map();
+          for (const ref of refs) {
+            const ev0 = reps[ref.r] && reps[ref.r].events[ref.eventIndex];
+            if (!ev0) continue;
+            const k = clipKey(ref.r, ref.eventIndex);
+            groupEditFinalDurByKey.set(
+              k,
+              groupEditFinalDurationForCue(ref, ev0, newDurByKey, lane, vfxFormDirty)
+            );
+          }
+          if (!groupEditProposedDurationsValidOnSameLane(refs, lane, groupEditFinalDurByKey)) {
+            showToast("Those durations won’t fit the selected cues.");
+            return;
+          }
+          for (const ref of refs) {
+            const ev0 = reps[ref.r] && reps[ref.r].events[ref.eventIndex];
+            if (!ev0) continue;
+            const k = clipKey(ref.r, ref.eventIndex);
+            const dFin = groupEditFinalDurByKey.get(k);
+            if (!eventPlacementValid(ref.r, lane, snapTime(ev0.start), dFin, ref.eventIndex)) {
+              alert(
+                "Cue must stay within 0–" +
+                  totalTimelineSec().toFixed(2) +
+                  " s (global) and cannot overlap another cue on the same lane."
+              );
+              return;
+            }
+          }
+        }
+
+        let newMilestone = null;
+        if (dirty.has("editMilestone") && editMilestone) {
+          newMilestone = !!editMilestone.checked;
+        }
+
+        let newVoice = null;
+        if (lane === "tts" && dirty.has("editTtsVoiceSlot") && editTtsVoiceSlot) {
+          const vs = editTtsVoiceSlot.value;
+          if (vs === "__mixed__") {
+            alert("Choose Voice A or Voice B.");
+            return;
+          }
+          newVoice = vs === "b" ? "b" : "a";
+        }
+
+        let newLucide = null;
+        if (dirty.has("clipLucideIconSearch")) {
+          newLucide = readClipLucideIconFormValue();
+        }
+
+        pushUndoSnapshot();
+        for (const ref of refs) {
+          const { r, eventIndex } = ref;
+          ensureEvents(r);
+          const ev = reps[r].events[eventIndex];
+          if (!ev) continue;
+
+          if (newSfxKind !== null && ev.lane === "sfx") {
+            ev.sfxKind = newSfxKind;
+          }
+
+          if (newName !== null) {
+            ev.name = newName ? newName : defaultNewCueName(ev.lane, ev.sfxKind);
+          }
+
+          if (vfxFormDirty && ev.lane === "vfx") {
+            applyVfxEditorToEvent(ev);
+          }
+
+          if (willTouchDurations && groupEditFinalDurByKey) {
+            const k = clipKey(r, eventIndex);
+            ev.duration = snapTime(groupEditFinalDurByKey.get(k));
+            if (ev.lane === "vfx") {
+              const vfxN = normalizeVfxEffectType(ev);
+              if (vfxN === "fireworks") {
+                ev.vfxRepeatCount = sparksEditorBurstCountFromFormDuration(ev.duration);
+              }
+              if (vfxN === "fireballs") ev.vfxRepeatCount = 1;
+            }
+          }
+
+          if (newMilestone !== null) {
+            const defaultMilestone = ev.lane === "tts";
+            if (newMilestone !== defaultMilestone) ev.milestone = newMilestone;
+            else delete ev.milestone;
+          }
+
+          if (newVoice !== null && ev.lane === "tts") {
+            ev.voiceSlot = newVoice;
+          }
+
+          if (newLucide !== null) {
+            const lic = normalizeCueLucideIcon(newLucide);
+            if (lic) ev.lucideIcon = lic;
+            else delete ev.lucideIcon;
+          }
+        }
+        if (willTouchDurations && (lane === "text" || lane === "tts")) {
+          for (const ref of refs) {
+            const ev = reps[ref.r] && reps[ref.r].events[ref.eventIndex];
+            if (ev && (ev.lane === "text" || ev.lane === "tts")) {
+              propagateTextTtsLinkedTimingFromEditedCue(ref.r, ref.eventIndex);
+            }
+          }
+        }
+        sanitizeWorkoutSnapTimes();
+        clearAllFieldDirty();
+        closeClipEditor();
+        refreshAll();
+        showToast("Updated " + refs.length + " " + String(lane).toUpperCase() + " cue(s).");
+      }
+
+      function openClipGroupEditor(refs) {
+        const lane = groupEditCueRefsHomogeneousLane(refs);
+        if (!lane) {
+          showToast("Group edit needs two or more cues on the same lane.");
+          return;
+        }
+        clipEditContext = { groupEdit: { lane, refs: refs.map((x) => ({ r: x.r, eventIndex: x.eventIndex })) } };
+        clipGroupEditListenerCleanups = [];
+        const cr = document.getElementById("clipModalRemove");
+        if (cr) cr.style.display = "none";
+        const titlePrefix = document.getElementById("clipModalTitlePrefix");
+        const laneLabel = (LANES.find((x) => x.id === lane) || { label: lane }).label;
+        if (titlePrefix) titlePrefix.textContent = "Edit " + refs.length + " " + laneLabel + " cues (group)";
+        const names = refs.map(({ ev }) => String(ev.name || "").trim());
+        const uniqName = names.every((n) => n === names[0]) ? names[0] : null;
+        if (editCueName) {
+          editCueName.value = uniqName != null && uniqName ? uniqName : "";
+          editCueName.placeholder = uniqName == null ? "Mixed — type to apply to all" : "Cue name";
+        }
+
+        const durs = refs.map(({ ev }) => snapTime(ev.duration));
+        const uniqDur = durs.every((d) => Math.abs(d - durs[0]) < 1e-9) ? durs[0] : null;
+        if (editStart) {
+          editStart.readOnly = true;
+          editStart.disabled = true;
+          editStart.setAttribute("aria-disabled", "true");
+          editStart.style.opacity = "0.5";
+        }
+        const clipEditStartField = document.getElementById("clipEditStartField");
+        if (clipEditStartField) clipEditStartField.hidden = true;
+        if (editDuration) {
+          editDuration.readOnly = false;
+          editDuration.disabled = false;
+          editDuration.removeAttribute("aria-disabled");
+          editDuration.style.opacity = "";
+          if (uniqDur != null) editDuration.value = formatSnapSecForInput(uniqDur);
+          else editDuration.value = "";
+          editDuration.placeholder = uniqDur == null ? "Mixed — enter duration for all" : "";
+        }
+        const mileChecked = refs.map(({ ev }) => {
+          const def = ev.lane === "tts";
+          return ev.milestone !== undefined ? !!ev.milestone : def;
+        });
+        const uniqM = mileChecked.every((x) => x === mileChecked[0]) ? mileChecked[0] : null;
+        if (editMilestone) {
+          if (uniqM === null) {
+            try {
+              editMilestone.indeterminate = true;
+            } catch (_) {}
+            editMilestone.checked = false;
+          } else {
+            editMilestone.indeterminate = false;
+            editMilestone.checked = uniqM;
+          }
+        }
+
+        if (lane === "tts" && editTtsVoiceSlot) {
+          const slots = refs.map(({ ev }) => (ev.voiceSlot === "b" ? "b" : "a"));
+          const uniqS = slots.every((s) => s === slots[0]) ? slots[0] : null;
+          let mixedOpt = editTtsVoiceSlot.querySelector("option[data-group-mixed-voice='1']");
+          if (!mixedOpt) {
+            mixedOpt = document.createElement("option");
+            mixedOpt.value = "__mixed__";
+            mixedOpt.textContent = "Mixed…";
+            mixedOpt.setAttribute("data-group-mixed-voice", "1");
+            editTtsVoiceSlot.insertBefore(mixedOpt, editTtsVoiceSlot.firstChild);
+          }
+          editTtsVoiceSlot.value = uniqS == null ? "__mixed__" : uniqS;
+        }
+
+        const speechWrap = editTtsSpeech ? editTtsSpeech.closest(".field") : null;
+        if (speechWrap) speechWrap.hidden = lane === "tts";
+
+        if (lane === "text" && editCueHeading && editCueHeading.closest(".field")) {
+          editCueHeading.closest(".field").hidden = true;
+        }
+        if (lane === "text" && editCueBody && editCueBody.closest(".field")) {
+          editCueBody.closest(".field").hidden = true;
+        }
+
+        if (sfxKindWrap) sfxKindWrap.hidden = lane !== "sfx";
+        if (vfxEditorWrap) {
+          vfxEditorWrap.hidden = lane !== "vfx";
+          if (lane === "vfx" && refs[0] && refs[0].ev) syncVfxEditorFromEvent(refs[0].ev);
+        }
+        if (lane !== "vfx" && editVfxCustomColorWrap) editVfxCustomColorWrap.hidden = true;
+
+        if (lane === "sfx" && editSfxKind) {
+          const kinds = refs.map(({ ev }) => (ev.sfxKind === "shot" ? "shot" : "split"));
+          const uniqK = kinds.every((x) => x === kinds[0]) ? kinds[0] : null;
+          let mixedOptSfx = editSfxKind.querySelector("option[data-group-mixed-sfx='1']");
+          if (!mixedOptSfx) {
+            mixedOptSfx = document.createElement("option");
+            mixedOptSfx.value = "__mixed__";
+            mixedOptSfx.textContent = "Mixed…";
+            mixedOptSfx.setAttribute("data-group-mixed-sfx", "1");
+            editSfxKind.insertBefore(mixedOptSfx, editSfxKind.firstChild);
+          }
+          editSfxKind.value = uniqK == null ? "__mixed__" : uniqK;
+        }
+
+        if (editDuration && uniqDur != null) {
+          editDuration.value = formatSnapSecForInput(uniqDur);
+        }
+        if (lane === "vfx") syncVfxFireworksBurstDirtyBaselineFromInputs();
+        if (editDuration) editDuration.dispatchEvent(new Event("input", { bubbles: true }));
+
+        if (editCueHeading) editCueHeading.value = "";
+        if (editCueBody) editCueBody.value = "";
+
+        const icons = refs.map(({ ev }) => normalizeCueLucideIcon(ev.lucideIcon));
+        const uniqIc = icons.every((ic) => ic === icons[0]) ? icons[0] : "";
+        initLucideCueIconPickerUi();
+        syncClipLucideIconFormFromStored(uniqIc || "");
+        const stat = document.getElementById("clipLucideIconStatus");
+        if (stat) {
+          stat.textContent =
+            uniqIc === "" && icons.some((x) => x) ? "Mixed icon — pick one to apply to all." : "";
+        }
+
+        setupClipModalTabsForLane(lane, { groupEdit: true });
+        clearAllFieldDirty();
+
+        const groupMarkIds = ["editCueName", "editMilestone", "clipLucideIconSearch"];
+        if (lane === "tts") groupMarkIds.push("editTtsVoiceSlot");
+        if (lane === "sfx") groupMarkIds.push("editSfxKind");
+        if (lane === "vfx") groupMarkIds.push(...CLIP_GROUP_EDIT_VFX_FORM_FIELD_IDS);
+        for (const fid of groupMarkIds) {
+          const el = document.getElementById(fid);
+          if (!el) continue;
+          const fnIn = () => {
+            if (!clipEditContext || !clipEditContext.groupEdit) return;
+            /* Bursts ↔ duration for particle VFX: syncSparks* + validateGroupDurationFieldNow set/clear dirty;
+               a generic mark here runs after those handlers and would leave fields dirty when the cap leaves values unchanged. */
+            if (
+              lane === "vfx" &&
+              editVfxParticleBurstEffectSelected() &&
+              (fid === "editVfxRepeat" || fid === "editDuration")
+            ) {
+              return;
+            }
+            markFieldDirty(fid);
+            if (fid === "editMilestone" && editMilestone) editMilestone.indeterminate = false;
+          };
+          el.addEventListener("input", fnIn);
+          el.addEventListener("change", fnIn);
+          clipGroupEditListenerCleanups.push(() => {
+            el.removeEventListener("input", fnIn);
+            el.removeEventListener("change", fnIn);
+          });
+        }
+        if (editDuration) {
+          let lastGoodDurationText = String(editDuration.value || "");
+          const validateGroupDurationFieldNow = () => {
+            if (!clipEditContext || !clipEditContext.groupEdit) return;
+            const rawText = String(editDuration.value || "").trim();
+            if (!rawText) {
+              clearFieldDirty("editDuration");
+              lastGoodDurationText = "";
+              return;
+            }
+            let durIn = normalizeNumStepperInput(editDuration);
+            if (!Number.isFinite(durIn)) return;
+            durIn = snapTime(Math.max(TIME_SNAP_SEC, durIn));
+            const durByKey = new Map();
+            for (const ref of refs) {
+              const k = clipKey(ref.r, ref.eventIndex);
+              const ev = reps[ref.r] && reps[ref.r].events[ref.eventIndex];
+              if (!ev) return;
+              let dur = durIn;
+              if (ev.lane === "vfx") {
+                const fx = normalizeVfxEffectType(ev);
+                if (fx === "fireworks" || fx === "sparks") dur = snapFireworksCueDurationSec(dur);
+                else if (fx === "fireballs") dur = snapFireballsCueDurationSec();
+              }
+              durByKey.set(k, dur);
+            }
+            if (!groupEditProposedDurationsValidOnSameLane(refs, lane, durByKey)) {
+              const clamped = groupEditMaxUniformSnappedDurationLeq(refs, lane, durIn);
+              if (clamped == null) {
+                editDuration.value = lastGoodDurationText;
+                return;
+              }
+              durIn = clamped;
+              durByKey.clear();
+              for (const ref of refs) {
+                const k = clipKey(ref.r, ref.eventIndex);
+                const ev = reps[ref.r] && reps[ref.r].events[ref.eventIndex];
+                if (!ev) return;
+                let dur = durIn;
+                if (ev.lane === "vfx") {
+                  const fx = normalizeVfxEffectType(ev);
+                  if (fx === "fireworks" || fx === "sparks") dur = snapFireworksCueDurationSec(dur);
+                  else if (fx === "fireballs") dur = snapFireballsCueDurationSec();
+                }
+                durByKey.set(k, dur);
+              }
+              if (!groupEditProposedDurationsValidOnSameLane(refs, lane, durByKey)) {
+                editDuration.value = lastGoodDurationText;
+                return;
+              }
+            }
+            const normalizedText = formatSnapSecForInput(durIn);
+            const prevGood = lastGoodDurationText;
+            editDuration.value = normalizedText;
+            lastGoodDurationText = normalizedText;
+            if (lane === "vfx" && editVfxParticleBurstEffectSelected()) {
+              const nNow = editVfxRepeat ? String(editVfxRepeat.value) : "";
+              if (vfxBurstDurPairMatchesBaseline(nNow, normalizedText)) {
+                clearFieldDirty("editDuration");
+              } else {
+                markFieldDirty("editDuration");
+              }
+            } else if (normalizedText !== prevGood) {
+              markFieldDirty("editDuration");
+            } else {
+              clearFieldDirty("editDuration");
+            }
+          };
+          editDuration.addEventListener("input", validateGroupDurationFieldNow);
+          editDuration.addEventListener("change", validateGroupDurationFieldNow);
+          clipGroupEditListenerCleanups.push(() => {
+            editDuration.removeEventListener("input", validateGroupDurationFieldNow);
+            editDuration.removeEventListener("change", validateGroupDurationFieldNow);
+          });
+        }
+
+        clipModal.classList.add("open");
+        clipModal.setAttribute("aria-hidden", "false");
+        syncEditDurationNumStepperAttrs();
+        if (editCueName) editCueName.focus();
+      }
+
       function clipLabelText(ev) {
         if (ev.lane === "sfx") return ev.sfxKind === "shot" ? "shot" : "split";
         if (ev.lane === "tts") {
@@ -9997,6 +10747,7 @@
           if (ev.lane === "vfx") syncVfxEditorFromEvent(ev);
         }
         if (ev.lane !== "vfx" && editVfxCustomColorWrap) editVfxCustomColorWrap.hidden = true;
+        if (ev.lane === "vfx") syncVfxFireworksBurstDirtyBaselineFromInputs();
         editStart.dispatchEvent(new Event("input", { bubbles: true }));
         editDuration.dispatchEvent(new Event("input", { bubbles: true }));
         if (sfxKindWrap) sfxKindWrap.hidden = ev.lane !== "sfx";
@@ -10056,7 +10807,7 @@
         const syncD = document.getElementById("clipTxtTtsSyncDuration");
         const syncWrap = document.getElementById("clipTxtTtsSyncFieldsWrap");
         if (!pick) return;
-        if (!clipEditContext || clipEditContext.libraryEdit) {
+        if (!clipEditContext || clipEditContext.libraryEdit || clipEditContext.groupEdit) {
           return;
         }
         const { r, eventIndex } = clipEditContext;
@@ -10103,9 +10854,35 @@
       }
 
       function closeClipEditor() {
+        clipGroupEditTeardownExtraListeners();
         closeClipLucideIconPopover();
         const cr = document.getElementById("clipModalRemove");
         if (cr) cr.style.display = "";
+        if (editStart) {
+          editStart.readOnly = false;
+          editStart.disabled = false;
+          editStart.removeAttribute("aria-disabled");
+          editStart.style.opacity = "";
+        }
+        const clipEditStartFieldClose = document.getElementById("clipEditStartField");
+        if (clipEditStartFieldClose) clipEditStartFieldClose.hidden = false;
+        if (editDuration) {
+          editDuration.placeholder = "";
+        }
+        if (editCueName) editCueName.placeholder = "Cue name";
+        if (editMilestone) editMilestone.indeterminate = false;
+        if (editTtsVoiceSlot) {
+          const mo = editTtsVoiceSlot.querySelector("option[data-group-mixed-voice='1']");
+          if (mo) mo.remove();
+        }
+        if (editSfxKind) {
+          const moS = editSfxKind.querySelector("option[data-group-mixed-sfx='1']");
+          if (moS) moS.remove();
+        }
+        const speechWrap = editTtsSpeech ? editTtsSpeech.closest(".field") : null;
+        if (speechWrap) speechWrap.hidden = false;
+        if (editCueHeading && editCueHeading.closest(".field")) editCueHeading.closest(".field").hidden = false;
+        if (editCueBody && editCueBody.closest(".field")) editCueBody.closest(".field").hidden = false;
         clipModal.classList.remove("open");
         clipModal.setAttribute("aria-hidden", "true");
         if (editTtsSpeech) editTtsSpeech.value = "";
@@ -10318,8 +11095,26 @@
               editDuration.value = formatSnapSecForInput(sparksFormDurationFromBurstCount(n));
             }
           }
+          if (
+            editVfxParticleBurstEffectSelected() &&
+            editDuration &&
+            vfxEditorWrap &&
+            !vfxEditorWrap.hidden &&
+            (afterRaw === "fireworks" || afterRaw === "sparks")
+          ) {
+            const dc = normalizeNumStepperInput(editDuration);
+            if (Number.isFinite(dc)) {
+              const dcSnapped = snapFireworksCueDurationSec(dc);
+              const dcCap = clipModalCapFireworksOrSparksDuration(dcSnapped);
+              if (Math.abs(dcCap - dcSnapped) > 1e-9) {
+                editDuration.value = formatSnapSecForInput(dcCap);
+                if (editVfxRepeat) editVfxRepeat.value = String(sparksEditorBurstCountFromFormDuration(dcCap));
+              }
+            }
+          }
           vfxEffectTypeEditorBaseline = normalizeVfxEffectType({ vfxEffectType: afterRaw });
           syncEditDurationNumStepperAttrs();
+          if (afterRaw === "fireworks" || afterRaw === "sparks") syncVfxFireworksBurstDirtyBaselineFromInputs();
         });
       }
       if (editVfxRepeat) {
@@ -10609,6 +11404,10 @@
 
       document.getElementById("clipModalSave").addEventListener("click", () => {
         if (!clipEditContext) return;
+        if (clipEditContext.groupEdit) {
+          applyClipGroupEditFromModal();
+          return;
+        }
         if (clipEditContext.libraryEdit) {
           const { cat, id, eventIndex } = clipEditContext.libraryEdit;
           const arr = libraryStore[cat];
@@ -10645,6 +11444,13 @@
           }
           if (cat === "vfx" && (libFxForm === "fireworks" || libFxForm === "sparks")) {
             dur = snapFireworksCueDurationSec(dur);
+            const durCapL0 = dur;
+            dur = clipModalCapFireworksOrSparksDuration(dur);
+            if (Math.abs(durCapL0 - dur) > 1e-9) {
+              if (editDuration) editDuration.value = formatSnapSecForInput(dur);
+              if (editVfxRepeat) editVfxRepeat.value = String(sparksEditorBurstCountFromFormDuration(dur));
+              showToast("Bursts/duration capped to fit this library cue layout.");
+            }
           }
           if (cat === "vfx" && (libFxForm === "fireballs" || libFxForm === "trail")) {
             dur = snapFireballsCueDurationSec();
@@ -10753,6 +11559,13 @@
         }
         if (ev.lane === "vfx" && (timelineFxForm === "fireworks" || timelineFxForm === "sparks")) {
           dur = snapFireworksCueDurationSec(dur);
+          const durCap0 = dur;
+          dur = clipModalCapFireworksOrSparksDuration(dur);
+          if (Math.abs(durCap0 - dur) > 1e-9) {
+            if (editDuration) editDuration.value = formatSnapSecForInput(dur);
+            if (editVfxRepeat) editVfxRepeat.value = String(sparksEditorBurstCountFromFormDuration(dur));
+            showToast("Bursts/duration capped to fit the timeline and lane.");
+          }
         }
         if (ev.lane === "vfx" && (timelineFxForm === "fireballs" || timelineFxForm === "trail")) {
           dur = snapFireballsCueDurationSec();
@@ -11018,6 +11831,16 @@
             if (libItemDeleteModal && libItemDeleteModal.classList.contains("open")) return;
             const r2 = parseInt(clip.dataset.rep, 10);
             const i2 = parseInt(clip.dataset.eventIdx, 10);
+            if (clipGroupMode && selectedClipKeys.size >= 2) {
+              const refs = getSelectedCueRefsSorted();
+              const laneH = groupEditCueRefsHomogeneousLane(refs);
+              const inSel = refs.some((x) => x.r === r2 && x.eventIndex === i2);
+              if (laneH && inSel) {
+                openClipGroupEditor(refs);
+                refreshAll();
+                return;
+              }
+            }
             replaceClipSelection(r2, i2);
             openClipEditor(r2, i2);
             refreshAll();
@@ -11131,6 +11954,15 @@
             if (!d.moved) {
               endGroupDragVisual(d.groupDrag);
               if (clipGroupMode) {
+                if (clipSelected(d.r, d.eventIdx) && selectedClipKeys.size >= 2) {
+                  const refs = getSelectedCueRefsSorted();
+                  const laneH = groupEditCueRefsHomogeneousLane(refs);
+                  if (laneH) {
+                    openClipGroupEditor(refs);
+                    refreshAll();
+                    return;
+                  }
+                }
                 seekPreviewToActiveRepStart(d.r);
                 toggleClipInSelection(d.r, d.eventIdx);
                 syncClipSelectionClass();
