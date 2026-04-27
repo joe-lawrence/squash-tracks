@@ -4663,8 +4663,6 @@
         clipSelectionAnchorKey = null;
         selectedRepIndices.clear();
         selectedRepIndex = -1;
-        cueClipboard = null;
-        repClipboard = null;
         if (emphasizePartsSidebar) partSidebarActiveRingVisible = true;
         syncSegmentSelectUI();
         sanitizeWorkoutSnapTimes();
@@ -4777,7 +4775,7 @@
 
       /**
        * Remove one segment by index after persisting the active part into `segments`. Caller must `pushUndoSnapshot` first.
-       * Returns false if removal is not allowed; otherwise updates selection, clipboards, and refreshes.
+       * Returns false if removal is not allowed; otherwise updates selection and refreshes.
        */
       function removeSegmentAtIndexAfterFlush(ri) {
         if (segments.length <= 1 || ri < 0 || ri >= segments.length) return false;
@@ -4796,9 +4794,6 @@
         clipSelectionAnchorKey = null;
         selectedRepIndices.clear();
         selectedRepIndex = -1;
-        cueClipboard = null;
-        repClipboard = null;
-        segmentClipboard = null;
         partSidebarActiveRingVisible = true;
         syncSegmentSelectUI();
         syncDefaultIntervalInput();
@@ -7104,6 +7099,7 @@
               o.vfxBgMode = normalizeVfxBgModeFromRaw(ev);
               o.vfxColorMode = ev.vfxColorMode === "custom" ? "custom" : "scheme";
               if (o.vfxColorMode === "custom" && ev.vfxColor) o.vfxColor = normalizeVfxHex(ev.vfxColor);
+              mergeFireworksVfxPlacementColor(o, ev);
             }
             const nm = String(ev.name || "").trim();
             if (nm) o.name = nm.slice(0, 48);
@@ -8370,6 +8366,7 @@
             ev.vfxBgMode = normalizeVfxBgModeFromRaw(p);
             ev.vfxColorMode = p.vfxColorMode === "custom" ? "custom" : "scheme";
             if (ev.vfxColorMode === "custom" && p.vfxColor) ev.vfxColor = normalizeVfxHex(p.vfxColor);
+            mergeFireworksVfxPlacementColor(ev, p);
           }
           if (p.milestone === true || p.milestone === false) ev.milestone = p.milestone;
           if (p.pasteSrcElementId) ev.pasteSrcElementId = trimCueLinkElementId(p.pasteSrcElementId);
