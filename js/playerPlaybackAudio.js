@@ -15,8 +15,8 @@
   const TTS_TIMELINE_EPS_SEC = 0.001;
   /** Same-timeline instant: stacked cues share start within this window (seconds) — no interrupt, play in order. */
   const TTS_SAME_START_SEC = 0.0005;
-  /** Cap speaking rate when catching up from late start. */
-  const TTS_RATE_MAX = 1.42;
+  /** Web Audio lookahead for sample-accurate SFX scheduling (seconds). */
+  const SFX_SCHEDULE_LOOKAHEAD_SEC = 0.005;
 
   function createPlayerPlaybackAudio(opts) {
     if (opts == null || typeof opts !== "object") opts = {};
@@ -30,6 +30,7 @@
     let lastWorkoutTimeSec = 0;
     /** @type {{ globalStartSec: number, slot: "a"|"b" } | null} */
     let ttsCurrentlyPlaying = null;
+
 
     function clearTtsQueue() {
       ttsQueue.length = 0;
@@ -277,9 +278,8 @@
 
         performTtsHealthCheck(syn);
 
-        const lag = Math.max(0, lastWorkoutTimeSec - item.globalStartSec);
         const u = new SpeechSynthesisUtterance(item.text);
-        u.rate = Math.min(TTS_RATE_MAX, 1 + lag * 0.28);
+        u.rate = 1;
         u.pitch = 1;
         if (typeof opts.getAudioDuckingOn === "function" && opts.getAudioDuckingOn()) {
           try {
@@ -361,6 +361,7 @@
       return Promise.resolve();
     }
 
+
     function cancelOscillators() {
       for (let i = 0; i < activeNodes.length; i++) {
         try {
@@ -401,8 +402,17 @@
         return;
       }
       const c = ensureCtx();
-      if (!c || c.state !== "running") return;
-      const now = c.currentTime;
+      if (global._debugAudioTiming) {
+        console.log("[AudioTiming] playSfx", kind, "audioCtx state:", c ? c.state : "null", "currentTime:", c ? c.currentTime.toFixed(3) : "N/A");
+      }
+      if (!c || c.state !== "running") {
+        if (global._debugAudioTiming) {
+          console.warn("[AudioTiming] playSfx SKIPPED - AudioContext not running");
+        }
+        return;
+      }
+      /* Play immediately with small lookahead for sample accuracy. */
+      const now = c.currentTime + SFX_SCHEDULE_LOOKAHEAD_SEC;
 
       if (kind === "shot") {
         const duration = 0.1;

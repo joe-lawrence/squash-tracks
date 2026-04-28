@@ -13024,6 +13024,7 @@
         const clip = document.getElementById("timelinePlaybackPlayheadClip");
         const wide = document.getElementById("timeline-wide");
         if (!line || !wide || !rulerEl || typeof WorkoutPresentation === "undefined") return;
+        flushActiveSegmentMeta();
         const total = totalTimelineSec();
         if (total < 1e-9) {
           line.hidden = true;
@@ -13038,13 +13039,15 @@
         const g0 = WP.cumulativeSegmentStart(segments, activeSegmentIndex);
         const local = Math.max(0, Math.min(presTimeSec - g0, total));
         const fr = local / total;
-        const rulerLeftInWide = rulerRect.left - wideRect.left;
-        const rw = Math.max(0, rulerRect.width);
+        /* All getBoundingClientRect values are zoomed; divide by zoom to get CSS values. */
+        const zoom = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--editor-page-zoom")) || 1;
+        const rulerLeftInWide = (rulerRect.left - wideRect.left) / zoom;
+        const rw = Math.max(0, rulerRect.width / zoom);
         const half = 5;
         const xRaw = rulerLeftInWide + fr * rw;
         /* Keep the 10px playhead (translateX(-50%)) from extending left past the ruler track. */
         const xc = Math.min(Math.max(xRaw, rulerLeftInWide + half), rulerLeftInWide + Math.max(rw, 2 * half) - half);
-        const clipLeftInWide = clipRect ? clipRect.left - wideRect.left : rulerLeftInWide;
+        const clipLeftInWide = clipRect ? (clipRect.left - wideRect.left) / zoom : rulerLeftInWide;
         line.style.left = xc - clipLeftInWide + "px";
         line.hidden = false;
         line.setAttribute("aria-hidden", "false");
@@ -13103,9 +13106,11 @@
 
           const targetScreenX = ev.clientX - dragOffset;
           const rulerRect = rulerEl.getBoundingClientRect();
+          /* Use rulerRect.width (visual/zoomed) since clientX is in zoomed coordinates. */
           const rulerW = Math.max(1, rulerRect.width);
           const fr = Math.max(0, Math.min(1, (targetScreenX - rulerRect.left) / rulerW));
 
+          flushActiveSegmentMeta();
           const total = totalTimelineSec();
           const rawLocal = fr * total;
           const WP = WorkoutPresentation;

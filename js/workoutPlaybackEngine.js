@@ -10,6 +10,9 @@
 
   const LANES = new Set(["text", "tts", "sfx", "vfx"]);
 
+  /** TTS lookahead to compensate for synthesis startup latency (seconds). */
+  const TTS_LOOKAHEAD_SEC = 0.06;
+
   function ttsTextFromEvent(ev) {
     if (ev.speech != null && String(ev.speech).trim()) {
       return String(ev.speech).trim();
@@ -30,7 +33,7 @@
     if (ev.lane === "sfx") {
       const kind = ev.sfxKind === "shot" ? "shot" : "split";
       const urlRaw = ev.sfxUrl != null ? String(ev.sfxUrl).trim() : "";
-      const cmd = { type: "sfx", kind, sourceId: ev.id };
+      const cmd = { type: "sfx", kind, sourceId: ev.id, globalStartSec: ev.globalStart };
       if (urlRaw) cmd.url = urlRaw;
       if (kind === "split") {
         const sp = ev.sfxSplitSpeed != null ? String(ev.sfxSplitSpeed).trim().toLowerCase() : "";
@@ -172,13 +175,18 @@
 
       for (let i = 0; i < this.timeline.length; i++) {
         const ev = this.timeline[i];
+        /* TTS fires early to compensate for synthesis latency; other lanes fire at exact time. */
+        const effectiveStart = ev.lane === "tts" ? ev.globalStart - TTS_LOOKAHEAD_SEC : ev.globalStart;
         /* Inclusive of `lo` so cues exactly at the playhead edge fire; `playedKeys` prevents double-fire. */
-        if (ev.globalStart < lo - 1e-9) continue;
-        if (ev.globalStart > hi + 1e-9) continue;
+        if (effectiveStart < lo - 1e-9) continue;
+        if (effectiveStart > hi + 1e-9) continue;
         if (cap != null && ev.globalStart >= cap - 1e-12) continue;
         if (!this.playedKeys.has(ev.id)) {
           this.playedKeys.add(ev.id);
           fired.push(ev);
+          if (global._debugAudioTiming) {
+            console.log("[AudioTiming] FIRE", ev.lane, ev.name || ev.sfxKind, "scheduled:", ev.globalStart.toFixed(3), "actual:", hi.toFixed(3), "delta:", ((hi - ev.globalStart) * 1000).toFixed(1) + "ms");
+          }
           const ac = audioCommandForEvent(ev, this.audioEnabled);
           if (ac) {
             audioCommands.push(ac);
