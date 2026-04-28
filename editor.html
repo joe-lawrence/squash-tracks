@@ -13039,7 +13039,11 @@
         const g0 = WP.cumulativeSegmentStart(segments, activeSegmentIndex);
         const local = Math.max(0, Math.min(presTimeSec - g0, total));
         const fr = local / total;
-        /* All getBoundingClientRect values are zoomed; divide by zoom to get CSS values. */
+        /*
+         * Zoom-aware layout: getBoundingClientRect returns zoomed (visual) coordinates,
+         * but element.style.left expects unzoomed CSS values. The editor uses
+         * `html { zoom: var(--editor-page-zoom) }` so we divide by that factor.
+         */
         const zoom = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--editor-page-zoom")) || 1;
         const rulerLeftInWide = (rulerRect.left - wideRect.left) / zoom;
         const rw = Math.max(0, rulerRect.width / zoom);
@@ -13106,7 +13110,11 @@
 
           const targetScreenX = ev.clientX - dragOffset;
           const rulerRect = rulerEl.getBoundingClientRect();
-          /* Use rulerRect.width (visual/zoomed) since clientX is in zoomed coordinates. */
+          /*
+           * Zoom-aware scrub: clientX and getBoundingClientRect are both in zoomed (visual)
+           * coordinates. Dividing zoomed values cancels the zoom factor, giving correct fr:
+           *   fr = (zoomed_offset / zoomed_width) = (unzoomed_offset / unzoomed_width)
+           */
           const rulerW = Math.max(1, rulerRect.width);
           const fr = Math.max(0, Math.min(1, (targetScreenX - rulerRect.left) / rulerW));
 
