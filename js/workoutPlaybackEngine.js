@@ -11,7 +11,19 @@
   const LANES = new Set(["text", "tts", "sfx", "vfx"]);
 
   /** TTS lookahead to compensate for synthesis startup latency (seconds). */
-  const TTS_LOOKAHEAD_SEC = 0.06;
+  const TTS_LOOKAHEAD_SEC = 0.48;
+
+  function clampTtsRate(raw) {
+    const n = Number(raw);
+    if (!Number.isFinite(n)) return null;
+    return Math.min(2.5, Math.max(0.25, n));
+  }
+
+  function clampTtsPitch(raw) {
+    const n = Number(raw);
+    if (!Number.isFinite(n)) return null;
+    return Math.min(2, Math.max(0, n));
+  }
 
   function ttsTextFromEvent(ev) {
     if (ev.speech != null && String(ev.speech).trim()) {
@@ -49,6 +61,10 @@
         globalStartSec: ev.globalStart,
         voiceSlot: ev.voiceSlot === "b" ? "b" : "a",
       };
+      const r = clampTtsRate(ev.ttsRate != null ? ev.ttsRate : ev.rate);
+      const p = clampTtsPitch(ev.ttsPitch != null ? ev.ttsPitch : ev.pitch);
+      if (r != null) cmd.ttsRate = r;
+      if (p != null) cmd.ttsPitch = p;
       return cmd;
     }
     return null;
@@ -102,6 +118,10 @@
           if (lane === "tts") {
             row.voiceSlot = raw.voiceSlot === "b" ? "b" : "a";
             if (raw.speech != null && String(raw.speech).trim()) row.speech = String(raw.speech).trim();
+            const r = clampTtsRate(raw.ttsRate != null ? raw.ttsRate : raw.rate);
+            const p = clampTtsPitch(raw.ttsPitch != null ? raw.ttsPitch : raw.pitch);
+            if (r != null) row.ttsRate = r;
+            if (p != null) row.ttsPitch = p;
           }
           if (lane === "vfx") {
             row.vfxKind = raw.vfxKind != null ? String(raw.vfxKind).trim() : "bg_fade";
@@ -133,13 +153,27 @@
       this._WP = WP;
       this.audioEnabled = opts.audioEnabled !== false;
       this._segments = Array.isArray(opts.segments) ? opts.segments : [];
+      /** @type {number[]} global time at each segment index 0..n-1 (part boundary floor for TTS lookahead). */
+      this._segmentGlobalStart = [];
+      this._recomputeSegmentGlobalStarts();
       this.timeline = buildPlaybackTimeline(this._segments, WP);
       this.playedKeys = new Set();
+    }
+
+    _recomputeSegmentGlobalStarts() {
+      const segs = this._segments;
+      const WP = this._WP;
+      const arr = [];
+      for (let si = 0; si < segs.length; si++) {
+        arr.push(WP.snapTime(WP.cumulativeSegmentStart(segs, si)));
+      }
+      this._segmentGlobalStart = arr;
     }
 
     /** Replace workout data and rebuild the timeline. */
     rebuild(segments) {
       this._segments = Array.isArray(segments) ? segments : [];
+      this._recomputeSegmentGlobalStarts();
       this.timeline = buildPlaybackTimeline(this._segments, this._WP);
       this.playedKeys.clear();
     }
@@ -175,8 +209,18 @@
 
       for (let i = 0; i < this.timeline.length; i++) {
         const ev = this.timeline[i];
-        /* TTS fires early to compensate for synthesis latency; other lanes fire at exact time. */
-        const effectiveStart = ev.lane === "tts" ? ev.globalStart - TTS_LOOKAHEAD_SEC : ev.globalStart;
+        /* TTS fires early to compensate for synthesis latency; other lanes fire at exact time.
+         * Never schedule before this segment's global start — otherwise part-opening TTS would
+         * sit entirely before the first playback tick and never fire. */
+        let effectiveStart = ev.globalStart;
+        if (ev.lane === "tts") {
+          const segIdx = ev.segmentIndex;
+          const floor =
+            segIdx != null && segIdx >= 0 && segIdx < this._segmentGlobalStart.length
+              ? this._segmentGlobalStart[segIdx]
+              : 0;
+          effectiveStart = this._WP.snapTime(Math.max(ev.globalStart - TTS_LOOKAHEAD_SEC, floor));
+        }
         /* Inclusive of `lo` so cues exactly at the playhead edge fire; `playedKeys` prevents double-fire. */
         if (effectiveStart < lo - 1e-9) continue;
         if (effectiveStart > hi + 1e-9) continue;

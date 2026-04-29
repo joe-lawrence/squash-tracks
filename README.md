@@ -12,6 +12,8 @@ Rep timeline **editor** (`editor.html`), standalone **workout player** (`player.
 
 That document defines shell vs engine split, guardrails, and phased audio goals so sessions do not re-decide architecture ad hoc.
 
+For AI-authored ghosting workouts, also follow [`GHOSTING-RULES.md`](GHOSTING-RULES.md) for movement, timing, and JSON-generation constraints.
+
 ## Quick links
 
 | Page | Role |

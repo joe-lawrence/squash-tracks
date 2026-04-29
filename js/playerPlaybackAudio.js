@@ -23,7 +23,7 @@
 
     let ctx = null;
     const activeNodes = [];
-    /** @type {{ text: string, slot: "a"|"b", globalStartSec: number, sourceId?: string }[]} */
+    /** @type {{ text: string, slot: "a"|"b", globalStartSec: number, sourceId?: string, ttsRate?: number, ttsPitch?: number }[]} */
     const ttsQueue = [];
     let ttsGen = 0;
     /** Authoritative workout clock (sec) for TTS catch-up / stale pruning — set each `executeCommands`. */
@@ -279,8 +279,8 @@
         performTtsHealthCheck(syn);
 
         const u = new SpeechSynthesisUtterance(item.text);
-        u.rate = 1;
-        u.pitch = 1;
+        u.rate = Number.isFinite(item.ttsRate) ? item.ttsRate : 1;
+        u.pitch = Number.isFinite(item.ttsPitch) ? item.ttsPitch : 1;
         if (typeof opts.getAudioDuckingOn === "function" && opts.getAudioDuckingOn()) {
           try {
             u.volume = 0.85;
@@ -505,7 +505,7 @@
      * @param {number} globalStartSec — workout timeline start for this cue (catch-up / stale logic).
      * @param {string|undefined} sourceId
      */
-    function speakTts(text, slot, globalStartSec, sourceId) {
+    function speakTts(text, slot, globalStartSec, sourceId, ttsRate, ttsPitch) {
       const syn = global.speechSynthesis;
       if (!syn) {
         return;
@@ -522,7 +522,12 @@
           ? globalStartSec
           : lastWorkoutTimeSec;
       const sid = sourceId != null ? String(sourceId) : "";
-      ttsQueue.push({ text: t, slot: s, globalStartSec: g, sourceId: sid });
+      const item = { text: t, slot: s, globalStartSec: g, sourceId: sid };
+      const r = Number(ttsRate);
+      const p = Number(ttsPitch);
+      if (Number.isFinite(r)) item.ttsRate = Math.min(2.5, Math.max(0.25, r));
+      if (Number.isFinite(p)) item.ttsPitch = Math.min(2, Math.max(0, p));
+      ttsQueue.push(item);
     }
 
     function cancelAll() {
@@ -556,7 +561,9 @@
             cmd.text,
             cmd.voiceSlot === "b" ? "b" : "a",
             typeof gs === "number" && Number.isFinite(gs) ? gs : lastWorkoutTimeSec,
-            cmd.sourceId
+            cmd.sourceId,
+            cmd.ttsRate,
+            cmd.ttsPitch
           );
         }
       }

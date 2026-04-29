@@ -2802,6 +2802,16 @@
           <div class="field">
             <label for="editTtsSpeech">Speech</label>
             <textarea id="editTtsSpeech" rows="5" maxlength="8000" autocomplete="off" spellcheck="true"></textarea>
+            <div class="field-row" style="display: flex; gap: 0.75rem; flex-wrap: wrap; margin-top: 0.35rem">
+              <div class="field" style="flex: 1; min-width: 7rem">
+                <label for="editTtsRate">TTS rate</label>
+                <input type="number" id="editTtsRate" min="0.25" max="2.5" step="0.05" value="1" />
+              </div>
+              <div class="field" style="flex: 1; min-width: 7rem">
+                <label for="editTtsPitch">TTS pitch</label>
+                <input type="number" id="editTtsPitch" min="0" max="2" step="0.05" value="1" />
+              </div>
+            </div>
           </div>
         </div>
         <div id="clipTabEffect" class="clip-modal-tab-panel" role="tabpanel" hidden>
@@ -3760,6 +3770,8 @@
       const editTtsVoiceSlot = document.getElementById("editTtsVoiceSlot");
       const editMilestone = document.getElementById("editMilestone");
       const editTtsSpeech = document.getElementById("editTtsSpeech");
+      const editTtsRate = document.getElementById("editTtsRate");
+      const editTtsPitch = document.getElementById("editTtsPitch");
 
       const CLIP_MODAL_TABS_BY_LANE = {
         text: ["name", "timing", "display", "link"],
@@ -4048,6 +4060,8 @@
           editCueBody: "display",
           editTtsVoiceSlot: "voice",
           editTtsSpeech: "voice",
+          editTtsRate: "voice",
+          editTtsPitch: "voice",
           editSfxKind: "effect",
           editSfxSplitSpeed: "effect",
           editVfxEffectType: "effect",
@@ -4119,7 +4133,7 @@
           "editStart", "editDuration", "editMilestone",
           "clipLucideIconSearch",
           "editCueHeading", "editCueBody",
-          "editTtsVoiceSlot", "editTtsSpeech",
+          "editTtsVoiceSlot", "editTtsSpeech", "editTtsRate", "editTtsPitch",
           "editSfxKind",
           "editSfxSplitSpeed",
           "editVfxEffectType", "editVfxBgMode", "editVfxRepeat",
@@ -4563,6 +4577,56 @@
           .slice(0, TEXT_CUE_HEADING_BODY_MAX);
       }
 
+      function readOptionalTtsRate(raw) {
+        const n = Number(raw);
+        if (!Number.isFinite(n)) return null;
+        const x = Math.round(Math.min(2.5, Math.max(0.25, n)) * 100) / 100;
+        if (Math.abs(x - 1) < 1e-6) return null;
+        return x;
+      }
+
+      function readOptionalTtsPitch(raw) {
+        const n = Number(raw);
+        if (!Number.isFinite(n)) return null;
+        const x = Math.round(Math.min(2, Math.max(0, n)) * 100) / 100;
+        if (Math.abs(x - 1) < 1e-6) return null;
+        return x;
+      }
+
+      function applyTtsProsodyFieldsToEvent(ev, rateRaw, pitchRaw) {
+        const tr = readOptionalTtsRate(rateRaw);
+        const tp = readOptionalTtsPitch(pitchRaw);
+        if (tr != null) ev.ttsRate = tr;
+        else delete ev.ttsRate;
+        if (tp != null) ev.ttsPitch = tp;
+        else delete ev.ttsPitch;
+      }
+
+      function fillTtsProsodyFormFromEvent(ev) {
+        if (editTtsRate) {
+          editTtsRate.value = String(
+            ev && ev.ttsRate != null && Number.isFinite(Number(ev.ttsRate)) ? Number(ev.ttsRate) : 1
+          );
+        }
+        if (editTtsPitch) {
+          editTtsPitch.value = String(
+            ev && ev.ttsPitch != null && Number.isFinite(Number(ev.ttsPitch)) ? Number(ev.ttsPitch) : 1
+          );
+        }
+      }
+
+      function effectiveTtsRate(ev) {
+        if (!ev) return 1;
+        const tr = readOptionalTtsRate(ev.ttsRate != null ? ev.ttsRate : ev.rate);
+        return tr != null ? tr : 1;
+      }
+
+      function effectiveTtsPitch(ev) {
+        if (!ev) return 1;
+        const tp = readOptionalTtsPitch(ev.ttsPitch != null ? ev.ttsPitch : ev.pitch);
+        return tp != null ? tp : 1;
+      }
+
       function normalizeCueLucideIcon(raw) {
         if (raw == null) return "";
         const t = String(raw)
@@ -4624,6 +4688,10 @@
           out.voiceSlot = String(e.voiceSlot || "").toLowerCase() === "b" ? "b" : "a";
           const sp = normalizeTtsSpeech(e.speech);
           if (sp) out.speech = sp;
+          const tr = readOptionalTtsRate(e.ttsRate != null ? e.ttsRate : e.rate);
+          const tp = readOptionalTtsPitch(e.ttsPitch != null ? e.ttsPitch : e.pitch);
+          if (tr != null) out.ttsRate = tr;
+          if (tp != null) out.ttsPitch = tp;
           if (e.linkedTextElementId != null && String(e.linkedTextElementId).trim()) {
             out.linkedTextElementId = String(e.linkedTextElementId).trim().slice(0, 80);
           }
@@ -7547,6 +7615,10 @@
               o.voiceSlot = ev.voiceSlot === "b" ? "b" : "a";
               const sp = normalizeTtsSpeech(ev.speech);
               if (sp) o.speech = sp;
+              const tr = readOptionalTtsRate(ev.ttsRate != null ? ev.ttsRate : ev.rate);
+              const tp = readOptionalTtsPitch(ev.ttsPitch != null ? ev.ttsPitch : ev.pitch);
+              if (tr != null) o.ttsRate = tr;
+              if (tp != null) o.ttsPitch = tp;
             }
             if (ev.lane === "vfx") {
               o.vfxKind = "bg_fade";
@@ -7611,6 +7683,10 @@
                 o.voiceSlot = String(e.voiceSlot || "").toLowerCase() === "b" ? "b" : "a";
                 const sp = normalizeTtsSpeech(e.speech);
                 if (sp) o.speech = sp;
+                const tr = readOptionalTtsRate(e.ttsRate != null ? e.ttsRate : e.rate);
+                const tp = readOptionalTtsPitch(e.ttsPitch != null ? e.ttsPitch : e.pitch);
+                if (tr != null) o.ttsRate = tr;
+                if (tp != null) o.ttsPitch = tp;
               }
               if (cat === "vfx") {
                 o.vfxKind = "bg_fade";
@@ -8024,6 +8100,8 @@
         if (cat === "tts" && editTtsVoiceSlot) {
           editTtsVoiceSlot.value = ev.voiceSlot === "b" ? "b" : "a";
         }
+        if (cat === "tts") fillTtsProsodyFormFromEvent(ev);
+        else fillTtsProsodyFormFromEvent(null);
         if (cat === "text" && editCueHeading && editCueBody) {
           editCueHeading.value = ev.heading != null ? String(ev.heading) : "";
           editCueBody.value = ev.body != null ? String(ev.body) : "";
@@ -8273,6 +8351,10 @@
                   o.voiceSlot = String(e.voiceSlot || "").toLowerCase() === "b" ? "b" : "a";
                   const sp = normalizeTtsSpeech(e.speech);
                   if (sp) o.speech = sp;
+                  const tr = readOptionalTtsRate(e.ttsRate != null ? e.ttsRate : e.rate);
+                  const tp = readOptionalTtsPitch(e.ttsPitch != null ? e.ttsPitch : e.pitch);
+                  if (tr != null) o.ttsRate = tr;
+                  if (tp != null) o.ttsPitch = tp;
                 }
                 if (cat === "vfx") {
                   o.vfxKind = "bg_fade";
@@ -8444,6 +8526,10 @@
             o.voiceSlot = ev.voiceSlot === "b" ? "b" : "a";
             const sp = normalizeTtsSpeech(ev.speech);
             if (sp) o.speech = sp;
+            const tr = readOptionalTtsRate(ev.ttsRate != null ? ev.ttsRate : ev.rate);
+            const tp = readOptionalTtsPitch(ev.ttsPitch != null ? ev.ttsPitch : ev.pitch);
+            if (tr != null) o.ttsRate = tr;
+            if (tp != null) o.ttsPitch = tp;
           }
           const nm = String(ev.name || "").trim();
           if (nm) o.name = nm.slice(0, 48);
@@ -8687,6 +8773,10 @@
               o.voiceSlot = item.voiceSlot === "b" ? "b" : "a";
               const sp = normalizeTtsSpeech(item.speech);
               if (sp) o.speech = sp;
+              const tr = readOptionalTtsRate(item.ttsRate != null ? item.ttsRate : item.rate);
+              const tp = readOptionalTtsPitch(item.ttsPitch != null ? item.ttsPitch : item.pitch);
+              if (tr != null) o.ttsRate = tr;
+              if (tp != null) o.ttsPitch = tp;
             }
             if (item.lane === "text") {
               const hb = normalizeTextCuePresentationFields(item.heading, item.body);
@@ -8847,6 +8937,12 @@
             ev.voiceSlot = p.voiceSlot === "b" ? "b" : "a";
             const sp = normalizeTtsSpeech(p.speech);
             if (sp) ev.speech = sp;
+            const tr = readOptionalTtsRate(p.ttsRate != null ? p.ttsRate : p.rate);
+            const tp = readOptionalTtsPitch(p.ttsPitch != null ? p.ttsPitch : p.pitch);
+            if (tr != null) ev.ttsRate = tr;
+            else delete ev.ttsRate;
+            if (tp != null) ev.ttsPitch = tp;
+            else delete ev.ttsPitch;
           }
           if (p.lane === "vfx") {
             ev.vfxKind = "bg_fade";
@@ -10837,6 +10933,19 @@
           newVoice = vs === "b" ? "b" : "a";
         }
 
+        let ttsRateGroupApply = false;
+        let ttsRateGroupVal = null;
+        if (lane === "tts" && dirty.has("editTtsRate") && editTtsRate) {
+          ttsRateGroupApply = true;
+          ttsRateGroupVal = readOptionalTtsRate(editTtsRate.value);
+        }
+        let ttsPitchGroupApply = false;
+        let ttsPitchGroupVal = null;
+        if (lane === "tts" && dirty.has("editTtsPitch") && editTtsPitch) {
+          ttsPitchGroupApply = true;
+          ttsPitchGroupVal = readOptionalTtsPitch(editTtsPitch.value);
+        }
+
         let newLucide = null;
         if (dirty.has("clipLucideIconSearch")) {
           newLucide = readClipLucideIconFormValue();
@@ -10912,6 +11021,15 @@
 
           if (newVoice !== null && ev.lane === "tts") {
             ev.voiceSlot = newVoice;
+          }
+
+          if (ttsRateGroupApply && ev.lane === "tts") {
+            if (ttsRateGroupVal != null) ev.ttsRate = ttsRateGroupVal;
+            else delete ev.ttsRate;
+          }
+          if (ttsPitchGroupApply && ev.lane === "tts") {
+            if (ttsPitchGroupVal != null) ev.ttsPitch = ttsPitchGroupVal;
+            else delete ev.ttsPitch;
           }
 
           if (newLucide !== null) {
@@ -11007,6 +11125,31 @@
           editTtsVoiceSlot.value = uniqS == null ? "__mixed__" : uniqS;
         }
 
+        if (lane === "tts") {
+          const rates = refs.map(({ ev }) => effectiveTtsRate(ev));
+          const uniqRate = rates.every((x) => Math.abs(x - rates[0]) < 1e-6) ? rates[0] : null;
+          if (editTtsRate) {
+            if (uniqRate == null) {
+              editTtsRate.value = "";
+              editTtsRate.placeholder = "Mixed…";
+            } else {
+              editTtsRate.placeholder = "";
+              editTtsRate.value = String(uniqRate);
+            }
+          }
+          const pitches = refs.map(({ ev }) => effectiveTtsPitch(ev));
+          const uniqPitch = pitches.every((x) => Math.abs(x - pitches[0]) < 1e-6) ? pitches[0] : null;
+          if (editTtsPitch) {
+            if (uniqPitch == null) {
+              editTtsPitch.value = "";
+              editTtsPitch.placeholder = "Mixed…";
+            } else {
+              editTtsPitch.placeholder = "";
+              editTtsPitch.value = String(uniqPitch);
+            }
+          }
+        }
+
         const speechWrap = editTtsSpeech ? editTtsSpeech.closest(".field") : null;
         if (speechWrap) speechWrap.hidden = lane === "tts";
 
@@ -11088,7 +11231,9 @@
         clearAllFieldDirty();
 
         const groupMarkIds = ["editCueName", "editMilestone", "clipLucideIconSearch"];
-        if (lane === "tts") groupMarkIds.push("editTtsVoiceSlot");
+        if (lane === "tts") {
+          groupMarkIds.push("editTtsVoiceSlot", "editTtsRate", "editTtsPitch");
+        }
         if (lane === "sfx") {
           groupMarkIds.push("editSfxKind");
           groupMarkIds.push("editSfxSplitSpeed");
@@ -11318,6 +11463,8 @@
         if (ev.lane === "tts" && editTtsVoiceSlot) {
           editTtsVoiceSlot.value = ev.voiceSlot === "b" ? "b" : "a";
         }
+        if (ev.lane === "tts") fillTtsProsodyFormFromEvent(ev);
+        else fillTtsProsodyFormFromEvent(null);
         if (ev.lane === "text" && editCueHeading && editCueBody) {
           editCueHeading.value = ev.heading != null ? String(ev.heading) : "";
           editCueBody.value = ev.body != null ? String(ev.body) : "";
@@ -11449,6 +11596,14 @@
         clipModal.classList.remove("open");
         clipModal.setAttribute("aria-hidden", "true");
         if (editTtsSpeech) editTtsSpeech.value = "";
+        if (editTtsRate) {
+          editTtsRate.placeholder = "";
+          editTtsRate.value = "1";
+        }
+        if (editTtsPitch) {
+          editTtsPitch.placeholder = "";
+          editTtsPitch.value = "1";
+        }
         if (editCueHeading) editCueHeading.value = "";
         if (editCueBody) editCueBody.value = "";
         if (editVfxCustomColorWrap) editVfxCustomColorWrap.hidden = true;
@@ -11614,7 +11769,16 @@
         });
       }
 
-      bindEnterKeyAppliesPrimary("clipModalSave", editCueName, editStart, editDuration, editVfxRepeat);
+      bindEnterKeyAppliesPrimary(
+        "clipModalSave",
+        editCueName,
+        editStart,
+        editDuration,
+        editVfxRepeat,
+        editTtsSpeech,
+        editTtsRate,
+        editTtsPitch
+      );
 
       initLucideCueIconPickerUi();
 
@@ -12042,6 +12206,9 @@
             if (sp) ev.speech = sp;
             else delete ev.speech;
           }
+          if (cat === "tts") {
+            applyTtsProsodyFieldsToEvent(ev, editTtsRate && editTtsRate.value, editTtsPitch && editTtsPitch.value);
+          }
           const nm = editCueName ? String(editCueName.value || "").trim().slice(0, 48) : "";
           if (nm) ev.name = nm;
           else delete ev.name;
@@ -12166,6 +12333,9 @@
           const sp = normalizeTtsSpeech(editTtsSpeech.value);
           if (sp) ev.speech = sp;
           else delete ev.speech;
+        }
+        if (ev.lane === "tts") {
+          applyTtsProsodyFieldsToEvent(ev, editTtsRate && editTtsRate.value, editTtsPitch && editTtsPitch.value);
         }
         if (ev.lane === "vfx") applyVfxEditorToEvent(ev);
         if (ev.lane === "vfx") {
