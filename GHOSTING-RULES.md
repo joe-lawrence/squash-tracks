@@ -83,6 +83,7 @@ Heuristic defaults (tighten or replace with your own matrix later):
 | Incoming ghost shot (family) | Prefer spot depths | Avoid as the default next station |
 |------------------------------|--------------------|-----------------------------------|
 | Lob, Cross Lob | `4`, `5` | `1` (unless the drill is explicitly a rare front chase on a dying balloon) |
+| **Weak lob** (ghost or user) | **`4`** (good: softer arc than full **Lob**), also `3` when you mean mid-court float | full **`5`** as the default “good” (treat **`5`** as **bad** / full balloon for **Weak lob** per shot table) |
 | Boast, Volley Boast | `1`, `2`, `3` | `5` right after a standard boast |
 | Kill, Cross Kill, Volley Kill, Volley Cross Kill | `2`, `3` | `4`, `5` unless you mean deep recovery after a loose attack |
 | Volley Cross Drive, Volley Drive, Drive, Cross Drive | `3`, `4`, `5` (also `2` when the ball dies mid) | `1` as a lazy default for pressured volley-drive patterns |
@@ -109,7 +110,7 @@ Offsets are **seconds from the start of that beat** on the rep timeline (adjust 
 
 For multiple beats in one rep, let **`B[k]`** be the beat base so Voice A starts at **`B[k] + 0.2`**. **`shot`** ends at **`B[k] + 3.8`**.
 
-- **Tight uniform cadence (`samples/ghosting-10-shot.json`):** use the **opening** row for **every** beat, and set **`B[k+1] = B[k] + 4.9`** for **`k = 0 … n−2`**, i.e. **`4.9` s** between consecutive **`shot`** SFX starts (**`3.8 + 1.3 − 0.2`** from **`B[k]`** to **`B[k+1]`**). This keeps shot-to-shot spacing ~**`4.5–5.0` s** without stacking errors. **`intervalSec`** / **`defaultIntervalSec`** must cover the last cue end plus a small tail.
+- **Tight cadence (`samples/ghosting-10-shot.json`):** use the **opening** row for **every** beat. **Hard** uses **`B[k+1] = B[k] + 4.9`** (**`4.9` s** between consecutive **`shot`** SFX starts — same as **`3.8 + 1.3 − 0.2`** on the beat base). **Medium** / **Easy** use the **same intra-beat offsets** but a **longer beat stride** (**`5.0` s** / **`5.1` s`** on the base → **lower shot-sequence frequency**). **`intervalSec`** / **`defaultIntervalSec`** are per-segment from the last cue end plus a small tail. The sample has **three parts** (**Easy**, **Medium**, **Hard**) with the **same 10-shot pattern**; rep **`name`**s **`.Easy`**, **`.Medium`**, **`.Hard`** are **hidden** in presentation (leading **`.`**). **Easy** and **Medium** reps use **`transition`: `"manual"`** (with **`manualTransitionHeader`**) so play pauses at the end of each until the user continues; **Hard** stays automatic. Each **Ghost+loc** Voice **A** **`tts`** cue sets **`milestone`: `true`**.
 
 - **Mixed layout (`first-two.json` after beat 2):** keep beats **1–2** as the **opening** row; from **beat 3** onward use the **Default** row. Stack **`B[k+1]`** from **`shot`** end on beat **`k`** to Voice A on beat **`k+1`**: gap = **`τ(d)`** (depth of the **upcoming** spot on beat **`k+1`**). With **beat base** **`B[k]`** (Voice A at **`B[k]+0.2`**): **`B[k+1] = B[k] + τ(d_{k+1})`** for **`k ≥ 1`**, and **`B[1] = B[0] + 3.8 + 1.3 − 0.2`** as above. (Do **not** add **`3.6`** again here — that would double-count the in-beat offset from **`B[k]`** to **`shot`** and blow up the gap after beat 2.)
 
@@ -179,25 +180,78 @@ Use this model when generating shot-pattern instructions in text/TTS:
 - Court depth is integer `1..5` where:
   - `1` = front of court
   - `5` = back of court
-- A landing code without `X` (for example `5`) means same-side landing.
-- A landing code like `5X` means same depth but side swap (`L -> R` or `R -> L`).
-- `Cross` is a modifier on the base shot type.
+- A full landing token is always **`\<depth\>\<L|R\>`** (for example **`5L`**, **`2R`**). For **same-side vs cross** you may use **striker POV** (ghost row vs user row) **or**, for some tables, a **single fixed court frame** so consecutive rows chain (see **Continuous rally tables** below).
+- Shots whose name includes **`Cross`** intentionally land on the **opposite width** (switch `L` ↔ `R` at the target depth) from the striker’s side at contact.
+- **`Boast`** (and **`Volley Boast`**) behave like a **cross-court width change** for target choice even though **`Cross`** does not appear in the name — same semantics as **`Boast`** in **`ghosting-model.json`** (`"side": "cross"` on the good target).
 - `Volley` is an optional modifier for any shot and does not change side/depth legality.
 - `Volley` variants inherit the same Good/Bad/Invalid targets as their base shot (including cross side-switch rules).
 
+### Same-side vs cross-court (striker POV)
+
+- **Same-side rule:** If the shot is **not** in the **width-changing** set below, the landing **`\<depth\>\<L|R\>`** must use the **same** `L` or `R` as the striker’s contact cell (in the POV you chose for that row). Example: a straight **`Drive`** from **`5R`** stays on **`R`** at the back (**`5R`**), not **`5L`**.
+- **Width-changing shots (opposite `L`/`R` at the target depth vs striker at contact):** any canonical name starting with **`Cross`**, plus **`Volley Cross …`**, plus **`Boast`** / **`Volley Boast`** ( **`Boast` implies cross** for width even without **`Cross`** in the name).
+
+### `X` in `ghosting-model.json` vs rally tables
+
+- In **`data/ghosting-model.json`**, `"side": "cross"` with a depth encodes “good target is **opposite width** at that depth.” For tooling you may still see the shorthand suffix **`X`** in field names or comments meaning “cross side at this depth.”
+- In **human-readable rally tables** and in **destination copy** where you show a **single corner token**, **do not** write **`5X`**, **`4X`**, etc. **`X` is not a court corner** — it abbreviates “cross” in the **data model**, while the word **`Cross`** in the shot name already describes the width change. Write the **resolved** corner (for example **`Cross Drive`** from **`5L`** → destination **`5R`**).
+
+### Ghost striking cell vs user station (agreed)
+
+For **incoming ghost** balls, treat the **ghost** as the **striker** for that feed. The **user’s** destination in cues (`heading`, e.g. **`4L`**, **`5R`**) is **`\<depth\>\<L|R\>`** from the **user’s** POV (facing the front wall).
+
+**Ghost position notation (for rally tables and authoring):** always write the ghost’s **striking location** as **`\<depth\>\<L|R\>`** from the **ghost’s** POV at contact — same token shape as the user (e.g. **`5R`**, **`3L`**), not a bare **`L` / `R`**.
+
+**Default mirror (symmetrical cell at the far end):** match the user’s **receive** depth and flip only the **side letter**:
+
+- User receives at **`dL`** (depth **`d`**, side **L**) → ghost strikes from **`dR`** (same **`d`**, ghost POV **R**).
+- User receives at **`dR`** → ghost strikes from **`dL`**.
+
+So user **`4L`** ↔ ghost **`4R`**; user **`5R`** ↔ ghost **`5L`**. Adjust **`d`** only when the drill explicitly has the ghost recover shallow/deep for pressure; otherwise keep **depth aligned** so tables stay easy to read.
+
+### Mirror vs cross-court (do not conflate)
+
+Under the default mirror, the ghost’s **`dR`** cell and the user’s **`dL`** receive (or the reverse) describe the **same physical channel** from **opposite ends**. That **letter flip between POVs is not a cross-court shot** and does **not** violate the same-side rule.
+
+When you validate **same-side**, compare **striking side** and **landing side** in **one** POV (ghost POV on ghost rows, user POV on user rows), or compare **user-receive** tokens only in **user** POV.
+
+**Imported workouts:** Voice A + linked **`heading`** usually give the **user’s receive corner** (user POV). Example: ghost straight **`Drive`** from ghost **`5R`** → user **`heading`** **`5L`** is correct for movement, because **`5L`** (user) and **`5R`** (ghost) are the mirrored **same channel** — not an **`R`→`L` cross** by the ghost.
+
+### Rally tables (striker POV per row)
+
+When you build a **pattern table** with one row per shot and columns **Striking location | Shot type | Destination**:
+
+- **Ghost row:** striking and destination are both **ghost POV** (same-side rule applies in ghost POV).
+- **User row:** striking and destination are both **user POV**.
+- Use only **`dL`** / **`dR`** in the destination column, never a bare **`dX`**.
+
+### Continuous rally tables (one coordinate frame)
+
+For a **shot-by-shot** log where **every** row is one stroke in time order (alternating ghost and user, or all one player), use **one** court labelling for **Striking location** and **Destination** so the path is continuous:
+
+- **Striking location** on row **N** (for **N > 1**) must **exactly equal** **Destination location** on row **N − 1** (same string: same depth and same **`L`/`R`**). That encodes **ball / player arrival at contact** for the next stroke without a gap.
+- Often that means **fixed geometric** **`L`/`R`** (same corner label for both players, e.g. from a single diagram), **not** per-player POV with a mirror flip between consecutive rows.
+
+Per-row **same-side vs width-changing** rules still use **that row’s striker** at the **Striking location** cell for that row.
+
+**Length drives (`Drive`, `Volley Drive`):** for ghosting tables, treat **good length** as **back half** targets — typically **depth `4` or `5`** on the striker’s side (not a shallow **depth `3`** landing when stroking from **`2`** or deeper unless the drill explicitly labels a dying mid-court drive).
+
 ### Shot Constraints
+
+Depth-only shorthand in the first column means **same side as striker** at the listed depth; “cross” rows mean **opposite side** at that depth (resolve to **`dL`** or **`dR`** in prose).
 
 | Shot | Good landing spot | Bad landing spot | Allowed from depths |
 |------|-------------------|------------------|---------------------|
-| Drive | `5` | `4` | `1`, `2`, `3`, `4`, `5` |
-| Cross Drive | `5X` | `4X` | `1`, `2`, `3`, `4`, `5` |
-| Boast | `1X` | `2X` | `2`, `3`, `4`, `5` |
-| Lob | `5` | `4` | `1`, `2`, `3`, `4`, `5` |
-| Cross Lob | `5X` | `4X` | `1`, `2`, `3`, `4`, `5` |
-| Kill | `2` | `3` | `3`, `4` |
-| Cross Kill | `2X` | `3X` | `3`, `4` |
-| Drop | `1` | `2` | `1`, `2`, `3`, `4`, `5` |
-| Cross Drop | `1X` | `2X` | `1`, `2`, `3`, `4` |
+| Drive | `5` (same side) | `4` (same side) | `1`, `2`, `3`, `4`, `5` |
+| Cross Drive | `5` **opposite** side (`5R` if striker `L`) | `4` opposite | `1`, `2`, `3`, `4`, `5` |
+| Boast | `1` opposite | `2` opposite | `2`, `3`, `4`, `5` |
+| Lob | `5` (same side) | `4` (same side) | `1`, `2`, `3`, `4`, `5` |
+| Weak lob | **`4`** (same side) — softer arc, not full depth **`5`** | `5` (same side) | `1`, `2`, `3`, `4`, `5` |
+| Cross Lob | `5` opposite | `4` opposite | `1`, `2`, `3`, `4`, `5` |
+| Kill | `2` (same side) | `3` (same side) | `3`, `4` |
+| Cross Kill | `2` opposite | `3` opposite | `3`, `4` |
+| Drop | `1` (same side) | `2` (same side) | `1`, `2`, `3`, `4`, `5` |
+| Cross Drop | `1` opposite | `2` opposite | `1`, `2`, `3`, `4` |
 
 ### Good / Bad / Invalid Semantics
 
@@ -211,8 +265,25 @@ Use this model when generating shot-pattern instructions in text/TTS:
 - When a rep script names a shot, ensure target side/depth is legal for that shot and source depth.
 - Favor "good" spots for technical or quality-focused reps.
 - Use "bad" spots only when explicitly modeling weak execution, pressure, or recovery consequences.
-- For cross shots, include side-switch language in cues (for example "cross to opposite front-right, depth 1").
-- Keep notation consistent in cues and summaries (for example `Drive to R5`, `Cross Drop to L1`).
+- For cross shots, include side-switch language in cues (for example "cross to opposite back-right, depth 5") and use explicit **`dL`**/**`dR`** tokens in on-screen spots.
+- Keep notation consistent in cues and summaries (for example `Drive to 5L`, `Cross drop to 1R`).
+- **Ghost weak variants:** **`Weak lob`** is always a valid **ghost incoming** choice when building ghosting patterns (no special “only in warm-up” gate in this project). Apply the **Weak lob** row in the **Shot constraints** table (good **`4`** same side; **`5`** same side is the weak-pattern **bad** depth). If you add other **weak** ghost-only names later, document them here and in **`ghosting-model.json`** in the same edit.
+
+### AI authoring checklist (rally logic + tables)
+
+Use this as a **single** checklist when an AI generates ghosting workouts, **rally tables**, or validates sequences (everything below is spelled out in more detail earlier in this file or in **`data/ghosting-model.json`**):
+
+| Topic | Rule |
+|-------|------|
+| **Source of truth** | **`ghosting-model.json`** wins on conflicts; update this **`.md`** in the same edit when the model changes. |
+| **Width-changing shots** | **`Cross …`**, **`Volley Cross …`**, **`Boast`** / **`Volley Boast`** — landing **width** is **opposite** striker at contact for the target depth; all others keep **same** `L`/`R`. |
+| **Human tokens** | Use only **`dL`** / **`dR`** in tables and user-facing headings — **never** **`dX`** as a literal corner ( **`X`** is model shorthand only). |
+| **Mirror vs cross** | Default **ghost strike ↔ user receive** mirror is **not** a cross-court shot; do not flag it as an `L`→`R` violation across POVs (see **Mirror vs cross-court**). |
+| **Rally table (per-row POV)** | Optional layout: ghost rows **ghost POV**, user rows **user POV**; same-side / width-changing per that row’s striker. |
+| **Continuous shot log** | One fixed court frame; **`Striking` on row *N*** = **`Destination` on row *N*−1** (exact string); same-side / width-changing per row striker (see **Continuous rally tables**). |
+| **Length drives** | **`Drive`** / **`Volley Drive`**: prefer **depth `4` or `5`** on the striker’s side for **length**; avoid shallow **`3`** from **`2`** or deeper unless the drill names a dying mid-court drive. |
+| **Weak lob** | Good **depth `4`** same side, not full **`5`**; **ghost may always use `Weak lob`** as an incoming feed (see **Ghost weak variants** above). |
+| **JSON workouts** | **`heading`** for the ghost phase is usually **user receive** (user POV); Voice A wording may still use that convention (see **Imported workouts** under **Mirror vs cross-court**). |
 
 ## Shot Transition Weights (Player-To-Ghost)
 
