@@ -1,6 +1,6 @@
 # Ghosting Workout Generation Rules
 
-Use this document when an AI creates a squash ghosting workout for this project.
+Use this document when an AI (or developer) creates or validates squash ghosting content for this project. **This is the only ghosting rules file** in the repo; do not maintain a separate draft.
 
 ## Canonical Data Source
 
@@ -8,6 +8,14 @@ Use this document when an AI creates a squash ghosting workout for this project.
 - This markdown file is the human-readable explanation of that same model.
 - If shot constraints, semantics, canonical shot names, or transition weights change, update both files in the same edit.
 - On any conflict, treat `data/ghosting-model.json` as authoritative for generation/validation logic, then reconcile this doc to match.
+
+## Mandatory generation contract
+
+Read **`rules.generationContract`** in **`data/ghosting-model.json`**. In short:
+
+- **`shotConstraints`** — legal shots and good landing corners.
+- **`targetNotation.ballSideContinuity`** — consecutive beats: ghost landing = user `heading`; ghost striker = prior user landing; width flips only on **`Cross…`**, **`Volley Cross…`**, **`Boast`**, **`Volley Boast`**.
+- **`transitions`** — **must** drive **player reply** choice in any **patterned** sequence (multi-beat rep, rally table, ordered list): map prior user shot to base name (strip leading **`Volley `** per JSON), weight replies by matrix values among legally allowed options. **Do not** ignore the matrix with uniform random picks unless the user explicitly requests unconstrained randomness.
 
 ## Goal
 
@@ -91,30 +99,29 @@ Heuristic defaults (tighten or replace with your own matrix later):
 
 These are **authoring** guides for ghosting spots, not extra columns on the Good/Bad landing table.
 
-### Phase order inside one beat (illustrative timings)
+### Beat timing model (per beat)
 
-Offsets are **seconds from the start of that beat** on the rep timeline (adjust per drill). **`τ(depth)`** from **Time to reach spot by target depth** is **only** for **repositioning after contact** (see stacking below). **Inside** one beat, ghost → split → shot use **fixed** offsets; **Voice B** timing uses one of two patterns below.
+Offsets are **seconds from beat base `B[k]`** on the rep timeline (adjust per drill). **`τ(depth)`** (below) applies **only** to the gap **after** **`shot`** ends until the **next** Voice A — not inside the beat.
 
-**Default (post-shot Voice B, e.g. beat 3 onward in `first-two.json`):** destination text spans through **`shot`** + **`0.2` s**; Voice B names the reply **after** contact.
+**Fixed SFX anchors (do not drift these without intent):**
 
-| Phase | `start` (from beat base) | `duration` | Notes |
-|-------|--------------------------|------------|--------|
-| Ghost + location TTS (Voice A) | `0.2` | `1.1` | Example `speech`: `Drive to 5L`. Optional per-cue **`ttsRate`** / **`ttsPitch`** (see architecture doc). |
-| Destination `text` (linked to A) | `0.2` | **`3.8`** | Through split + shot + **`0.2`** s gap until Voice B. |
-| Split SFX | `3.1` | `0.5` | `sfxSplitSpeed` from table below. |
-| Shot SFX | `3.6` | `0.2` | **`shot` end** = **`3.8`**. |
-| User shot TTS (Voice B) | `4.0` | `1.1` | **`0.2` s** after `shot` ends. |
-| User shot `text` (linked to B) | `4.0` | `1.1` | **`body`** = user shot. |
+| Event | Start | Duration |
+|-------|-------|----------|
+| `split` SFX | `B[k] + 3.1` | `0.5` |
+| `shot` SFX | `B[k] + 3.6` | `0.2` (ends at `B[k] + 3.8`) |
 
-**Opening / tight cadence (beats 1–2 in `first-two.json`, and **all** beats in `samples/ghosting-10-shot.json`):** same split / **`shot`** times (**`3.1`** / **`3.6`**), but destination text **`duration` `1.8`**, and Voice B + user **`text`** start at **`2.0`** ( **`1.8` s** after Voice A start) so the player hears the reply **before** split/shot. With this layout, **`shot`** still ends at **`B[k] + 3.8`**, but Voice B ends at **`B[k] + 3.1`**, so the next beat’s Voice A can follow about **`1.3` s** after contact (same tight gap as **`first-two`** beat 1 → 2).
+**Flexible TTS:** place Voice A (ghost + target) and Voice B (player reply) where needed; link `tts` ↔ `text` with `linkedTextElementId` / `linkedTtsElementId` and `linkedSyncStart: true`.
 
-For multiple beats in one rep, let **`B[k]`** be the beat base so Voice A starts at **`B[k] + 0.2`**. **`shot`** ends at **`B[k] + 3.8`**.
+**Common Voice B placements:**
 
-- **Tight cadence (`samples/ghosting-10-shot.json`):** use the **opening** row for **every** beat. **Hard** uses **`B[k+1] = B[k] + 4.9`** (**`4.9` s** between consecutive **`shot`** SFX starts — same as **`3.8 + 1.3 − 0.2`** on the beat base). **Medium** / **Easy** use the **same intra-beat offsets** but a **longer beat stride** (**`5.0` s** / **`5.1` s`** on the base → **lower shot-sequence frequency**). **`intervalSec`** / **`defaultIntervalSec`** are per-segment from the last cue end plus a small tail. The sample has **three parts** (**Easy**, **Medium**, **Hard**) with the **same 10-shot pattern**; rep **`name`**s **`.Easy`**, **`.Medium`**, **`.Hard`** are **hidden** in presentation (leading **`.`**). **Easy** and **Medium** reps use **`transition`: `"manual"`** (with **`manualTransitionHeader`**) so play pauses at the end of each until the user continues; **Hard** stays automatic. Each **Ghost+loc** Voice **A** **`tts`** cue sets **`milestone`: `true`**.
+| Mode | Voice B start | When to use |
+|------|-----------------|-------------|
+| `post-contact` | `B[k] + 4.0` | Reply after contact (`0.2` s after `shot` ends); destination `text` through `shot` + gap often **`duration` `3.8`** from Voice A `start`. |
+| `pre-contact` | `B[k] + 2.0` | Reply while moving; destination `text` **`duration` `1.8`** from Voice A `start`; `shot` still ends at `B[k] + 3.8`. |
 
-- **Mixed layout (`first-two.json` after beat 2):** keep beats **1–2** as the **opening** row; from **beat 3** onward use the **Default** row. Stack **`B[k+1]`** from **`shot`** end on beat **`k`** to Voice A on beat **`k+1`**: gap = **`τ(d)`** (depth of the **upcoming** spot on beat **`k+1`**). With **beat base** **`B[k]`** (Voice A at **`B[k]+0.2`**): **`B[k+1] = B[k] + τ(d_{k+1})`** for **`k ≥ 1`**, and **`B[1] = B[0] + 3.8 + 1.3 − 0.2`** as above. (Do **not** add **`3.6`** again here — that would double-count the in-beat offset from **`B[k]`** to **`shot`** and blow up the gap after beat 2.)
+**Samples:** `samples/ghosting-10-shot.json` uses **pre-contact** Voice B on every beat; **Hard** uses **`B[k+1] = B[k] + 4.9`** between consecutive **`shot`** starts; **Medium** / **Easy** add **`0.1` s** / **`0.2` s** to that stride; **Easy** and **Medium** use **`transition`: `"manual"`** with **`manualTransitionHeader`**; **Hard** is automatic; each Ghost+loc Voice A sets **`milestone`: `true`**. `first-two.json` mixes **pre-contact** (beats 1–2) then **post-contact** (beat 3+), with **`B[1] = B[0] + 3.8 + 1.3 − 0.2`** from beat 0’s base (do **not** double-count the in-beat offset to `shot` when stacking **`τ`**).
 
-**Beat tail (default row):** through Voice B ends at **`B[k] + 5.1`**. **Beat tail (opening row):** last audio in the beat is **`shot`** end at **`B[k] + 3.8`** (Voice B already finished at **`B[k] + 3.1`**).
+**Beat tail:** With **post-contact** Voice B, audio through Voice B often ends around **`B[k] + 5.1`**. With **pre-contact**, last SFX in the beat is **`shot`** end at **`B[k] + 3.8`** (Voice B already ended at **`B[k] + 3.1`**).
 
 ### Time to reach spot by target depth
 
@@ -209,6 +216,8 @@ For **incoming ghost** balls, treat the **ghost** as the **striker** for that fe
 
 So user **`4L`** ↔ ghost **`4R`**; user **`5R`** ↔ ghost **`5L`**. Adjust **`d`** only when the drill explicitly has the ghost recover shallow/deep for pressure; otherwise keep **depth aligned** so tables stay easy to read.
 
+**Sequential beats (workout JSON):** when chaining beats, **ghost strike position** for the next beat equals the **landing** of the **user’s previous reply** in the **same fixed court** as `heading` tokens — see **Ball-side continuity** below. Do not use mirror letter-flip alone to infer ghost position across beats.
+
 ### Mirror vs cross-court (do not conflate)
 
 Under the default mirror, the ghost’s **`dR`** cell and the user’s **`dL`** receive (or the reverse) describe the **same physical channel** from **opposite ends**. That **letter flip between POVs is not a cross-court shot** and does **not** violate the same-side rule.
@@ -216,6 +225,27 @@ Under the default mirror, the ghost’s **`dR`** cell and the user’s **`dL`** 
 When you validate **same-side**, compare **striking side** and **landing side** in **one** POV (ghost POV on ghost rows, user POV on user rows), or compare **user-receive** tokens only in **user** POV.
 
 **Imported workouts:** Voice A + linked **`heading`** usually give the **user’s receive corner** (user POV). Example: ghost straight **`Drive`** from ghost **`5R`** → user **`heading`** **`5L`** is correct for movement, because **`5L`** (user) and **`5R`** (ghost) are the mirrored **same channel** — not an **`R`→`L` cross** by the ghost.
+
+### Ball-side continuity (sequential beats)
+
+Authoritative rules: **`data/ghosting-model.json`** → **`rules.targetNotation.ballSideContinuity`**.
+
+Use **one fixed court** for width letters **`L`** and **`R`** (ball and striker at contact and at landing).
+
+1. **Striker width:** Every shot (ghost or player) is played from a striker width **`L`** or **`R`** in that frame.
+
+2. **Ball landing width after the shot:**
+   - Names starting with **`Cross`** or **`Volley Cross`** may switch ball width: **`L` → `R`** or **`R` → `L`**.
+   - **`Boast`** and **`Volley Boast`** imply the same width switch (**treat as cross** for ball width).
+   - **All other** canonical names keep ball width unchanged: **`L` → `L`**, **`R` → `R`**. They **cannot** switch sides by this rule.
+
+3. **Beat linkage (ghosting JSON):**
+   - **User receive** on a beat (destination **`heading`**) = **landing target** of the **ghost’s** shot on that beat.
+   - **Ghost strike position** on beat *k* (*k* > 1) = **landing target** of the **player’s** shot on beat *k* − 1 (same fixed court). Beat 1: set initial ghost feed and user receive so ghost striker cell and first landing match **`shotConstraints`**.
+
+4. **Depth:** Full corners (**`dL`** / **`dR`**) still follow **`shotConstraints`** (good/bad, allowed striker depths). **`ballSideContinuity`** governs **width** through the chain; do not pair a non–width-changing shot with an impossible **`L`/`R`** jump relative to the prior landing.
+
+5. **Mirror vs this model:** Default **mirror** (user **`dL`** ↔ ghost **`dR`**) explains **same channel** for a **single** incoming feed. For **consecutive beats**, apply **`ballSideContinuity.beatLinkage`** first; mirror alone does **not** replace prior-shot landing.
 
 ### Rally tables (striker POV per row)
 
@@ -284,10 +314,12 @@ Use this as a **single** checklist when an AI generates ghosting workouts, **ral
 | **Length drives** | **`Drive`** / **`Volley Drive`**: prefer **depth `4` or `5`** on the striker’s side for **length**; avoid shallow **`3`** from **`2`** or deeper unless the drill names a dying mid-court drive. |
 | **Weak lob** | Good **depth `4`** same side, not full **`5`**; **ghost may always use `Weak lob`** as an incoming feed (see **Ghost weak variants** above). |
 | **JSON workouts** | **`heading`** for the ghost phase is usually **user receive** (user POV); Voice A wording may still use that convention (see **Imported workouts** under **Mirror vs cross-court**). |
+| **Ball-side chain** | User **`heading`** = ghost landing; ghost striker = prior user landing; **`L`/`R`** width flips only on **`Cross…`**, **`Volley Cross…`**, **`Boast`**, **`Volley Boast`**; see **Ball-side continuity** and **`ballSideContinuity`** in **`ghosting-model.json`**. |
+| **User reply weights** | **`transitions`** matrix **must** govern player reply choice in patterned sequences (strip **`Volley `** for lookup per JSON); see **`rules.generationContract`** and **Shot Transition Weights**. |
 
 ## Shot Transition Weights (Player-To-Ghost)
 
-Use this model to choose likely reply shots in patterned ghosting sequences.
+**Mandatory for patterned sequences:** when you choose each **player reply** in a multi-beat ghosting rep, rally table, or ordered shot list, you **must** use **`transitions`** in **`data/ghosting-model.json`** (not optional heuristics and not uniform random unless the user explicitly asks for unconstrained randomness). See **`rules.generationContract`** in the same file and **Output Contract For AI** below.
 
 ### Core Rules
 
@@ -465,6 +497,8 @@ If the user gives duration, skill level, or focus constraints, prefer those over
 ## Output Contract For AI
 
 When asked to generate a ghosting workout:
+
+0. **Before writing JSON or a shot table:** satisfy **`rules.generationContract`** in **`data/ghosting-model.json`**: **`shotConstraints`**, **`targetNotation.ballSideContinuity`**, and **`transitions`** (weighted user replies in patterned sequences — see **Shot Transition Weights**). State in the plan one line that these were applied (or cite the exception if the user asked for random / unconstrained replies).
 
 1. Provide a short plan (blocks, durations, intent).
 2. Provide the full workout JSON in v2 format.
