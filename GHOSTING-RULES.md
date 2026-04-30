@@ -14,8 +14,8 @@ Use this document when an AI (or developer) creates or validates squash ghosting
 Read **`rules.generationContract`** in **`data/ghosting-model.json`**. In short:
 
 - **`shotConstraints`** — legal shots and good landing corners.
-- **`targetNotation.ballSideContinuity`** — consecutive beats: ghost landing = user `heading`; ghost striker = prior user landing; width flips only on **`Cross…`**, **`Volley Cross…`**, **`Boast`**, **`Volley Boast`**.
-- **`transitions`** — **must** drive **player reply** choice in any **patterned** sequence (multi-beat rep, rally table, ordered list): map prior user shot to base name (strip leading **`Volley `** per JSON), weight replies by matrix values among legally allowed options. **Do not** ignore the matrix with uniform random picks unless the user explicitly requests unconstrained randomness.
+- **`targetNotation.ballSideContinuity`** — consecutive beats: ghost landing = user `heading`; ghost striker = prior user landing; width flips only on **`Cross…`** and **`Boast`**.
+- **`transitions`** — **must** drive **player reply** choice in any **patterned** sequence (multi-beat rep, rally table, ordered list): look up the prior user shot by its **canonical name** (a row key in the matrix), then weight replies by matrix values among legally allowed options. **Do not** ignore the matrix with uniform random picks unless the user explicitly requests unconstrained randomness.
 
 ## Goal
 
@@ -46,6 +46,8 @@ Produce a complete, importable workout JSON for `squash-tracks` that:
 
 Do not output legacy v1 shape (`name` + `reps` at root with no `segments`).
 
+**Multiple reps in one segment:** each event’s **`start`** is **segment-local on the full part timeline** (editor / playback use `segment start + event.start`). For rep index **`r`** (0-based), add **`cumulativeRepStart = sum(intervalSec of reps 0..r−1)`** to every **`start`** in that rep so cues do not stack at `0` on top of earlier reps. **`intervalSec`** on each rep is that rep’s duration on that same timeline (typically from `0` through last cue end plus any tail before the next rep).
+
 ## Event Rules
 
 - `text` lane event:
@@ -70,17 +72,17 @@ Ghosting workouts use **v2** `segments[].reps[]`. Each **rally beat** is one inc
 
 **Voice slots (ghosting convention)**
 
-- **`voiceSlot: "a"` (Voice A)** — one utterance for the **ghost (Player B)**: shot **and** target location together, e.g. `Drive to 5L`, `Weak lob to 4L`. Link to destination `text` with **sync start** (see below).
-- **`voiceSlot: "b"` (Voice B)** — the **user’s chosen reply shot** only, e.g. `Drive`, `Volley drive` (canonical name; keep it short). Link to the **second** `text` cue with **sync start** when the on-screen label updates to show the reply.
+- **`voiceSlot: "a"` (Voice A)** — the **ghost (Player B) shot** the user must read. Often **`speech`** is **shot + spot** (e.g. `Drive to 5L`). For tighter pacing, Voice A may be **shot name only** (e.g. `Drive`, `Cross Lob`) while destination **`text`** carries the spot in **`heading`** (`5L`, `1R`, …).
+- **`voiceSlot: "b"` (Voice B)** — the **user’s reply**: usually the shot name only (`Drive`, `Cross Drive`). For tighter pacing, **`speech`** may be **spot + shot** (e.g. `1L Cross Drive`) so TTS names station and stroke together; on-screen **`body`** still uses the canonical shot name.
 - **TTS prosody (optional on each `lane: "tts"` event):** **`ttsRate`** and **`ttsPitch`** — `SpeechSynthesisUtterance` values (defaults **1** / **1** if omitted). Typical clamps: rate **`0.25`–`2.5`**, pitch **`0`–`2`**.
 
 | Piece | Lane | Role |
 |-------|------|------|
-| Ghost shot + location | `tts` (`voiceSlot` **`"a"`**) | **`speech`**: **`<ghost shot> to <spot>`** (e.g. `Drive to 5L`). Use `linkedTextElementId` → destination `text`; set `linkedSyncStart: true` on both sides of the pair. |
-| Destination (on stage until Voice B) | `text` | **While the user is moving:** show **destination only** (spot token in `heading`, e.g. `5L`; `body` often `...` until Voice B). **`start`** matches Voice A; **`duration`** runs **until Voice B starts** (not only Voice A’s `duration`). `linkedTtsElementId` → Voice A `tts`; `linkedSyncStart: true`. |
+| Ghost shot (+ optional spot in speech) | `tts` (`voiceSlot` **`"a"`**) | **`speech`**: either **`<ghost shot> to <spot>`** or **`<ghost shot>`** only when the spot lives in destination `text` **`heading`**. Optional **`ttsRate`** / **`ttsPitch`** on the utterance (e.g. slightly faster ghost cue). Editors may link ghost `tts` ↔ destination `text` with `linkedTextElementId` / `linkedTtsElementId` and `linkedSyncStart: true`; workouts may omit links if playback does not require them. |
+| Destination (on stage until Voice B) | `text` | **While the user is moving:** show **destination** (spot in `heading`; `body` often `...` until Voice B). **`start`** matches Voice A; **`duration`** through **`Voice B start`** when Voice B is early (e.g. **`duration` `1.2`** from Voice A **`start`** when Voice B is at **`B[k] + 1.4`**). |
 | Split-step then contact | `sfx` | **`split`** then **`shot`**: split-step beep first, shot beep immediately after. On split events set `sfxSplitSpeed` to `slow`, `medium`, or `fast` per **Split-step speed** below. |
-| User reply — shot (spoken) | `tts` (`voiceSlot` **`"b"`**) | Starts **`0.2` s** after **`shot`** SFX ends. **`speech`** = user shot only. `linkedTextElementId` → user-shot `text`; `linkedSyncStart: true` on both. |
-| User reply — on-screen label | `text` | **When Voice B fires:** same **`start`** as Voice B; **`duration`** matches Voice B. **`body`** = user shot type (canonical name, e.g. `Volley drive`); `heading` may repeat the spot for context. `linkedTtsElementId` → Voice B `tts`; `linkedSyncStart: true`. |
+| User reply — shot (spoken) | `tts` (`voiceSlot` **`"b"`**) | Often **`B[k] + 4.0`** (post-contact) or **`B[k] + 2.0`** / **`B[k] + 1.4`** (earlier while moving). **`speech`**: shot only, or **`\<spot\> \<shot\>`** (e.g. `1L Cross Drive`). |
+| User reply — on-screen label | `text` | Same **`start`** / **`duration`** as Voice B. **`body`** = canonical shot name; **`heading`** repeats the spot. |
 
 ### Incoming ghost shot vs spot depth (ball sense)
 
@@ -92,9 +94,9 @@ Heuristic defaults (tighten or replace with your own matrix later):
 |------------------------------|--------------------|-----------------------------------|
 | Lob, Cross Lob | `4`, `5` | `1` (unless the drill is explicitly a rare front chase on a dying balloon) |
 | **Weak lob** (ghost or user) | **`4`** (good: softer arc than full **Lob**), also `3` when you mean mid-court float | full **`5`** as the default “good” (treat **`5`** as **bad** / full balloon for **Weak lob** per shot table) |
-| Boast, Volley Boast | `1`, `2`, `3` | `5` right after a standard boast |
-| Kill, Cross Kill, Volley Kill, Volley Cross Kill | `2`, `3` | `4`, `5` unless you mean deep recovery after a loose attack |
-| Volley Cross Drive, Volley Drive, Drive, Cross Drive | `3`, `4`, `5` (also `2` when the ball dies mid) | `1` as a lazy default for pressured volley-drive patterns |
+| Boast | `1`, `2`, `3` | `5` right after a standard boast |
+| Kill, Cross Kill | `2`, `3` | `4`, `5` unless you mean deep recovery after a loose attack |
+| Drive, Cross Drive | `3`, `4`, `5` (also `2` when the ball dies mid) | `1` as a lazy default for pressured drive patterns |
 | Drop, Cross Drop | `1`, `2`, `3` | anchoring at `5` unless the ball truly runs deep |
 
 These are **authoring** guides for ghosting spots, not extra columns on the Good/Bad landing table.
@@ -110,18 +112,19 @@ Offsets are **seconds from beat base `B[k]`** on the rep timeline (adjust per dr
 | `split` SFX | `B[k] + 3.1` | `0.5` |
 | `shot` SFX | `B[k] + 3.6` | `0.2` (ends at `B[k] + 3.8`) |
 
-**Flexible TTS:** place Voice A (ghost + target) and Voice B (player reply) where needed; link `tts` ↔ `text` with `linkedTextElementId` / `linkedTtsElementId` and `linkedSyncStart: true`.
+**Flexible TTS:** place Voice A and Voice B where needed; link `tts` ↔ `text` when the editor or import path should keep captions aligned.
 
 **Common Voice B placements:**
 
-| Mode | Voice B start | When to use |
-|------|-----------------|-------------|
-| `post-contact` | `B[k] + 4.0` | Reply after contact (`0.2` s after `shot` ends); destination `text` through `shot` + gap often **`duration` `3.8`** from Voice A `start`. |
-| `pre-contact` | `B[k] + 2.0` | Reply while moving; destination `text` **`duration` `1.8`** from Voice A `start`; `shot` still ends at `B[k] + 3.8`. |
+| Mode | Voice B start | Destination `text` (spot) | When to use |
+|------|-----------------|----------------------------|-------------|
+| `post-contact` | `B[k] + 4.0` | long run through `shot` + gap (often **`duration` `3.8`** from Voice A `start`) | Reply after contact (`0.2` s after `shot` ends). |
+| `pre-contact` | `B[k] + 2.0` | **`duration` `1.8`** from Voice A `start` | Reply while moving; `shot` still ends at `B[k] + 3.8`. |
+| `early-pre-contact` | `B[k] + 1.4` | Destination spot: **`duration` `1.2`** from Voice A `start`. **`UserShotTxt`**: same **`start`** as Voice B, **`duration` `2.4`** so the reply label stays through **`shot`** (ends **`B[k] + 3.8`**). | Tighter cue stack; see **`samples/ghosting-30-shot.json`**. Optional **`vfx`** (e.g. fireworks) at the **`shot`** SFX **end** — same **`start`** as **`ghost` Voice A `start` + 3.6** s when using the usual in-beat offsets (see **`revision.json`** / **`revise.json`** and **`samples/ghosting-30-shot.json`**). |
 
-**Samples:** `samples/ghosting-10-shot.json` uses **pre-contact** Voice B on every beat; **Hard** uses **`B[k+1] = B[k] + 4.9`** between consecutive **`shot`** starts; **Medium** / **Easy** add **`0.1` s** / **`0.2` s** to that stride; **Easy** and **Medium** use **`transition`: `"manual"`** with **`manualTransitionHeader`**; **Hard** is automatic; each Ghost+loc Voice A sets **`milestone`: `true`**. `first-two.json` mixes **pre-contact** (beats 1–2) then **post-contact** (beat 3+), with **`B[1] = B[0] + 3.8 + 1.3 − 0.2`** from beat 0’s base (do **not** double-count the in-beat offset to `shot` when stacking **`τ`**).
+**Samples:** `samples/ghosting-10-shot.json` uses **pre-contact** Voice B at **`B[k] + 2.0`**. **`samples/ghosting-30-shot.json`** uses **early-pre-contact** Voice B at **`B[k] + 1.4`**, ghost Voice A **shot-only** + **`ttsRate` `1.2`**, destination **`duration` `1.2`**, **`UserShotTxt`** **`duration` `2.4`**, and optional **`vfx`** fireworks on every beat (**`shot`** end = ghost Voice A **`start` + 3.6** s). **Hard** uses **`B[k+1] = B[k] + 4.9`** between consecutive **`shot`** starts; **Medium** / **Easy** add **`0.1` s** / **`0.2` s** to that stride; **Easy** and **Medium** use **`transition`: `"manual"`** with **`manualTransitionHeader`** on the last rep; **Hard** is automatic. `first-two.json` mixes **pre-contact** (beats 1–2) then **post-contact** (beat 3+), with **`B[1] = B[0] + 3.8 + 1.3 − 0.2`** from beat 0’s base (do **not** double-count the in-beat offset to `shot` when stacking **`τ`**).
 
-**Beat tail:** With **post-contact** Voice B, audio through Voice B often ends around **`B[k] + 5.1`**. With **pre-contact**, last SFX in the beat is **`shot`** end at **`B[k] + 3.8`** (Voice B already ended at **`B[k] + 3.1`**).
+**Beat tail:** With **post-contact** Voice B, audio through Voice B often ends around **`B[k] + 5.1`**. With **pre-contact** at **`B[k] + 2.0`**, Voice B often ends around **`B[k] + 3.1`**. With **early-pre-contact** at **`B[k] + 1.4`**, Voice B often ends around **`B[k] + 2.5`**; last SFX in the beat is still **`shot`** end at **`B[k] + 3.8`**.
 
 ### Time to reach spot by target depth
 
@@ -137,7 +140,7 @@ Approximate **seconds for the user to reposition** after **`shot`** contact on t
 
 Use **`τ`** only for the **gap from `shot` end → next Voice A** (next beat’s **`0.2`** lead-in), **not** for stretching split/`shot` inside the beat. Do **not** assume the same table value applies to **ghost feed → user contact** unless you introduce a separate authored constant for that leg.
 
-**Voice B gap (unchanged):** keep **`0.2` s** after **`shot`** SFX **ends** before Voice B starts.
+**Voice B vs `shot` end:** **`post-contact`** mode keeps **`0.2` s** after **`shot`** ends before Voice B. **`pre-contact`** and **`early-pre-contact`** place Voice B **before** `shot` ends (see table above).
 
 ### Split-step speed (`sfxSplitSpeed`) by ghost shot
 
@@ -146,23 +149,14 @@ Set on the **`split`** SFX event for the opponent (ghost) shot that triggered th
 | Ghost shot | `sfxSplitSpeed` |
 |------------|-----------------|
 | Drive | `medium` |
-| Volley Drive | `fast` |
 | Cross Drive | `medium` |
-| Volley Cross Drive | `fast` |
 | Lob | `slow` |
-| Volley Lob | `slow` |
 | Cross Lob | `slow` |
-| Volley Cross Lob | `slow` |
 | Kill | `fast` |
-| Volley Kill | `fast` |
 | Cross Kill | `fast` |
-| Volley Cross Kill | `fast` |
 | Boast | `medium` |
-| Volley Boast | `fast` |
 | Drop | `medium` |
 | Cross Drop | `medium` |
-
-If a `Volley ...` variant is not listed, inherit the speed from the same shot **without** the `Volley` prefix (for example unlisted `Volley Drop` → use `Drop`).
 
 ## Ghosting Design Rules
 
@@ -189,14 +183,12 @@ Use this model when generating shot-pattern instructions in text/TTS:
   - `5` = back of court
 - A full landing token is always **`\<depth\>\<L|R\>`** (for example **`5L`**, **`2R`**). For **same-side vs cross** you may use **striker POV** (ghost row vs user row) **or**, for some tables, a **single fixed court frame** so consecutive rows chain (see **Continuous rally tables** below).
 - Shots whose name includes **`Cross`** intentionally land on the **opposite width** (switch `L` ↔ `R` at the target depth) from the striker’s side at contact.
-- **`Boast`** (and **`Volley Boast`**) behave like a **cross-court width change** for target choice even though **`Cross`** does not appear in the name — same semantics as **`Boast`** in **`ghosting-model.json`** (`"side": "cross"` on the good target).
-- `Volley` is an optional modifier for any shot and does not change side/depth legality.
-- `Volley` variants inherit the same Good/Bad/Invalid targets as their base shot (including cross side-switch rules).
+- **`Boast`** behaves like a **cross-court width change** for target choice even though **`Cross`** does not appear in the name — same semantics as **`Boast`** in **`ghosting-model.json`** (`"side": "cross"` on the good target).
 
 ### Same-side vs cross-court (striker POV)
 
 - **Same-side rule:** If the shot is **not** in the **width-changing** set below, the landing **`\<depth\>\<L|R\>`** must use the **same** `L` or `R` as the striker’s contact cell (in the POV you chose for that row). Example: a straight **`Drive`** from **`5R`** stays on **`R`** at the back (**`5R`**), not **`5L`**.
-- **Width-changing shots (opposite `L`/`R` at the target depth vs striker at contact):** any canonical name starting with **`Cross`**, plus **`Volley Cross …`**, plus **`Boast`** / **`Volley Boast`** ( **`Boast` implies cross** for width even without **`Cross`** in the name).
+- **Width-changing shots (opposite `L`/`R` at the target depth vs striker at contact):** any canonical name starting with **`Cross`**, plus **`Boast`** (**`Boast` implies cross** for width even without **`Cross`** in the name).
 
 ### `X` in `ghosting-model.json` vs rally tables
 
@@ -235,8 +227,8 @@ Use **one fixed court** for width letters **`L`** and **`R`** (ball and striker 
 1. **Striker width:** Every shot (ghost or player) is played from a striker width **`L`** or **`R`** in that frame.
 
 2. **Ball landing width after the shot:**
-   - Names starting with **`Cross`** or **`Volley Cross`** may switch ball width: **`L` → `R`** or **`R` → `L`**.
-   - **`Boast`** and **`Volley Boast`** imply the same width switch (**treat as cross** for ball width).
+   - Names starting with **`Cross`** may switch ball width: **`L` → `R`** or **`R` → `L`**.
+   - **`Boast`** implies the same width switch (**treat as cross** for ball width).
    - **All other** canonical names keep ball width unchanged: **`L` → `L`**, **`R` → `R`**. They **cannot** switch sides by this rule.
 
 3. **Beat linkage (ghosting JSON):**
@@ -264,7 +256,7 @@ For a **shot-by-shot** log where **every** row is one stroke in time order (alte
 
 Per-row **same-side vs width-changing** rules still use **that row’s striker** at the **Striking location** cell for that row.
 
-**Length drives (`Drive`, `Volley Drive`):** for ghosting tables, treat **good length** as **back half** targets — typically **depth `4` or `5`** on the striker’s side (not a shallow **depth `3`** landing when stroking from **`2`** or deeper unless the drill explicitly labels a dying mid-court drive).
+**Length drives (`Drive`):** for ghosting tables, treat **good length** as **back half** targets — typically **depth `4` or `5`** on the striker’s side (not a shallow **depth `3`** landing when stroking from **`2`** or deeper unless the drill explicitly labels a dying mid-court drive).
 
 ### Shot Constraints
 
@@ -306,16 +298,16 @@ Use this as a **single** checklist when an AI generates ghosting workouts, **ral
 | Topic | Rule |
 |-------|------|
 | **Source of truth** | **`ghosting-model.json`** wins on conflicts; update this **`.md`** in the same edit when the model changes. |
-| **Width-changing shots** | **`Cross …`**, **`Volley Cross …`**, **`Boast`** / **`Volley Boast`** — landing **width** is **opposite** striker at contact for the target depth; all others keep **same** `L`/`R`. |
+| **Width-changing shots** | **`Cross …`** and **`Boast`** — landing **width** is **opposite** striker at contact for the target depth; all others keep **same** `L`/`R`. |
 | **Human tokens** | Use only **`dL`** / **`dR`** in tables and user-facing headings — **never** **`dX`** as a literal corner ( **`X`** is model shorthand only). |
 | **Mirror vs cross** | Default **ghost strike ↔ user receive** mirror is **not** a cross-court shot; do not flag it as an `L`→`R` violation across POVs (see **Mirror vs cross-court**). |
 | **Rally table (per-row POV)** | Optional layout: ghost rows **ghost POV**, user rows **user POV**; same-side / width-changing per that row’s striker. |
 | **Continuous shot log** | One fixed court frame; **`Striking` on row *N*** = **`Destination` on row *N*−1** (exact string); same-side / width-changing per row striker (see **Continuous rally tables**). |
-| **Length drives** | **`Drive`** / **`Volley Drive`**: prefer **depth `4` or `5`** on the striker’s side for **length**; avoid shallow **`3`** from **`2`** or deeper unless the drill names a dying mid-court drive. |
+| **Length drives** | **`Drive`**: prefer **depth `4` or `5`** on the striker’s side for **length**; avoid shallow **`3`** from **`2`** or deeper unless the drill names a dying mid-court drive. |
 | **Weak lob** | Good **depth `4`** same side, not full **`5`**; **ghost may always use `Weak lob`** as an incoming feed (see **Ghost weak variants** above). |
 | **JSON workouts** | **`heading`** for the ghost phase is usually **user receive** (user POV); Voice A wording may still use that convention (see **Imported workouts** under **Mirror vs cross-court**). |
-| **Ball-side chain** | User **`heading`** = ghost landing; ghost striker = prior user landing; **`L`/`R`** width flips only on **`Cross…`**, **`Volley Cross…`**, **`Boast`**, **`Volley Boast`**; see **Ball-side continuity** and **`ballSideContinuity`** in **`ghosting-model.json`**. |
-| **User reply weights** | **`transitions`** matrix **must** govern player reply choice in patterned sequences (strip **`Volley `** for lookup per JSON); see **`rules.generationContract`** and **Shot Transition Weights**. |
+| **Ball-side chain** | User **`heading`** = ghost landing; ghost striker = prior user landing; **`L`/`R`** width flips only on **`Cross…`** and **`Boast`**; see **Ball-side continuity** and **`ballSideContinuity`** in **`ghosting-model.json`**. |
+| **User reply weights** | **`transitions`** matrix **must** govern player reply choice in patterned sequences (prior shot name = matrix row key); see **`rules.generationContract`** and **Shot Transition Weights**. |
 
 ## Shot Transition Weights (Player-To-Ghost)
 
@@ -323,7 +315,6 @@ Use this as a **single** checklist when an AI generates ghosting workouts, **ral
 
 ### Core Rules
 
-- `Player A: Volley X` uses exactly the same response weights as `Player A: X`.
 - When roles flip, reuse this same table (the model is symmetric for Player A vs Player B turns).
 - Omitted responses are implicit weight `0`.
 - Higher weight means more likely (`10` strongest, `1` weakest).
@@ -337,28 +328,22 @@ Use these spellings in prompts or machine-readable exports:
 - `Drop`, `Cross Drop`
 - `Lob`, `Cross Lob`
 - `Kill`, `Cross Kill`
-- optional `Volley ` prefix on any shot
 
 ### Transition Matrix
+
+Weights below match **`data/ghosting-model.json`** (each cell weight is in **`1`…`10`**).
 
 #### Player A: Drive
 
 | Player B | Weight |
 |----------|--------|
 | Drive | 10 |
-| Volley Drive | 7 |
-| Cross Drive | 7 |
-| Volley Cross Drive | 6 |
-| Boast | 3 |
-| Volley Boast | 2 |
-| Cross Lob | 6 |
-| Volley Cross Lob | 5 |
-| Kill | 5 |
-| Volley Kill | 6 |
-| Cross Kill | 2 |
-| Volley Cross Kill | 1 |
-| Drop | 3 |
-| Volley Drop | 2 |
+| Cross Drive | 10 |
+| Boast | 5 |
+| Cross Lob | 10 |
+| Kill | 10 |
+| Cross Kill | 3 |
+| Drop | 5 |
 
 #### Player A: Boast
 
@@ -376,24 +361,15 @@ Use these spellings in prompts or machine-readable exports:
 
 | Player B | Weight |
 |----------|--------|
-| Drive | 8 |
-| Volley Drive | 8 |
-| Cross Drive | 8 |
-| Volley Cross Drive | 7 |
-| Boast | 2 |
-| Volley Boast | 2 |
-| Drop | 5 |
-| Volley Drop | 7 |
-| Cross Drop | 1 |
-| Volley Cross Drop | 5 |
-| Lob | 3 |
-| Volley Lob | 4 |
-| Cross Lob | 5 |
-| Volley Cross Lob | 5 |
-| Kill | 6 |
-| Volley Kill | 7 |
-| Cross Kill | 3 |
-| Volley Cross Kill | 4 |
+| Drive | 10 |
+| Cross Drive | 10 |
+| Boast | 4 |
+| Drop | 10 |
+| Cross Drop | 6 |
+| Lob | 7 |
+| Cross Lob | 10 |
+| Kill | 10 |
+| Cross Kill | 7 |
 
 #### Player A: Drop
 
@@ -422,38 +398,25 @@ Use these spellings in prompts or machine-readable exports:
 
 | Player B | Weight |
 |----------|--------|
-| Drive | 3 |
-| Volley Drive | 8 |
-| Cross Drive | 3 |
-| Volley Cross Drive | 7 |
-| Boast | 3 |
-| Volley Boast | 1 |
-| Lob | 3 |
-| Volley Lob | 7 |
-| Cross Lob | 3 |
-| Volley Cross Lob | 7 |
-| Kill | 2 |
-| Volley Kill | 7 |
-| Cross Kill | 1 |
-| Volley Cross Kill | 6 |
+| Drive | 10 |
+| Cross Drive | 10 |
+| Boast | 4 |
+| Lob | 10 |
+| Cross Lob | 10 |
+| Kill | 9 |
+| Cross Kill | 7 |
 
 #### Player A: Cross Lob
 
 | Player B | Weight |
 |----------|--------|
-| Drive | 3 |
-| Volley Drive | 10 |
-| Cross Drive | 2 |
-| Volley Cross Drive | 9 |
+| Drive | 10 |
+| Cross Drive | 10 |
 | Boast | 3 |
-| Lob | 2 |
-| Volley Lob | 7 |
-| Cross Lob | 2 |
-| Volley Cross Lob | 7 |
-| Kill | 3 |
-| Volley Kill | 5 |
-| Cross Kill | 1 |
-| Volley Cross Kill | 2 |
+| Lob | 9 |
+| Cross Lob | 9 |
+| Kill | 8 |
+| Cross Kill | 3 |
 
 #### Player A: Kill
 
